@@ -13,10 +13,11 @@ struct ContentView: View {
     @AppStorage("appearance") private var appearance: AppAppearance = .system
     @Environment(\.scenePhase) private var scenePhase
     @State private var sharedImport: SharedImport?
+    @State private var shareDrafts = RecipeImportDrafts()
 
     private struct SharedImport: Identifiable {
         let id: String
-        let item: SharedInbox.Item
+        let item: RecipeImport
     }
 
     init(store: HouseholdStore = HouseholdStore()) {
@@ -69,7 +70,7 @@ struct ContentView: View {
         .onChange(of: store.phase) { _, _ in openNextShare() }
         .sheet(item: $sharedImport, onDismiss: openNextShare) { share in
             // Sheets attached out here sit outside the `.environment` modifiers above.
-            SharedRecipeImportView(item: share.item)
+            RecipeImportView(start: .content(share.item), drafts: $shareDrafts)
                 .environment(store)
                 .onAppear { SharedInbox.remove(share.id) }
         }

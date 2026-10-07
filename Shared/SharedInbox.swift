@@ -5,13 +5,6 @@ import Foundation
 nonisolated enum SharedInbox {
     static let appGroup = "group.owenvey.calendish-ios"
 
-    enum Item {
-        case link(URL)
-        case text(String)
-        case images([Data])
-        case pdf(Data)
-    }
-
     private struct Manifest: Codable {
         var kind: String
         var value: String?
@@ -23,7 +16,7 @@ nonisolated enum SharedInbox {
             .appending(path: "Inbox", directoryHint: .isDirectory)
     }
 
-    static func save(_ item: Item) throws {
+    static func save(_ item: RecipeImport) throws {
         guard let directory else { throw CocoaError(.fileNoSuchFile) }
         // Sorting by name keeps shares in order, and the manifest is written last so a half-saved share is never read.
         let folder = directory.appending(path: "\(Int(Date().timeIntervalSince1970 * 1000))-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -44,7 +37,7 @@ nonisolated enum SharedInbox {
 
     /// The oldest share, left in the inbox until `remove` so it isn't lost if it never gets shown.
     /// Shares that can't be read are discarded.
-    static func next() -> (id: String, item: Item)? {
+    static func next() -> (id: String, item: RecipeImport)? {
         guard let directory,
               let folders = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else { return nil }
         for folder in folders.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {

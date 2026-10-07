@@ -3,6 +3,7 @@ import UIKit
 import SafariServices
 import PhotosUI
 import VisionKit
+import UniformTypeIdentifiers
 
 struct RecipeBookView: View {
     @Environment(HouseholdStore.self) private var store
@@ -12,20 +13,19 @@ struct RecipeBookView: View {
     @State private var alphabetical = false
     @State private var favoritesOnly = false
     @State private var sheet: RecipeSheet?
-    @State private var recipeLink = ""
-    @State private var recipeText = ""
+    @State private var importDrafts = RecipeImportDrafts()
     @State private var showPhotoPicker = false
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var showScanner = false
     @State private var scannedPages: [Data] = []
-    @State private var showPDFPicker = false
-    @State private var pdfData: Data?
-    @State private var pdfError: String?
+    @State private var showFilePicker = false
+    @State private var fileError: String?
     @State private var recipeToDelete: Recipe?
     @State private var confirmDelete = false
-    private enum RecipeSheet: String, Identifiable {
-        case manual, link, text, photos, scan, pdf
-        var id: Self { self }
+    private enum RecipeSheet: Identifiable {
+        case manual
+        case importing(RecipeImportView.Start)
+        var id: String { if case .manual = self { "manual" } else { "import" } }
     }
     private var filteredRecipes: [Recipe] {
         let recipes = store.recipes.filter { recipe in
@@ -97,15 +97,15 @@ struct RecipeBookView: View {
                 Menu {
                     Button("Add Manually", systemImage: "square.and.pencil") { sheet = .manual }
                     Section {
-                        Button("From Link", systemImage: "link") { sheet = .link }
+                        Button("Import from Link", systemImage: "link") { sheet = .importing(.link) }
+                        Button("Paste Recipe Text", systemImage: "doc.on.clipboard") { sheet = .importing(.text) }
                     }
-                    Section("Smart Import") {
+                    Section {
                         if VNDocumentCameraViewController.isSupported {
-                            Button("From Camera", systemImage: "camera") { showScanner = true }
+                            Button("Scan with Camera", systemImage: "doc.viewfinder") { showScanner = true }
                         }
-                        Button("From Photos", systemImage: "photo") { showPhotoPicker = true }
-                        Button("From Text", systemImage: "text.alignleft") { sheet = .text }
-                        Button("From PDF", systemImage: "doc.richtext") { showPDFPicker = true }
+                        Button("Choose from Photos", systemImage: "photo.on.rectangle") { showPhotoPicker = true }
+                        Button("Choose File", systemImage: "folder") { showFilePicker = true }
                     }
                 } label: { Label("Add recipe", systemImage: "plus") }
             }
@@ -120,368 +120,48 @@ struct RecipeBookView: View {
         } message: { _ in
             Text("This deletes the recipe and any meals planned with it for your household. Grocery items will stay on your list. This can’t be undone.")
         }
+        // Drop a link, text, images, or a PDF from another app, as on iPad.
+        .dropDestination(for: RecipeImport.self) { items, _ in
+            guard let item = RecipeImport.combined(items) else { return false }
+            sheet = .importing(.content(item))
+            return true
+        }
         .photosPicker(isPresented: $showPhotoPicker, selection: $photoItems, maxSelectionCount: 10, selectionBehavior: .ordered, matching: .images, preferredItemEncoding: .compatible)
         .onChange(of: photoItems) { _, items in
-            if !items.isEmpty { sheet = .photos }
+            guard !items.isEmpty else { return }
+            sheet = .importing(.photos(items))
+            photoItems = []
         }
-        .fullScreenCover(isPresented: $showScanner, onDismiss: { if !scannedPages.isEmpty { sheet = .scan } }) {
+        .fullScreenCover(isPresented: $showScanner, onDismiss: {
+            guard !scannedPages.isEmpty else { return }
+            sheet = .importing(.content(.images(scannedPages)))
+            scannedPages = []
+        }) {
             DocumentScanner { scannedPages = $0 }.ignoresSafeArea()
         }
-        .fileImporter(isPresented: $showPDFPicker, allowedContentTypes: [.pdf]) { result in
-            guard case .success(let url) = result else { return }
-            let isScoped = url.startAccessingSecurityScopedResource()
-            defer { if isScoped { url.stopAccessingSecurityScopedResource() } }
+        .fileImporter(isPresented: $showFilePicker, allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { result in
+            guard case .success(let urls) = result else { return }
             do {
-                pdfData = try Data(contentsOf: url)
-                sheet = .pdf
+                let items = try urls.map { url -> RecipeImport in
+                    let isScoped = url.startAccessingSecurityScopedResource()
+                    defer { if isScoped { url.stopAccessingSecurityScopedResource() } }
+                    let data = try Data(contentsOf: url)
+                    return UTType(filenameExtension: url.pathExtension)?.conforms(to: .pdf) == true ? .pdf(data) : .images([data])
+                }
+                if let item = RecipeImport.combined(items) { sheet = .importing(.content(item)) }
             } catch {
-                pdfError = error.localizedDescription
+                fileError = error.localizedDescription
             }
         }
-        .alert("Couldn’t Open PDF", isPresented: Binding(get: { pdfError != nil }, set: { if !$0 { pdfError = nil } })) {
+        .alert("Couldn’t Open File", isPresented: Binding(get: { fileError != nil }, set: { if !$0 { fileError = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(pdfError ?? "")
+            Text(fileError ?? "")
         }
-        .sheet(item: $sheet, onDismiss: { photoItems = []; scannedPages = []; pdfData = nil }) { destination in
+        .sheet(item: $sheet) { destination in
             switch destination {
             case .manual: RecipeEditorView()
-            case .link: RecipeLinkView(recipeLink: $recipeLink)
-            case .text: RecipeTextView(recipeText: $recipeText)
-            case .photos: RecipeDocumentImportView(source: .photos(photoItems), recipeText: $recipeText)
-            case .scan: RecipeDocumentImportView(source: .scan(scannedPages), recipeText: $recipeText)
-            case .pdf: RecipeDocumentImportView(source: .pdf(pdfData ?? Data()), recipeText: $recipeText)
-            }
-        }
-    }
-}
-
-/// Imports a recipe shared from another app through the share extension, using the matching import screen.
-struct SharedRecipeImportView: View {
-    let item: SharedInbox.Item
-    @State private var recipeLink = ""
-    @State private var recipeText = ""
-
-    init(item: SharedInbox.Item) {
-        self.item = item
-        if case .link(let url) = item { _recipeLink = State(initialValue: url.absoluteString) }
-        if case .text(let text) = item { _recipeText = State(initialValue: text) }
-    }
-
-    var body: some View {
-        switch item {
-        case .link: RecipeLinkView(recipeLink: $recipeLink, startsImmediately: true)
-        case .text: RecipeTextView(recipeText: $recipeText, startsImmediately: true)
-        case .images(let images): RecipeDocumentImportView(source: .images(images), recipeText: $recipeText)
-        case .pdf(let data): RecipeDocumentImportView(source: .pdf(data), recipeText: $recipeText)
-        }
-    }
-}
-
-/// Reads the recipe in screenshots, photos, scanned pages, or a PDF, then hands it to the editor to review.
-/// When the text can't be parsed, it can be fixed up in the text import instead.
-private struct RecipeDocumentImportView: View {
-    enum Source {
-        case photos([PhotosPickerItem])
-        case images([Data])
-        case scan([Data])
-        case pdf(Data)
-    }
-    @Environment(\.dismiss) private var dismiss
-    let source: Source
-    @Binding var recipeText: String
-    @State private var imported: ImportedRecipe?
-    @State private var errorMessage: String?
-    @State private var recognizedText: String?
-    @State private var editingText = false
-
-    private var title: String {
-        switch source {
-        case .photos, .images: "Add from photos"
-        case .scan: "Add from scan"
-        case .pdf: "Add from PDF"
-        }
-    }
-    private var progressTitle: String {
-        switch source {
-        case .photos(let items): items.count == 1 ? "Reading photo…" : "Reading \(items.count) photos…"
-        case .images(let images): images.count == 1 ? "Reading photo…" : "Reading \(images.count) photos…"
-        case .scan(let pages): pages.count == 1 ? "Reading page…" : "Reading \(pages.count) pages…"
-        case .pdf: "Reading PDF…"
-        }
-    }
-
-    private func read() async {
-        do {
-            let text: String
-            switch source {
-            case .photos(let items):
-                var images: [Data] = []
-                for item in items {
-                    if let data = try await item.loadTransferable(type: Data.self) { images.append(data) }
-                }
-                text = try await RecipeImageImporter.text(in: images)
-            case .images(let images), .scan(let images):
-                text = try await RecipeImageImporter.text(in: images)
-            case .pdf(let data):
-                text = try await RecipePDFImporter.text(in: data)
-            }
-            recognizedText = text
-            imported = try await RecipeTextImporter.parse(text)
-        } catch {
-            guard !Task.isCancelled else { return }
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    var body: some View {
-        Group {
-            if let imported {
-                RecipeEditorView(imported: imported)
-            } else if editingText {
-                RecipeTextView(recipeText: $recipeText)
-            } else {
-                NavigationStack {
-                    Group {
-                        if let errorMessage {
-                            ContentUnavailableView {
-                                Label("Couldn’t Read Recipe", systemImage: "text.viewfinder")
-                            } description: {
-                                Text(errorMessage)
-                            } actions: {
-                                if let recognizedText {
-                                    Button("Edit Text") {
-                                        recipeText = recognizedText
-                                        editingText = true
-                                    }
-                                    .modifier(GlassActionStyle(prominent: true))
-                                }
-                            }
-                        } else {
-                            ProgressView(progressTitle)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .navigationTitle(title)
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel", role: .cancel) { dismiss() }.toolbarGlyph()
-                        }
-                    }
-                }
-            }
-        }
-        .presentationDetents(imported == nil && !editingText ? [.medium] : [.large])
-        .presentationDragIndicator(.visible)
-        .task { await read() }
-    }
-}
-
-private struct RecipeTextView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Binding var recipeText: String
-    /// Starts importing right away, for text shared from another app.
-    var startsImmediately = false
-    @State private var imported: ImportedRecipe?
-    @State private var importTask: Task<Void, Never>?
-    @State private var importing = false
-    @State private var errorMessage: String?
-    private var hasText: Bool { !recipeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-
-    private func startImport() {
-        guard hasText, !importing else { return }
-        importing = true
-        errorMessage = nil
-        importTask = Task {
-            defer { importing = false }
-            do {
-                let result = try await RecipeTextImporter.parse(recipeText)
-                try Task.checkCancellation()
-                imported = result
-            } catch {
-                guard !Task.isCancelled else { return }
-                errorMessage = error.localizedDescription
-            }
-        }
-    }
-
-    var body: some View {
-        Group {
-            if let imported {
-                RecipeEditorView(imported: imported)
-            } else {
-                textForm
-            }
-        }
-        .presentationDragIndicator(.visible)
-        .onDisappear { importTask?.cancel() }
-        .task { if startsImmediately { startImport() } }
-    }
-
-    private var textForm: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextEditor(text: $recipeText)
-                        .frame(minHeight: 240)
-                        .accessibilityLabel("Recipe text")
-                        .disabled(importing)
-                        .overlay(alignment: .topLeading) {
-                            if recipeText.isEmpty {
-                                Text("Paste a recipe")
-                                    .foregroundStyle(.tertiary)
-                                    .padding(.top, 8)
-                                    .padding(.leading, 5)
-                                    .allowsHitTesting(false)
-                            }
-                        }
-                } header: {
-                    HStack {
-                        Text("Recipe Text")
-                        Spacer()
-                        PasteButton(payloadType: String.self) { strings in
-                            Task { @MainActor in recipeText = strings.joined(separator: "\n") }
-                        }
-                        .labelStyle(.titleAndIcon)
-                        .buttonBorderShape(.capsule)
-                        .controlSize(.small)
-                        .disabled(importing)
-                    }
-                } footer: {
-                    Text("Copy a recipe from a website, note, or message, including its ingredients and instructions.")
-                }
-                Section {
-                    Button(action: startImport) {
-                        HStack {
-                            if importing { ProgressView().tint(CalendishStyle.onAccent) }
-                            Text(importing ? "Reading Recipe…" : "Import")
-                        }
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: 36)
-                    }
-                    .disabled(!hasText || importing)
-                    .modifier(GlassActionStyle(prominent: true))
-                    .controlSize(.large)
-                }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-                if let errorMessage {
-                    Section {
-                        Text(errorMessage).foregroundStyle(.red)
-                    }
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .contentMargins(.top, 12, for: .scrollContent)
-            .listSectionSpacing(16)
-            .navigationTitle("Add from text")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", role: .cancel) { dismiss() }.toolbarGlyph()
-                }
-                if !recipeText.isEmpty {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button("Clear", systemImage: "xmark.circle") { recipeText = ""; errorMessage = nil }
-                            .toolbarGlyph()
-                            .disabled(importing)
-                    }
-                }
-            }
-        }
-    }
-}
-
-private struct RecipeLinkView: View {
-    @Environment(\.dismiss) private var dismiss
-    @Binding var recipeLink: String
-    /// Starts importing right away, for a link shared from another app.
-    var startsImmediately = false
-    @State private var imported: ImportedRecipe?
-    @State private var importTask: Task<Void, Never>?
-    @State private var importing = false
-    @State private var errorMessage: String?
-    private var validURL: URL? { RecipeLinkImporter.validatedURL(recipeLink) }
-
-    private func startImport() {
-        guard let url = validURL, !importing else { return }
-        importing = true
-        errorMessage = nil
-        importTask = Task {
-            defer { importing = false }
-            do {
-                let result = try await RecipeLinkImporter.fetch(url)
-                try Task.checkCancellation()
-                imported = result
-            } catch {
-                guard !Task.isCancelled else { return }
-                errorMessage = error.localizedDescription
-            }
-        }
-    }
-
-    var body: some View {
-        Group {
-            if let imported {
-                RecipeEditorView(imported: imported)
-            } else {
-                linkForm
-            }
-        }
-        .presentationDetents(imported == nil ? [.medium, .large] : [.large])
-        .presentationDragIndicator(.visible)
-        .onDisappear { importTask?.cancel() }
-        .task { if startsImmediately { startImport() } }
-    }
-
-    private var linkForm: some View {
-        NavigationStack {
-            Form {
-                Section {
-                        TextField("https://example.com/recipe", text: $recipeLink)
-                            .keyboardType(.URL)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .accessibilityLabel("Recipe URL")
-                            .submitLabel(.go)
-                            .onSubmit(startImport)
-                            .disabled(importing)
-                } header: {
-                    Text("Recipe URL")
-                } footer: {
-                    Text("Paste a link to a recipe.")
-                }
-                Section {
-                    Button(action: startImport) {
-                        HStack {
-                            if importing { ProgressView().tint(CalendishStyle.onAccent) }
-                            Text(importing ? "Importing…" : "Import")
-                        }
-                        .font(.headline)
-                        .frame(maxWidth: .infinity, minHeight: 36)
-                    }
-                    .disabled(validURL == nil || importing)
-                    .modifier(GlassActionStyle(prominent: true))
-                    .controlSize(.large)
-                }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-                if let errorMessage {
-                    Section {
-                        Text(errorMessage).foregroundStyle(.red)
-                    }
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .contentMargins(.top, 12, for: .scrollContent)
-            .listSectionSpacing(16)
-            .navigationTitle("Add from link")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", role: .cancel) { dismiss() }.toolbarGlyph()
-                }
+            case .importing(let start): RecipeImportView(start: start, drafts: $importDrafts)
             }
         }
     }

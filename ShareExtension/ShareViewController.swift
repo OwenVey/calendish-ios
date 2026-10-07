@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import UniformTypeIdentifiers
 
 /// The share sheet entry point. It saves what was shared to the inbox and closes; the app imports it next time it's open.
 final class ShareViewController: UIViewController {
@@ -33,39 +32,19 @@ final class ShareViewController: UIViewController {
         extensionContext?.completeRequest(returningItems: nil)
     }
 
-    /// The most useful thing shared: a PDF or images over the link to the page they came from, and a link over plain text.
-    private static func item(from providers: [NSItemProvider]) async throws -> SharedInbox.Item {
-        if let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.pdf.identifier) }) {
-            return .pdf(try await data(from: provider, type: .pdf))
+    /// Loads each attachment the same way the app loads pasted and dropped content, then keeps the most useful.
+    private static func item(from providers: [NSItemProvider]) async throws -> RecipeImport {
+        var items: [RecipeImport] = []
+        for provider in providers {
+            if let item = try? await load(provider) { items.append(item) }
         }
-        let imageProviders = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.image.identifier) }
-        if !imageProviders.isEmpty {
-            var images: [Data] = []
-            for provider in imageProviders.prefix(10) { images.append(try await data(from: provider, type: .image)) }
-            return .images(images)
-        }
-        for provider in providers where provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
-            let item = try await provider.loadItem(forTypeIdentifier: UTType.url.identifier)
-            if let url = (item as? URL) ?? (item as? Data).flatMap({ URL(dataRepresentation: $0, relativeTo: nil) }),
-               ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
-                return .link(url)
-            }
-        }
-        if let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.plainText.identifier) }),
-           let text = try await provider.loadItem(forTypeIdentifier: UTType.plainText.identifier) as? String {
-            // Some apps share a link as plain text.
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let url = URL(string: trimmed), ["http", "https"].contains(url.scheme?.lowercased() ?? ""), url.host != nil { return .link(url) }
-            return .text(text)
-        }
-        throw CocoaError(.featureUnsupported)
+        guard let item = RecipeImport.combined(items) else { throw CocoaError(.featureUnsupported) }
+        return item
     }
 
-    private static func data(from provider: NSItemProvider, type: UTType) async throws -> Data {
+    private static func load(_ provider: NSItemProvider) async throws -> RecipeImport {
         try await withCheckedThrowingContinuation { continuation in
-            _ = provider.loadDataRepresentation(for: type) { data, error in
-                if let data { continuation.resume(returning: data) } else { continuation.resume(throwing: error ?? CocoaError(.fileReadUnknown)) }
-            }
+            _ = provider.loadTransferable(type: RecipeImport.self) { continuation.resume(with: $0) }
         }
     }
 }

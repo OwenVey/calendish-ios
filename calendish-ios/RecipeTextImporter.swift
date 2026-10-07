@@ -32,6 +32,9 @@ enum RecipeTextImporter {
 
     @Generable
     nonisolated struct ParsedRecipe {
+        // Generated first, so the model can decline before it starts writing ingredients.
+        @Guide(description: "Whether the text contains a recipe with its ingredients. False for anything else, such as a message or a list of plans.")
+        var containsRecipe: Bool
         @Guide(description: "The recipe's name.")
         var title: String
         @Guide(description: "A one or two sentence description of the dish taken from the text, not its servings or times, or empty.")
@@ -60,7 +63,7 @@ enum RecipeTextImporter {
         let parsed = response.content
         let ingredients = parsed.ingredients.map(cleanLine).filter { !$0.isEmpty }
         let steps = parsed.steps.map(cleanLine).filter { !$0.isEmpty }
-        guard !ingredients.isEmpty, !steps.isEmpty else { return nil }
+        guard parsed.containsRecipe, !ingredients.isEmpty, !steps.isEmpty, isGrounded(ingredients, in: text) else { return nil }
         let yield = parsed.yield.trimmingCharacters(in: .whitespacesAndNewlines)
         return Recipe(title: parsed.title.trimmingCharacters(in: .whitespacesAndNewlines),
                       summary: parsed.summary.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -69,6 +72,15 @@ enum RecipeTextImporter {
                       tags: [], symbol: "fork.knife",
                       ingredients: ingredients.map { Ingredient(text: $0) }, steps: steps,
                       yieldText: yield.isEmpty ? nil : yield)
+    }
+
+    /// The model can invent a whole recipe from unrelated text, so most ingredients must share a word with it.
+    private static func isGrounded(_ ingredients: [String], in text: String) -> Bool {
+        let source = text.lowercased()
+        let found = ingredients.filter { line in
+            line.lowercased().split(whereSeparator: { !$0.isLetter }).contains { $0.count >= 4 && source.contains($0) }
+        }
+        return found.count * 2 >= ingredients.count
     }
 
     /// The model's context is small, so long pages are trimmed to the part around the ingredients.

@@ -9,8 +9,8 @@
 /* Begin PBXBuildFile section */
 		05BDE7703072DA7C00C5B9A0 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 05BDE7713072DA7C00C5B9A0 /* Supabase */; };
 		05BDE7733072DA7C00C5B9A0 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 05BDE7743072DA7C00C5B9A0 /* GoogleSignIn */; };
-		CA1E0D150000000000000002 /* design/Calendish.icon in Resources */ = {isa = PBXBuildFile; fileRef = CA1E0D150000000000000001 /* design/Calendish.icon */; };
 		5E0A11CE000000000000000C /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5E0A11CE0000000000000002 /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		CA1E0D150000000000000002 /* design/Calendish.icon in Resources */ = {isa = PBXBuildFile; fileRef = CA1E0D150000000000000001 /* design/Calendish.icon */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -26,28 +26,25 @@
 /* Begin PBXCopyFilesBuildPhase section */
 		5E0A11CE000000000000000B /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
 			dstPath = "";
-			dstSubfolderSpec = 13;
+			dstSubfolder = PlugIns;
 			files = (
 				5E0A11CE000000000000000C /* ShareExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		05BDE75C3072DA7B00C5B9A0 /* calendish-ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "calendish-ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		CA1E0D150000000000000001 /* design/Calendish.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = design/Calendish.icon; sourceTree = "<group>"; };
 		5E0A11CE0000000000000002 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		CA1E0D150000000000000001 /* design/Calendish.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = design/Calendish.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		05BDE7763072DA7C00C5B9A0 /* Exceptions for "calendish-ios" folder in "calendish-ios" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"calendish-ios.entitlements",
 				Info.plist,
 			);
 			target = 05BDE75B3072DA7B00C5B9A0 /* calendish-ios */;
@@ -56,7 +53,6 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
-				ShareExtension.entitlements,
 			);
 			target = 5E0A11CE0000000000000001 /* ShareExtension */;
 		};
@@ -161,8 +157,6 @@
 				5E0A11CE0000000000000007 /* Resources */,
 			);
 			buildRules = (
-			);
-			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
 				5E0A11CE0000000000000003 /* ShareExtension */,
@@ -375,12 +369,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = Calendish;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "calendish-ios/calendish-ios.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Q97ES87SKW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				CODE_SIGN_ENTITLEMENTS = "calendish-ios/calendish-ios.entitlements";
 				INFOPLIST_FILE = "calendish-ios/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Calendish;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of your recipes.";
@@ -411,12 +405,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = Calendish;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "calendish-ios/calendish-ios.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Q97ES87SKW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				CODE_SIGN_ENTITLEMENTS = "calendish-ios/calendish-ios.entitlements";
 				INFOPLIST_FILE = "calendish-ios/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Calendish;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of your recipes.";
