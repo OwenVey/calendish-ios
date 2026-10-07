@@ -17,6 +17,11 @@
 			</array>
 		</dict>
 	</array>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+	</dict>
 	<key>GIDClientID</key>
 	<string>728572783584-nsnkc0bhchjkcvpek7i8253b627rpng7.apps.googleusercontent.com</string>
 </dict>

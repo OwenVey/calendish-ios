@@ -1,12 +1,26 @@
 {
   "fill" : {
-    "automatic-gradient" : "extended-srgb:0.14118,0.37255,0.28235,1.00000"
+    "linear-gradient" : [
+      "extended-srgb:0.54118,0.79608,0.16471,1.00000",
+      "extended-srgb:0.35294,0.64706,0.06275,1.00000"
+    ],
+    "orientation" : {
+      "start" : {
+        "x" : 0.5,
+        "y" : 0
+      },
+      "stop" : {
+        "x" : 0.5,
+        "y" : 1
+      }
+    }
   },
   "groups" : [
     {
       "layers" : [
         {
-          "glass" : true,
+          "blend-mode" : "normal",
+          "glass" : false,
           "hidden" : false,
           "image-name" : "Fork-and-Knife.svg",
           "name" : "fork.knife (SF Symbols)"

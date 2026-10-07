@@ -12,12 +12,7 @@ struct SignInView: View {
             VStack(spacing: 28) {
                 Color.clear.frame(height: 8)
                 VStack(spacing: 22) {
-                    Image(systemName: "fork.knife")
-                        .font(.system(size: 42, weight: .semibold))
-                        .foregroundStyle(CalendishStyle.onAccent)
-                        .frame(width: 96, height: 96)
-                        .background(CalendishStyle.accent.gradient, in: .rect(cornerRadius: 28))
-                        .accessibilityHidden(true)
+                    BrandIcon(size: 96)
                     VStack(spacing: 8) {
                         Text("Calendish").font(.largeTitle.bold()).fontDesign(.rounded)
                         Text("Plan meals and shop together.").font(.title3).foregroundStyle(.secondary)

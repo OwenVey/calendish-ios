@@ -20,12 +20,13 @@ struct ContentView: View {
     var body: some View {
         Group {
             switch store.phase {
-            case .loading: ProgressView()
+            case .loading: LoadingView()
             case .signedOut: SignInView()
             case .needsHousehold: HouseholdSetupView()
             case .ready: tabs
             }
         }
+        .animation(.easeOut(duration: 0.3), value: store.phase)
         .tint(CalendishStyle.accent)
         .environment(store)
         .environment(timers)
@@ -80,6 +81,21 @@ struct ContentView: View {
             Tab("Settings", systemImage: "gearshape", value: .settings) {
                 NavigationStack { SettingsView() }
             }
+        }
+    }
+}
+
+/// Matches the launch screen (a plain LaunchBackground) so there's no flash, only showing a spinner if loading runs long.
+private struct LoadingView: View {
+    @State private var showSpinner = false
+    var body: some View {
+        ZStack {
+            Color("LaunchBackground").ignoresSafeArea()
+            if showSpinner { ProgressView() }
+        }
+        .task {
+            try? await Task.sleep(for: .seconds(1))
+            showSpinner = true
         }
     }
 }
