@@ -210,7 +210,7 @@ extension Ingredient {
     }
 }
 
-struct Recipe: Identifiable, Hashable {
+struct Recipe: Identifiable, Hashable, Codable {
     var id = UUID()
     var title: String
     var summary: String

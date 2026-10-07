@@ -8,7 +8,9 @@ enum AppTab: Hashable {
 
 struct ContentView: View {
     @State private var store: HouseholdStore
-    @State private var timers = CookingTimers()
+    @State private var timers = CookingTimers.shared
+    @State private var resumedCooking: CookingSession.Snapshot?
+    @State private var resumedChecked: Set<UUID> = []
     @State private var selectedTab: AppTab = .recipes
     @AppStorage("appearance") private var appearance: AppAppearance = .system
     @Environment(\.scenePhase) private var scenePhase
@@ -55,10 +57,20 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity).background(CalendishStyle.surface)
             }
         }
+        .fullScreenCover(item: $resumedCooking) { session in
+            CookModeView(recipe: session.recipe, servings: session.servings, checked: $resumedChecked)
+                .environment(timers)
+        }
         .preferredColorScheme(appearance.colorScheme)
         .task { await store.start() }
         .onOpenURL { url in
-            if url.scheme == "calendish" { supabase.auth.handle(url) }
+            if url.scheme == "calendish", url.host == "cooking" {
+                if let session = CookingSession.shared.snapshot,
+                   url.lastPathComponent == session.id.uuidString, !timers.isCooking {
+                    resumedCooking = session
+                }
+            }
+            else if url.scheme == "calendish" { supabase.auth.handle(url) }
             else { GIDSignIn.sharedInstance.handle(url) }
         }
         .sheet(isPresented: Binding(get: { store.needsPasswordReset }, set: { store.needsPasswordReset = $0 })) { PasswordResetView().environment(store) }

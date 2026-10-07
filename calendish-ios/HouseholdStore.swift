@@ -90,6 +90,7 @@ final class HouseholdStore {
             if let session {
                 // A stored session can start out expired; the client refreshes it and emits again.
                 if session.isExpired { continue }
+                CookingSession.shared.setAccount(session.user.id)
                 if userID != session.user.id {
                     await resetAccountData()
                     userID = session.user.id
@@ -97,6 +98,7 @@ final class HouseholdStore {
                 }
                 if event == .passwordRecovery { needsPasswordReset = true }
             } else {
+                CookingSession.shared.setAccount(nil)
                 await resetAccountData()
                 GIDSignIn.sharedInstance.signOut()
                 userID = nil

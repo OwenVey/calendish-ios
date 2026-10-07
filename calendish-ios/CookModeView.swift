@@ -10,7 +10,14 @@ struct CookModeView: View {
     /// The servings chosen on the recipe page; ingredient quantities scale to match.
     var servings: Int
     @Binding var checked: Set<UUID>
-    @State private var stepIndex = 0
+    private let session = CookingSession.shared
+    private var stepIndex: Int {
+        get { session.snapshot?.recipe.id == recipe.id ? session.stepIndex : 0 }
+        nonmutating set { session.setStep(newValue) }
+    }
+    private var stepSelection: Binding<Int> {
+        Binding(get: { stepIndex }, set: { stepIndex = $0 })
+    }
     @State private var showIngredients = true
     @Environment(CookingTimers.self) private var timerStore
     @Environment(\.dynamicTypeSize) private var typeSize
@@ -59,7 +66,7 @@ struct CookModeView: View {
                             .transition(reduceMotion ? .identity : .move(edge: .leading).combined(with: .opacity))
                     }
                     VStack(spacing: 0) {
-                        TabView(selection: $stepIndex) {
+                        TabView(selection: stepSelection) {
                             ForEach(Array(recipe.steps.enumerated()), id: \.offset) { index, step in
                                 stepPage(step, at: index).tag(index)
                             }
@@ -94,7 +101,7 @@ struct CookModeView: View {
             .navigationTitle(recipe.title).navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(role: .close) { dismiss() }.toolbarGlyph()
+                    Button(role: .close) { session.end(); dismiss() }.toolbarGlyph()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(showIngredients ? "Hide Ingredients" : "Show Ingredients", systemImage: "list.bullet") {
@@ -114,8 +121,12 @@ struct CookModeView: View {
             Button("Done") { }
         } message: { Text(timerFinishedMessage) }
         .onAppear {
+            session.begin(recipe: recipe, servings: servings)
             timerStore.isCooking = true
             UIApplication.shared.isIdleTimerDisabled = keepScreenAwake
+        }
+        .onChange(of: session.snapshot?.id) { _, id in
+            if id == nil { dismiss() }
         }
         .onChange(of: keepScreenAwake) { _, awake in UIApplication.shared.isIdleTimerDisabled = awake }
         .onDisappear {
@@ -153,7 +164,7 @@ struct CookModeView: View {
                 .disabled(stepIndex == 0)
                 Spacer(minLength: 0)
                 Menu {
-                    Picker("Step", selection: $stepIndex) {
+                    Picker("Step", selection: stepSelection) {
                         ForEach(recipe.steps.indices, id: \.self) { index in
                             Text("Step \(index + 1)").tag(index)
                         }
@@ -169,7 +180,7 @@ struct CookModeView: View {
                 .accessibilityHint("Choose a step")
                 Spacer(minLength: 0)
                 if isLastStep {
-                    Button { dismiss() } label: { OnAccentLabel(title: "Finish", systemImage: "checkmark") }
+                    Button { session.end(finished: true); dismiss() } label: { OnAccentLabel(title: "Finish", systemImage: "checkmark") }
                         .controlSize(.large)
                         .modifier(GlassActionStyle(prominent: true))
                 } else {
@@ -297,6 +308,7 @@ struct CookModeView: View {
             VStack(alignment: .leading, spacing: 20) {
                 Text("STEP \(index + 1)").font(.subheadline.weight(.semibold)).tracking(1.4).foregroundStyle(CalendishStyle.accent)
                 RecipeStepText(step: step, recipe: recipe, scale: scale, units: units, onIngredientTap: revealIngredients).font(.title).lineSpacing(6)
+                if let warning = session.activityWarning { Text(warning).font(.footnote).foregroundStyle(.secondary) }
                 if let warning = timerStore.notificationWarning { Text(warning).font(.footnote).foregroundStyle(.secondary) }
                 if let duration = CookTimer.duration(in: step) {
                     if let timer = timers.first(where: { $0.stepIndex == index }) {
@@ -376,20 +388,25 @@ struct CookTimer: Identifiable, Codable {
 /// End dates persist independently of cooking screens; notifications cover background expiration.
 @Observable
 final class CookingTimers {
+    static let shared = CookingTimers()
     private(set) var timers: [CookTimer] = []
     var finished: [CookTimer] = []
     var isCooking = false
     var notificationWarning: String?
+    @ObservationIgnored private(set) var schedulingTask: Task<Void, Never>?
     private let storageKey = "activeCookingTimers"
     init() {
         if let data = UserDefaults.standard.data(forKey: storageKey), let saved = try? JSONDecoder().decode([CookTimer].self, from: data) { timers = saved }
     }
-    private func persist() { UserDefaults.standard.set(try? JSONEncoder().encode(timers), forKey: storageKey) }
+    private func persist() {
+        UserDefaults.standard.set(try? JSONEncoder().encode(timers), forKey: storageKey)
+        CookingSession.shared.refresh()
+    }
     func start(recipe: Recipe, stepIndex: Int, duration: TimeInterval) {
         guard duration > 0 else { return }
         let timer = CookTimer(recipe: recipe, stepIndex: stepIndex, duration: duration)
         timers.append(timer); persist()
-        Task {
+        schedulingTask = Task {
             do {
                 let center = UNUserNotificationCenter.current()
                 let granted = try await center.requestAuthorization(options: [.alert, .sound])
