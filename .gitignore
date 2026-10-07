@@ -1,0 +1,25 @@
+# macOS
+.DS_Store
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# Build output
+build/
+.build/
+DerivedData/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager (Package.resolved under xcshareddata stays tracked)
+.swiftpm/
+/Packages/
+
+# Local secrets
+.env
+.env.*
+!.env.example

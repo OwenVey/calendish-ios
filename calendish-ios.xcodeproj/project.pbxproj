@@ -6,13 +6,31 @@
 	objectVersion = 110;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		05BDE7703072DA7C00C5B9A0 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 05BDE7713072DA7C00C5B9A0 /* Supabase */; };
+		05BDE7733072DA7C00C5B9A0 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 05BDE7743072DA7C00C5B9A0 /* GoogleSignIn */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		05BDE75C3072DA7B00C5B9A0 /* calendish-ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "calendish-ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		05BDE7763072DA7C00C5B9A0 /* Exceptions for "calendish-ios" folder in "calendish-ios" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 05BDE75B3072DA7B00C5B9A0 /* calendish-ios */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		05BDE75E3072DA7B00C5B9A0 /* calendish-ios */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				05BDE7763072DA7C00C5B9A0 /* Exceptions for "calendish-ios" folder in "calendish-ios" target */,
+			);
 			path = "calendish-ios";
 			sourceTree = "<group>";
 		};
@@ -22,6 +40,8 @@
 		05BDE7593072DA7B00C5B9A0 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				05BDE7703072DA7C00C5B9A0 /* Supabase in Frameworks */,
+				05BDE7733072DA7C00C5B9A0 /* GoogleSignIn in Frameworks */,
 			);
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -60,6 +80,10 @@
 				05BDE75E3072DA7B00C5B9A0 /* calendish-ios */,
 			);
 			name = "calendish-ios";
+			packageProductDependencies = (
+				05BDE7713072DA7C00C5B9A0 /* Supabase */,
+				05BDE7743072DA7C00C5B9A0 /* GoogleSignIn */,
+			);
 			productName = "calendish-ios";
 			productReference = 05BDE75C3072DA7B00C5B9A0 /* calendish-ios.app */;
 			productType = "com.apple.product-type.application";
@@ -88,6 +112,10 @@
 			);
 			mainGroup = 05BDE7533072DA7B00C5B9A0;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				05BDE7723072DA7C00C5B9A0 /* XCRemoteSwiftPackageReference "supabase-swift" */,
+				05BDE7753072DA7C00C5B9A0 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 05BDE75D3072DA7B00C5B9A0 /* Products */;
 			projectDirPath = "";
@@ -167,7 +195,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -224,7 +252,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 27.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -243,6 +271,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "calendish-ios/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Calendish;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -274,6 +304,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "calendish-ios/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Calendish;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -316,6 +348,38 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		05BDE7723072DA7C00C5B9A0 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.55.3;
+			};
+		};
+		05BDE7753072DA7C00C5B9A0 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 10.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		05BDE7713072DA7C00C5B9A0 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 05BDE7723072DA7C00C5B9A0 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+		05BDE7743072DA7C00C5B9A0 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 05BDE7753072DA7C00C5B9A0 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 05BDE7543072DA7B00C5B9A0 /* Project object */;
 	validationLevel = 1;
