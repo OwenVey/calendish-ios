@@ -212,7 +212,11 @@ struct GroceryRow: View {
             .accessibilityLabel(item.amount.isEmpty ? item.name : "\(item.name), \(item.amount)")
             .accessibilityValue(item.isComplete ? "Completed" : "Not completed")
             .sensoryFeedback(.selection, trigger: feedback)
-            .swipeActions(edge: .leading) { Button("Edit", systemImage: "pencil") { editing = true } }
+            .swipeActions(edge: .trailing) {
+                // Custom trailing actions replace the list's onDelete swipe, so Delete is restated here.
+                Button("Delete", systemImage: "trash", role: .destructive) { store.removeGroceries([item]) }
+                Button("Edit", systemImage: "pencil") { editing = true }
+            }
             .accessibilityAction(named: "Edit Item") { editing = true }
             .accessibilityAction(named: "Move Up") { move(-1) }
             .accessibilityAction(named: "Move Down") { move(1) }

@@ -54,13 +54,11 @@ struct MealPlanView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         Label(slot.title, systemImage: slot.symbol).font(.subheadline).foregroundStyle(.secondary)
                         if let meal = store.meal(on: store.planningDate, slot: slot), let recipe = store.recipe(for: meal) {
-                            NavigationLink(value: recipe) { RecipeRow(recipe: recipe) }
-                            HStack {
-                                Text("\(meal.servings) servings").font(.caption).foregroundStyle(.secondary)
-                                Spacer()
-                                Button("Edit") { selection = MealSelection(date: store.planningDate, slot: slot, meal: meal) }
-                                    .font(.subheadline).frame(minHeight: 44).accessibilityLabel("Edit \(slot.title)")
-                            }
+                            NavigationLink(value: recipe) { RecipeRow(recipe: recipe, servings: meal.servings) }
+                                .contextMenu {
+                                    Button("Edit \(slot.title)", systemImage: "pencil") { selection = MealSelection(date: store.planningDate, slot: slot, meal: meal) }
+                                }
+                                .accessibilityAction(named: "Edit \(slot.title)") { selection = MealSelection(date: store.planningDate, slot: slot, meal: meal) }
                         } else {
                             Button {
                                 selection = MealSelection(date: store.planningDate, slot: slot)
@@ -75,6 +73,7 @@ struct MealPlanView: View {
                                 // A destructive swipe button removes the row before confirmation.
                                 Button("Remove", systemImage: "trash") { removing = meal }
                                     .tint(.red)
+                                Button("Edit", systemImage: "pencil") { selection = MealSelection(date: store.planningDate, slot: slot, meal: meal) }
                             }
                         }
                 }

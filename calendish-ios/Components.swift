@@ -102,6 +102,8 @@ struct RecipeArtwork: View {
 
 struct RecipeRow: View {
     let recipe: Recipe
+    /// Servings to show instead of the recipe's own, such as a planned meal's.
+    var servings: Int?
     var body: some View {
         HStack(spacing: 14) {
             RecipeArtwork(recipe: recipe, compact: true).frame(width: 64, height: 64)
@@ -123,7 +125,7 @@ struct RecipeRow: View {
                         Image(systemName: "person.2")
                             .font(.caption)
                             .accessibilityHidden(true)
-                        Text("\(recipe.servings) servings")
+                        Text("\(servings ?? recipe.servings) servings")
                     }
                 }
                 .font(.subheadline)
