@@ -55,7 +55,7 @@ struct GroceryImportReviewView: View {
                         } label: {
                             HStack(spacing: 14) {
                                 Image(systemName: active || selected.contains(candidate.id) ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(active ? Color.secondary : CalendishStyle.accent).font(.title3).accessibilityHidden(true)
+                                    .foregroundStyle(selected.contains(candidate.id) && !active ? CalendishStyle.accent : Color.secondary).font(.title3).accessibilityHidden(true)
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(candidate.recipe.title).font(.headline).foregroundStyle(.primary)
                                     Text(active ? "Already on the grocery list" : "\(candidate.servings) servings · \(candidate.recipe.ingredients.count) ingredients")
@@ -90,7 +90,7 @@ struct GroceryImportReviewView: View {
                         }
                         store.importGroceries(items)
                         dismiss()
-                    }.disabled(ingredientCount == 0).buttonStyle(.borderedProminent)
+                    }.disabled(ingredientCount == 0).modifier(GlassActionStyle(prominent: true))
                 }
             }
         }

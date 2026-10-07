@@ -174,8 +174,8 @@ private struct RecipeLinkView: View {
                         .frame(maxWidth: .infinity, minHeight: 36)
                     }
                     .disabled(validURL == nil || importing)
-                    .buttonStyle(.borderedProminent)
-                    .tint(CalendishStyle.accent)
+                    .modifier(GlassActionStyle(prominent: true))
+                    .controlSize(.large)
                 }
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
@@ -335,8 +335,7 @@ struct RecipeDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Start Cooking", systemImage: "play.fill") { isCooking = true }
                     .labelStyle(.iconOnly)
-                    .buttonStyle(.glassProminent)
-                    .foregroundStyle(CalendishStyle.onAccent)
+                    .modifier(GlassActionStyle(prominent: true))
                     .disabled(recipe.steps.isEmpty)
                     .accessibilityHint("Opens step-by-step cooking instructions")
             }
@@ -483,13 +482,13 @@ struct RecipeEditorView: View {
                     PhotoSourceMenu(hasPhoto: hasPhoto, onPick: { newPhoto = $0; draftPhoto = RecipePhotos.uploadData(for: $0) }, onRemove: { newPhoto = nil; draftPhoto = nil; removesPhoto = true }) {
                         VStack(spacing: 12) {
                             ZStack {
-                                RoundedRectangle(cornerRadius: 20).fill(CalendishStyle.accent.opacity(0.09))
+                                RoundedRectangle(cornerRadius: 20).fill(Color(.tertiarySystemFill))
                                 if let newPhoto {
                                     Image(uiImage: newPhoto).resizable().scaledToFill()
                                 } else if let keptPhotoPath {
                                     RecipePhoto(path: keptPhotoPath)
                                 } else {
-                                    Image(systemName: "camera").font(.system(size: 40, weight: .light)).foregroundStyle(CalendishStyle.accent)
+                                    Image(systemName: "camera").font(.system(size: 40, weight: .light)).foregroundStyle(.secondary)
                                 }
                             }
                             .frame(height: 180)
@@ -573,7 +572,7 @@ struct RecipeEditorView: View {
                         ingredients.remove(atOffsets: offsets)
                     }
 
-                    Button("Add ingredient", systemImage: "plus") {
+                    Button("Add ingredient", systemImage: "plus.circle.fill") {
                         addIngredient(after: ingredients.last?.id)
                     }
                 } header: {
@@ -598,7 +597,7 @@ struct RecipeEditorView: View {
                         steps.remove(atOffsets: offsets)
                     }
 
-                    Button("Add step", systemImage: "plus") {
+                    Button("Add step", systemImage: "plus.circle.fill") {
                         let step = StepDraft()
                         steps.append(step)
                         focusedStep = step.id
@@ -650,7 +649,7 @@ struct RecipeEditorView: View {
                         }
                         dismiss()
                     }.disabled(!canSave)
-                    .buttonStyle(.borderedProminent)
+                    .modifier(GlassActionStyle(prominent: true))
                 }
             }
         }

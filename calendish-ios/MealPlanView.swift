@@ -31,13 +31,18 @@ struct MealPlanView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         DatePicker("Planning Day", selection: Binding(get: { store.planningDate }, set: { store.planningDate = Calendar.current.startOfDay(for: $0) }), in: CalendarDays.plannableRange, displayedComponents: .date)
                         ForEach(CalendarDays.week(containing: store.planningDate), id: \.self) { day in
+                            let selected = Calendar.current.isDate(day, inSameDayAs: store.planningDate)
                             Button { store.planningDate = day } label: {
-                                Label(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()), systemImage: Calendar.current.isDate(day, inSameDayAs: store.planningDate) ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(Calendar.current.isDate(day, inSameDayAs: store.planningDate) ? CalendishStyle.accent : Color.primary)
-                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                Label {
+                                    Text(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())).foregroundStyle(.primary)
+                                } icon: {
+                                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                                        .foregroundStyle(selected ? CalendishStyle.accent : Color.secondary)
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                             }
                             .accessibilityValue(dayStatus(day))
-                            .accessibilityAddTraits(Calendar.current.isDate(day, inSameDayAs: store.planningDate) ? .isSelected : [])
+                            .accessibilityAddTraits(selected ? .isSelected : [])
                         }
                     }
                 } else { weekStrip }
@@ -60,7 +65,7 @@ struct MealPlanView: View {
                             Button {
                                 selection = MealSelection(date: store.planningDate, slot: slot)
                             } label: {
-                                Label("Plan \(slot.rawValue)", systemImage: "plus.circle")
+                                Label("Plan \(slot.rawValue)", systemImage: "plus.circle.fill")
                                     .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
                             }
                         }
@@ -259,7 +264,7 @@ struct MealPickerView: View {
                             dismiss()
                         }
                     }.disabled(recipeID == nil)
-                    .buttonStyle(.borderedProminent)
+                    .modifier(GlassActionStyle(prominent: true))
                 }
             }
             .onAppear {

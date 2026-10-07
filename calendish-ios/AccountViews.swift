@@ -112,7 +112,7 @@ private struct EmailSignInView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close", systemImage: "xmark") { dismiss() }
+                    Button(role: .close) { dismiss() }
                 }
             }
             .navigationDestination(for: PasswordStep.self) { step in
@@ -424,7 +424,7 @@ struct PasswordResetView: View {
                             do { try await store.updatePassword(password); dismiss() }
                             catch { message = error.localizedDescription }
                         }
-                    }.disabled(working || password.count < 6 || confirmation != password).buttonStyle(.borderedProminent)
+                    }.disabled(working || password.count < 6 || confirmation != password).modifier(GlassActionStyle(prominent: true))
                 }
             }
         }.interactiveDismissDisabled(working || !password.isEmpty)

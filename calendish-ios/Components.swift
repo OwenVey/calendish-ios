@@ -20,6 +20,7 @@ enum AppAppearance: String, CaseIterable, Identifiable {
 }
 
 enum CalendishStyle {
+    /// Basil green, the same in light and dark mode, for tints, icons, and solid fills alike.
     static let accent = Color("AccentColor")
     /// Text and icons drawn on top of a solid accent fill.
     static let onAccent = Color("OnAccentColor")
@@ -39,11 +40,11 @@ struct CalendishMenuStyle: MenuStyle {
 struct BrandIcon: View {
     var size: CGFloat = 96
     private static let background = LinearGradient(
-        colors: [Color(red: 0.541, green: 0.796, blue: 0.165), Color(red: 0.353, green: 0.647, blue: 0.063)],
+        colors: [Color(red: 0.224, green: 0.690, blue: 0.533), Color(red: 0.055, green: 0.624, blue: 0.431)],
         startPoint: .top, endPoint: .bottom)
     private static let paper = Color(red: 0.961, green: 0.957, blue: 0.910)
-    private static let header = Color(red: 0.784, green: 0.902, blue: 0.561)
-    private static let utensils = Color(red: 0.306, green: 0.541, blue: 0.0)
+    private static let header = Color(red: 0.624, green: 0.851, blue: 0.773)
+    private static let utensils = Color(red: 0.055, green: 0.624, blue: 0.431)
 
     var body: some View {
         let u = size / 1024
@@ -239,16 +240,13 @@ struct SectionHeading: View {
     }
 }
 
+/// The app's only button chrome. Prominent buttons are the screen's primary action, drawn in the accent
+/// with the on-accent label color.
 struct GlassActionStyle: ViewModifier {
     var prominent = false
     @ViewBuilder func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            if prominent { content.buttonStyle(.glassProminent).foregroundStyle(CalendishStyle.onAccent) }
-            else { content.buttonStyle(.glass) }
-        } else {
-            if prominent { content.buttonStyle(.borderedProminent).foregroundStyle(CalendishStyle.onAccent) }
-            else { content.buttonStyle(.bordered) }
-        }
+        if prominent { content.buttonStyle(.glassProminent).foregroundStyle(CalendishStyle.onAccent) }
+        else { content.buttonStyle(.glass) }
     }
 }
 
