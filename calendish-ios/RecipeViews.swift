@@ -21,7 +21,7 @@ struct RecipeBookView: View {
         let recipes = store.recipes.filter { recipe in
             (selectedTag == "All recipes" || recipe.tags.contains { $0.caseInsensitiveCompare(selectedTag) == .orderedSame }) &&
             (!favoritesOnly || recipe.isFavorite) &&
-            (search.isEmpty || ([recipe.title, recipe.summary] + recipe.tags + recipe.ingredients.map(\.text)).contains { $0.localizedCaseInsensitiveContains(search) })
+            (search.isEmpty || ([recipe.title, recipe.summary, recipe.category ?? ""] + recipe.tags + recipe.ingredients.map(\.text)).contains { $0.localizedCaseInsensitiveContains(search) })
         }
         return alphabetical ? recipes.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending } : recipes
     }
@@ -238,6 +238,10 @@ struct RecipeDetailView: View {
                         }
                     }
                 VStack(alignment: .leading, spacing: 12) {
+                    if let category = recipe.category {
+                        Text(category.uppercased()).font(.footnote.weight(.semibold)).foregroundStyle(CalendishStyle.accent)
+                            .accessibilityLabel("Category: \(category)")
+                    }
                     Text(recipe.title).font(.largeTitle.bold())
                         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named("recipeContent")).maxY } action: { titleBottom = $0 }
                     Text(recipe.summary).foregroundStyle(.secondary)
@@ -245,6 +249,7 @@ struct RecipeDetailView: View {
                         Label("Prep: \(recipe.prepMinutes) min", systemImage: "clock")
                         Label("Cook: \(recipe.cookMinutes) min", systemImage: "flame")
                         Label("\(recipe.servings) servings", systemImage: "person.2")
+                        if let yieldText = recipe.yieldText { Label("Makes \(yieldText)", systemImage: "square.grid.2x2") }
                     }.font(.subheadline).foregroundStyle(.secondary)
                     if !recipe.tags.isEmpty {
                         FlowLayout {
@@ -391,7 +396,9 @@ struct RecipeEditorView: View {
     @State private var title: String
     @State private var summary: String
     @State private var sourceLink: String
+    @State private var category: String
     @State private var servings: Int
+    @State private var yieldText: String
     @State private var prepMinutes: Int
     @State private var cookMinutes: Int
     @State private var tags: [String]
@@ -411,7 +418,8 @@ struct RecipeEditorView: View {
     @State private var restoredDraft = false
     private var draftKey: String { "recipeDraft.\(store.userID?.uuidString ?? "preview").\(original?.id.uuidString ?? importedDraftID?.uuidString ?? "new")" }
     private var draft: RecipeDraft {
-        RecipeDraft(id: draftID, title: title, summary: summary, recipeLink: sourceLink, servings: servings, prepMinutes: prepMinutes,
+        RecipeDraft(id: draftID, title: title, summary: summary, recipeLink: sourceLink, category: category, servings: servings,
+                    yieldText: yieldText, prepMinutes: prepMinutes,
                     cookMinutes: cookMinutes, tags: tags, newTag: newTag, ingredients: ingredients,
                     steps: steps.map(\.text), photo: draftPhoto, removesPhoto: removesPhoto)
     }
@@ -430,6 +438,7 @@ struct RecipeEditorView: View {
            let saved = try? JSONDecoder().decode(RecipeDraft.self, from: data) {
             draftID = saved.id
             title = saved.title; summary = saved.summary; sourceLink = saved.recipeLink ?? ""; servings = saved.servings
+            category = saved.category ?? ""; yieldText = saved.yieldText ?? ""
             prepMinutes = saved.prepMinutes; cookMinutes = saved.cookMinutes
             tags = saved.tags; newTag = saved.newTag; ingredients = saved.ingredients
             steps = saved.steps.map { StepDraft(text: $0) }
@@ -453,7 +462,9 @@ struct RecipeEditorView: View {
         _title = State(initialValue: recipe?.title ?? "")
         _summary = State(initialValue: recipe?.summary ?? "")
         _sourceLink = State(initialValue: recipe?.recipeLink ?? "")
+        _category = State(initialValue: recipe?.category ?? "")
         _servings = State(initialValue: recipe?.servings ?? 4)
+        _yieldText = State(initialValue: recipe?.yieldText ?? "")
         _prepMinutes = State(initialValue: recipe?.prepMinutes ?? 10)
         _cookMinutes = State(initialValue: recipe?.cookMinutes ?? 20)
         _tags = State(initialValue: recipe?.tags ?? [])
@@ -500,7 +511,9 @@ struct RecipeEditorView: View {
                         .keyboardType(.URL)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
+                    TextField("Category, like Dinner or Dessert", text: $category)
                     ServingsField(servings: $servings)
+                    TextField("Yield, like 24 cookies", text: $yieldText)
                     RecipeDurationField(title: "Prep time", minutes: $prepMinutes)
                     RecipeDurationField(title: "Cook time", minutes: $cookMinutes)
                 } header: { Text("The Basics") } footer: {
@@ -614,6 +627,10 @@ struct RecipeEditorView: View {
                         recipe.summary = summary
                         let link = sourceLink.trimmingCharacters(in: .whitespacesAndNewlines)
                         recipe.recipeLink = link.isEmpty ? nil : link
+                        let trimmedCategory = category.trimmingCharacters(in: .whitespacesAndNewlines)
+                        recipe.category = trimmedCategory.isEmpty ? nil : trimmedCategory
+                        let trimmedYield = yieldText.trimmingCharacters(in: .whitespacesAndNewlines)
+                        recipe.yieldText = trimmedYield.isEmpty ? nil : trimmedYield
                         recipe.prepMinutes = prepMinutes
                         recipe.cookMinutes = cookMinutes
                         recipe.servings = servings
@@ -745,7 +762,9 @@ private struct RecipeDraft: Codable {
     var title: String
     var summary: String
     var recipeLink: String?
+    var category: String?
     var servings: Int
+    var yieldText: String?
     var prepMinutes: Int
     var cookMinutes: Int
     var tags: [String]

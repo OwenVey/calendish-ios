@@ -65,9 +65,11 @@ struct MealPlanView: View {
                             }
                         }
                     }.padding(.vertical, 10)
-                        .swipeActions {
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             if let meal = store.meal(on: store.planningDate, slot: slot) {
-                                Button("Remove", role: .destructive) { removing = meal }
+                                // A destructive swipe button removes the row before confirmation.
+                                Button("Remove", systemImage: "trash") { removing = meal }
+                                    .tint(.red)
                             }
                         }
                 }

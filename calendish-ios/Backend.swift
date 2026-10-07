@@ -47,10 +47,13 @@ nonisolated struct RecipeRecord: Codable, Sendable {
     var isFavorite: Bool
     var imagePath: String?
     var recipeLink: String?
+    var category: String?
+    var yieldText: String?
     enum CodingKeys: String, CodingKey {
         case id, householdID = "household_id", title, summary, minutes, servings, tags, symbol, ingredients, steps
         case isFavorite = "is_favorite", imagePath = "image_path"
         case prepMinutes = "prep_minutes", cookMinutes = "cook_minutes", recipeLink = "recipe_link"
+        case category, yieldText = "yield_text"
     }
 
     func encode(to encoder: Encoder) throws {
@@ -71,6 +74,8 @@ nonisolated struct RecipeRecord: Codable, Sendable {
         // Write an explicit null so removing a photo clears the column.
         try container.encode(imagePath, forKey: .imagePath)
         try container.encode(recipeLink, forKey: .recipeLink)
+        try container.encode(category, forKey: .category)
+        try container.encode(yieldText, forKey: .yieldText)
     }
 }
 
@@ -104,12 +109,14 @@ extension Recipe {
     init(_ row: RecipeRecord) {
         self.init(id: row.id, title: row.title, summary: row.summary,
                   prepMinutes: row.prepMinutes ?? 0, cookMinutes: row.cookMinutes ?? row.minutes, servings: row.servings,
-                  tags: row.tags, symbol: row.symbol, ingredients: row.ingredients, steps: row.steps, isFavorite: row.isFavorite, imagePath: row.imagePath, recipeLink: row.recipeLink)
+                  tags: row.tags, symbol: row.symbol, ingredients: row.ingredients, steps: row.steps, isFavorite: row.isFavorite, imagePath: row.imagePath, recipeLink: row.recipeLink,
+                  category: row.category, yieldText: row.yieldText)
     }
     func record(household: UUID) -> RecipeRecord {
         RecipeRecord(id: id, householdID: household, title: title, summary: summary, minutes: minutes,
                   prepMinutes: prepMinutes, cookMinutes: cookMinutes, servings: servings,
-                  tags: tags, symbol: symbol, ingredients: ingredients, steps: steps, isFavorite: isFavorite, imagePath: imagePath, recipeLink: recipeLink)
+                  tags: tags, symbol: symbol, ingredients: ingredients, steps: steps, isFavorite: isFavorite, imagePath: imagePath, recipeLink: recipeLink,
+                  category: category, yieldText: yieldText)
     }
 }
 

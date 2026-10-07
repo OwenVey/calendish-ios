@@ -42,16 +42,19 @@ enum RecipeLinkImporter {
         let prep = minutes(object["prepTime"])
         let cook = minutes(object["cookTime"])
         let total = minutes(object["totalTime"])
-        let tags = (strings(object["recipeCategory"]) + strings(object["recipeCuisine"]) + strings(object["keywords"])).flatMap { $0.components(separatedBy: ",") }.map { clean($0) }.filter { !$0.isEmpty }
+        let categories = list(object["recipeCategory"])
+        let tags = list(object["recipeCuisine"]) + list(object["keywords"])
         let title = clean(strings(object["name"]).first ?? meta("og:title", html: html) ?? captures("<title[^>]*>([\\s\\S]*?)</title>", in: html).first ?? "")
         let recipe = Recipe(title: title,
                             summary: clean(strings(object["description"]).first ?? meta("description", html: html) ?? meta("og:description", html: html) ?? ""),
                             prepMinutes: prep, cookMinutes: cook > 0 ? cook : max(0, total - prep),
                             servings: servings(object["recipeYield"]) ?? 4,
-                            tags: tags.reduce(into: []) { if !$0.contains($1) { $0.append($1) } },
+                            tags: tags.reduce(into: []) { if !$0.contains($1) && !categories.contains($1) { $0.append($1) } },
                             symbol: "fork.knife",
                             ingredients: strings(object["recipeIngredient"]).map { clean($0) }.filter { !$0.isEmpty }.map { Ingredient(text: $0) },
-                            steps: instructions(object["recipeInstructions"]))
+                            steps: instructions(object["recipeInstructions"]),
+                            category: categories.isEmpty ? nil : categories.joined(separator: ", "),
+                            yieldText: yieldText(object["recipeYield"]))
         return ImportedRecipe(recipe: recipe)
     }
 
@@ -104,6 +107,21 @@ enum RecipeLinkImporter {
             if let number = captures("([0-9]+)", in: text).first.flatMap(Int.init), number > 0 { return number }
         }
         return nil
+    }
+
+    /// A descriptive yield like "24 cookies", skipping values that only restate the servings count.
+    private static func yieldText(_ value: Any?) -> String? {
+        if let object = value as? [String: Any] {
+            return yieldText((strings(object["value"]) + strings(object["unitText"])).joined(separator: " "))
+        }
+        return strings(value).map { clean($0) }
+            .filter { !$0.isEmpty && $0.wholeMatch(of: /(?i)(serves|makes|yield:?)?\s*[0-9]+(\s*-\s*[0-9]+)?\s*(servings?|people|persons?|portions?)?/) == nil }
+            .max { $0.count < $1.count }
+    }
+
+    /// Comma-separated or repeated values, cleaned and without blanks.
+    private static func list(_ value: Any?) -> [String] {
+        strings(value).flatMap { $0.components(separatedBy: ",") }.map { clean($0) }.filter { !$0.isEmpty }
     }
 
     private static func imageURL(html: String, baseURL: URL) -> URL? {

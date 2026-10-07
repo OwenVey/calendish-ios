@@ -21,6 +21,10 @@ struct Recipe: Identifiable, Hashable {
     /// Where the photo lives in the `recipe-images` bucket, or nil when there's no photo.
     var imagePath: String?
     var recipeLink: String?
+    /// The kind of dish, such as "Dinner" or "Dessert", kept apart from free-form tags.
+    var category: String?
+    /// What the recipe makes when that isn't just servings, such as "24 cookies".
+    var yieldText: String?
 
     static func == (lhs: Recipe, rhs: Recipe) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
