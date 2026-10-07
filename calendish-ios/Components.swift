@@ -251,8 +251,9 @@ struct SectionHeading: View {
 
 extension View {
     /// Shared title and list spacing for top-level tab screens, so switching tabs never shifts the header or first section.
+    /// The zero top margin drops the grouped list's default gap, so content starts where a search field would.
     func tabRootStyle() -> some View {
-        toolbarTitleDisplayMode(.inlineLarge).listSectionSpacing(.compact)
+        toolbarTitleDisplayMode(.inlineLarge).listSectionSpacing(.compact).contentMargins(.top, 0, for: .scrollContent)
     }
 }
 
