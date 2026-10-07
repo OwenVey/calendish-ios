@@ -245,7 +245,7 @@ struct RecipeDetailView: View {
                             HStack(spacing: 14) {
                                 Image(systemName: checked.contains(ingredient.id) ? "checkmark.circle.fill" : "circle")
                                     .font(.title3).foregroundStyle(checked.contains(ingredient.id) ? CalendishStyle.accent : Color.secondary)
-                                Text(ingredient.display(scale: scale, units: units)).strikethrough(checked.contains(ingredient.id)).foregroundStyle(.primary)
+                                IngredientLineText(line: ingredient.display(scale: scale, units: units)).strikethrough(checked.contains(ingredient.id)).foregroundStyle(.primary)
                                 Spacer()
                             }.padding(.vertical, 12).contentShape(Rectangle())
                         }.buttonStyle(.plain)
@@ -259,7 +259,7 @@ struct RecipeDetailView: View {
                         HStack(alignment: .top, spacing: 14) {
                             Text("\(index + 1).").font(.headline).foregroundStyle(.secondary)
                                 .frame(minWidth: 30, alignment: .leading)
-                            Text(Ingredient.convertTemperatures(in: step, to: units)).lineSpacing(5).frame(maxWidth: .infinity, alignment: .leading)
+                            RecipeStepText(step: step, recipe: recipe, scale: scale, units: units).lineSpacing(5).frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                 }

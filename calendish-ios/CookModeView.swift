@@ -116,7 +116,7 @@ struct CookModeView: View {
                         if isChecked { checked.remove(ingredient.id) } else { checked.insert(ingredient.id) }
                     } label: {
                         Label {
-                            Text(ingredient.display(scale: scale, units: units)).strikethrough(isChecked).foregroundStyle(isChecked ? .secondary : .primary)
+                            IngredientLineText(line: ingredient.display(scale: scale, units: units), highlightsAmount: !isChecked).strikethrough(isChecked).foregroundStyle(isChecked ? .secondary : .primary)
                         } icon: {
                             Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
                                 .foregroundStyle(isChecked ? CalendishStyle.accent : Color.secondary)
@@ -140,7 +140,7 @@ struct CookModeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 Text("STEP \(index + 1)").font(.subheadline.weight(.semibold)).tracking(1.4).foregroundStyle(CalendishStyle.accent)
-                Text(Ingredient.convertTemperatures(in: step, to: units)).font(.title).lineSpacing(6)
+                RecipeStepText(step: step, recipe: recipe, scale: scale, units: units).font(.title).lineSpacing(6)
                 if let warning = timerStore.notificationWarning { Text(warning).font(.footnote).foregroundStyle(.secondary) }
                 if let duration = CookTimer.duration(in: step) {
                     if let timer = timers.first(where: { $0.stepIndex == index }) {
