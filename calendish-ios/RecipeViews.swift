@@ -11,10 +11,12 @@ struct RecipeBookView: View {
     @State private var favoritesOnly = false
     @State private var sheet: RecipeSheet?
     @State private var recipeLink = ""
+    @State private var recipeText = ""
     @State private var recipeToDelete: Recipe?
     @State private var confirmDelete = false
+    @State private var comingSoon: String?
     private enum RecipeSheet: String, Identifiable {
-        case manual, link
+        case manual, link, text
         var id: Self { self }
     }
     private var filteredRecipes: [Recipe] {
@@ -58,10 +60,11 @@ struct RecipeBookView: View {
                 }
             }
         }
+        .refreshable { await store.refresh() }
         .navigationTitle("Recipes")
         .tabRootStyle()
         .navigationSubtitle(subtitle)
-        .searchable(text: $search, prompt: "Recipes, ingredients, and more")
+        .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Recipes, ingredients, and more")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -84,8 +87,19 @@ struct RecipeBookView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button("Add manually", systemImage: "square.and.pencil") { sheet = .manual }
-                    Button("From link...", systemImage: "link") { sheet = .link }
+                    Button("Add Manually", systemImage: "square.and.pencil") { sheet = .manual }
+                    Section {
+                        Button("From Link", systemImage: "link") { sheet = .link }
+                        // TODO: In-app browser with an import button.
+                        Button("Browse Web", systemImage: "safari") { comingSoon = "Browse Web" }
+                    }
+                    Section("Smart Import") {
+                        // TODO: Wire up camera, photo library, and PDF import.
+                        Button("From Camera", systemImage: "camera") { comingSoon = "Import from Camera" }
+                        Button("From Photos", systemImage: "photo") { comingSoon = "Import from Photos" }
+                        Button("From Text", systemImage: "text.alignleft") { sheet = .text }
+                        Button("From PDF", systemImage: "doc.richtext") { comingSoon = "Import from PDF" }
+                    }
                 } label: { Label("Add recipe", systemImage: "plus") }
             }
         }
@@ -99,10 +113,128 @@ struct RecipeBookView: View {
         } message: { _ in
             Text("This deletes the recipe and any meals planned with it for your household. Grocery items will stay on your list. This can’t be undone.")
         }
+        .alert(comingSoon ?? "", isPresented: Binding(get: { comingSoon != nil }, set: { if !$0 { comingSoon = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("This import option is coming soon.")
+        }
         .sheet(item: $sheet) { destination in
             switch destination {
             case .manual: RecipeEditorView()
             case .link: RecipeLinkView(recipeLink: $recipeLink)
+            case .text: RecipeTextView(recipeText: $recipeText)
+            }
+        }
+    }
+}
+
+private struct RecipeTextView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var recipeText: String
+    @State private var imported: ImportedRecipe?
+    @State private var importTask: Task<Void, Never>?
+    @State private var importing = false
+    @State private var errorMessage: String?
+    private var hasText: Bool { !recipeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+    private func startImport() {
+        guard hasText, !importing else { return }
+        importing = true
+        errorMessage = nil
+        importTask = Task {
+            defer { importing = false }
+            do {
+                let result = try await RecipeTextImporter.parse(recipeText)
+                try Task.checkCancellation()
+                imported = result
+            } catch {
+                guard !Task.isCancelled else { return }
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    var body: some View {
+        Group {
+            if let imported {
+                RecipeEditorView(imported: imported)
+            } else {
+                textForm
+            }
+        }
+        .presentationDragIndicator(.visible)
+        .onDisappear { importTask?.cancel() }
+    }
+
+    private var textForm: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextEditor(text: $recipeText)
+                        .frame(minHeight: 240)
+                        .accessibilityLabel("Recipe text")
+                        .disabled(importing)
+                        .overlay(alignment: .topLeading) {
+                            if recipeText.isEmpty {
+                                Text("Paste a recipe")
+                                    .foregroundStyle(.tertiary)
+                                    .padding(.top, 8)
+                                    .padding(.leading, 5)
+                                    .allowsHitTesting(false)
+                            }
+                        }
+                } header: {
+                    HStack {
+                        Text("Recipe Text")
+                        Spacer()
+                        PasteButton(payloadType: String.self) { strings in
+                            Task { @MainActor in recipeText = strings.joined(separator: "\n") }
+                        }
+                        .labelStyle(.titleAndIcon)
+                        .buttonBorderShape(.capsule)
+                        .controlSize(.small)
+                        .disabled(importing)
+                    }
+                } footer: {
+                    Text("Copy a recipe from a website, note, or message, including its ingredients and instructions.")
+                }
+                Section {
+                    Button(action: startImport) {
+                        HStack {
+                            if importing { ProgressView().tint(CalendishStyle.onAccent) }
+                            Text(importing ? "Reading Recipe…" : "Import")
+                        }
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 36)
+                    }
+                    .disabled(!hasText || importing)
+                    .modifier(GlassActionStyle(prominent: true))
+                    .controlSize(.large)
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage).foregroundStyle(.red)
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .contentMargins(.top, 12, for: .scrollContent)
+            .listSectionSpacing(16)
+            .navigationTitle("Add from text")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", role: .cancel) { dismiss() }.toolbarGlyph()
+                }
+                if !recipeText.isEmpty {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("Clear", systemImage: "xmark.circle") { recipeText = ""; errorMessage = nil }
+                            .toolbarGlyph()
+                            .disabled(importing)
+                    }
+                }
             }
         }
     }

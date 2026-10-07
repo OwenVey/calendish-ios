@@ -91,6 +91,7 @@ struct MealPlanView: View {
                 }
             }
         }
+        .refreshable { await store.refresh() }
         .navigationTitle("Meal Plan")
         .tabRootStyle()
         .navigationSubtitle(store.planningDate.formatted(.dateTime.month(.wide).year()))
