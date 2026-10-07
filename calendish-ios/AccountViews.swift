@@ -2,73 +2,78 @@ import SwiftUI
 
 struct SignInView: View {
     @Environment(HouseholdStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var working = false
     @State private var showEmail = false
     @State private var message: String?
 
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 40)
-            VStack(spacing: 22) {
-                Image(systemName: "fork.knife")
-                    .font(.system(size: 42, weight: .semibold))
-                    .foregroundStyle(CalendishStyle.onAccent)
-                    .frame(width: 96, height: 96)
-                    .background(CalendishStyle.accent.gradient, in: .rect(cornerRadius: 28))
-                    .shadow(color: CalendishStyle.accent.opacity(0.35), radius: 24, y: 12)
-                VStack(spacing: 8) {
-                    Text("Calendish").font(.system(size: 42, weight: .bold, design: .rounded))
-                    Text("Plan meals and shop together.").font(.title3).foregroundStyle(.secondary)
-                }
-            }
-            Spacer(minLength: 40)
-            VStack(alignment: .leading, spacing: 24) {
-                FeatureRow(symbol: "book.closed", title: "One recipe book", detail: "Save the dishes you love in one place.")
-                FeatureRow(symbol: "calendar", title: "A shared meal plan", detail: "Know what’s cooking every day of the week.")
-                FeatureRow(symbol: "basket", title: "A live grocery list", detail: "Check things off together as you shop.")
-            }
-            Spacer(minLength: 40)
-            VStack(spacing: 12) {
-                Button {
-                    Task { await signInWithGoogle() }
-                } label: {
-                    HStack(spacing: 10) {
-                        if working {
-                            ProgressView().tint(.black)
-                        } else {
-                            Image("GoogleLogo").resizable().frame(width: 20, height: 20)
-                            Text("Continue with Google")
-                        }
+        ScrollView {
+            VStack(spacing: 28) {
+                Color.clear.frame(height: 8)
+                VStack(spacing: 22) {
+                    Image(systemName: "fork.knife")
+                        .font(.system(size: 42, weight: .semibold))
+                        .foregroundStyle(CalendishStyle.onAccent)
+                        .frame(width: 96, height: 96)
+                        .background(CalendishStyle.accent.gradient, in: .rect(cornerRadius: 28))
+                        .accessibilityHidden(true)
+                    VStack(spacing: 8) {
+                        Text("Calendish").font(.largeTitle.bold()).fontDesign(.rounded)
+                        Text("Plan meals and shop together.").font(.title3).foregroundStyle(.secondary)
                     }
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.black)
-                    .frame(maxWidth: .infinity, minHeight: 56)
-                    .background(.white, in: .capsule)
-                    .overlay { Capsule().strokeBorder(.black.opacity(0.12)) }
                 }
-                .buttonStyle(.plain)
-                .disabled(working)
-                Button {
-                    showEmail = true
-                } label: {
-                    Label("Continue with email", systemImage: "envelope.fill")
+                Color.clear.frame(height: 8)
+                VStack(alignment: .leading, spacing: 24) {
+                    FeatureRow(symbol: "book.closed", title: "One recipe book", detail: "Save the dishes you love in one place.")
+                    FeatureRow(symbol: "calendar", title: "A shared meal plan", detail: "Know what’s cooking every day of the week.")
+                    FeatureRow(symbol: "basket", title: "A live grocery list", detail: "Check things off together as you shop.")
+                }
+                Color.clear.frame(height: 8)
+                VStack(spacing: 12) {
+                    Button {
+                        Task { await signInWithGoogle() }
+                    } label: {
+                        HStack(spacing: 10) {
+                            if working {
+                                ProgressView().tint(.black)
+                            } else {
+                                Image("GoogleLogo").resizable().frame(width: 20, height: 20)
+                                Text("Continue with Google").fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
                         .font(.title3.weight(.semibold))
-                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .foregroundStyle(.black)
+                        .padding(16)
+                        .frame(maxWidth: .infinity, minHeight: 56)
+                        .background(.white, in: .capsule)
+                        .overlay { Capsule().strokeBorder(.black.opacity(0.12)) }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(working)
+                    Button {
+                        showEmail = true
+                    } label: {
+                        Text("Continue with Email").fixedSize(horizontal: false, vertical: true)
+                            .font(.title3.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .modifier(GlassActionStyle())
+                    .tint(CalendishStyle.accent)
+                    .disabled(working)
+                    Text(message ?? "Your household’s data stays private to its members.")
+                        .font(.footnote)
+                        .foregroundStyle(message == nil ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.red))
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 4)
                 }
-                .modifier(GlassActionStyle())
-                .tint(CalendishStyle.accent)
-                .disabled(working)
-                Text(message ?? "Your household’s data stays private to its members.")
-                    .font(.footnote)
-                    .foregroundStyle(message == nil ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.red))
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 4)
             }
+            .padding(.horizontal, 32)
+            .padding(.bottom, 8)
+            .frame(maxWidth: 500)
+            .frame(maxWidth: .infinity)
         }
-        .padding(.horizontal, 32)
-        .padding(.bottom, 8)
-        .frame(maxWidth: 500)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .scrollBounceBehavior(.basedOnSize)
         .background {
             LinearGradient(colors: [CalendishStyle.accent.opacity(0.22), CalendishStyle.background],
                            startPoint: .top, endPoint: .center)
@@ -133,6 +138,7 @@ private struct PasswordStep: Hashable { let email: String }
 
 private struct PasswordStepView: View {
     @Environment(HouseholdStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
     let email: String
     @State private var creatingAccount = false
@@ -193,8 +199,21 @@ private struct PasswordStepView: View {
                     Task { await submit() }
                 }
                 .disabled(!canSubmit)
+                if !creatingAccount {
+                    Button("Forgot Password?") {
+                        Task {
+                            working = true
+                            defer { working = false }
+                            do {
+                                try await store.resetPassword(email: email)
+                                message = nil
+                                notice = "Check your email for a password reset link."
+                            } catch { message = error.localizedDescription }
+                        }
+                    }.frame(minHeight: 44).disabled(working)
+                }
                 Button(creatingAccount ? "Already have an account? Sign in" : "New to Calendish? Create an account") {
-                    withAnimation {
+                    withAnimation(reduceMotion ? nil : .default) {
                         creatingAccount.toggle()
                         message = nil
                         notice = nil
@@ -212,11 +231,11 @@ private struct PasswordStepView: View {
     private func submit() async {
         working = true
         defer { working = false }
-        withAnimation { message = nil; notice = nil }
+        withAnimation(reduceMotion ? nil : .default) { message = nil; notice = nil }
         do {
             if creatingAccount {
                 if try await !store.signUp(email: email, password: password) {
-                    withAnimation {
+                    withAnimation(reduceMotion ? nil : .default) {
                         notice = "Check your email to confirm your account, then sign in."
                         creatingAccount = false
                     }
@@ -225,7 +244,7 @@ private struct PasswordStepView: View {
                 try await store.signIn(email: email, password: password)
             }
         } catch {
-            withAnimation { message = error.localizedDescription }
+            withAnimation(reduceMotion ? nil : .default) { message = error.localizedDescription }
         }
     }
 }
@@ -292,19 +311,21 @@ private struct AuthButton: View {
 }
 
 private struct FeatureRow: View {
+    @Environment(\.dynamicTypeSize) private var typeSize
     let symbol: String
     let title: String
     let detail: String
     var body: some View {
-        HStack(spacing: 16) {
+        let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8)) : AnyLayout(HStackLayout(spacing: 16))
+        layout {
             Image(systemName: symbol)
                 .font(.title3.weight(.medium))
                 .foregroundStyle(CalendishStyle.accent)
                 .frame(width: 48, height: 48)
-                .background(CalendishStyle.accent.opacity(0.14), in: .circle)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
-                Text(title).font(.headline)
-                Text(detail).font(.subheadline).foregroundStyle(.secondary)
+                Text(title).font(.headline).fixedSize(horizontal: false, vertical: true)
+                Text(detail).font(.subheadline).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
         }
@@ -314,6 +335,7 @@ private struct FeatureRow: View {
 /// Shown after sign-in until the account belongs to a household.
 struct HouseholdSetupView: View {
     @Environment(HouseholdStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var memberName = ""
     @State private var householdName = "Our household"
     @State private var inviteCode = ""
@@ -351,8 +373,9 @@ struct HouseholdSetupView: View {
                 } header: {
                     Text("Join an existing household")
                 } footer: {
-                    Text("Find the code under Your household on a member’s phone.")
+                    Text("Find the code under Household on a member’s phone.")
                 }
+                if working { Section { ProgressView("Setting Up Household…") } }
                 if let message {
                     Section { Text(message).foregroundStyle(.red) }
                 }
@@ -377,3 +400,38 @@ struct HouseholdSetupView: View {
 }
 
 #Preview("Sign in") { SignInView().environment(HouseholdStore.preview()) }
+
+struct PasswordResetView: View {
+    @Environment(HouseholdStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @State private var password = ""
+    @State private var confirmation = ""
+    @State private var working = false
+    @State private var message: String?
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    SecureField("New Password", text: $password).textContentType(.newPassword)
+                    SecureField("Confirm Password", text: $confirmation).textContentType(.newPassword)
+                } footer: { Text("Use at least 6 characters. Both passwords must match.") }
+                if let message { Section { Text(message).foregroundStyle(.red) } }
+                if working { ProgressView("Saving Password…") }
+            }
+            .navigationTitle("Reset Password").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(working) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task {
+                            working = true
+                            defer { working = false }
+                            do { try await store.updatePassword(password); dismiss() }
+                            catch { message = error.localizedDescription }
+                        }
+                    }.disabled(working || password.count < 6 || confirmation != password).buttonStyle(.borderedProminent)
+                }
+            }
+        }.interactiveDismissDisabled(working || !password.isEmpty)
+    }
+}

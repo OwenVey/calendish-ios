@@ -7,6 +7,7 @@ enum GroceryGrouping: String, CaseIterable, Identifiable {
 
 struct GroceryListView: View {
     @Environment(HouseholdStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var grouping = GroceryGrouping.none
     @State private var showCompleted = false
     @State private var clearCompleted = false
@@ -58,13 +59,13 @@ struct GroceryListView: View {
                     HStack {
                         Text("\(completedItems.count) Completed")
                         Spacer()
-                        Button(showCompleted ? "Hide" : "Show") { withAnimation { showCompleted.toggle() } }
-                            .font(.subheadline).textCase(nil)
+                        Button(showCompleted ? "Hide" : "Show") { withAnimation(reduceMotion ? nil : .default) { showCompleted.toggle() } }
+                            .font(.subheadline).textCase(nil).frame(minWidth: 44, minHeight: 44)
                     }
                 }
             }
         }
-        .animation(.default, value: store.groceries.map(\.isComplete))
+        .animation(reduceMotion ? nil : .default, value: store.groceries.map(\.isComplete))
         .overlay {
             if store.groceries.isEmpty && !newItemFocused {
                 ContentUnavailableView("All set for now", systemImage: "basket", description: Text("Tap New Item to start your household list."))
@@ -75,6 +76,7 @@ struct GroceryListView: View {
         .toolbarTitleDisplayMode(.inlineLarge)
         .navigationSubtitle(subtitle)
         .toolbar {
+            ToolbarItem(placement: .topBarLeading) { EditButton().disabled(grouping != .none) }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Picker(selection: $grouping) {
@@ -126,7 +128,9 @@ struct GroceryListView: View {
 struct GroceryRow: View {
     let item: GroceryItem
     @Environment(HouseholdStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var feedback = false
+    @State private var editing = false
     var body: some View {
         Button {
             store.toggleGrocery(item)
@@ -146,5 +150,56 @@ struct GroceryRow: View {
             .accessibilityLabel(item.amount.isEmpty ? item.name : "\(item.name), \(item.amount)")
             .accessibilityValue(item.isComplete ? "Completed" : "Not completed")
             .sensoryFeedback(.selection, trigger: feedback)
+            .swipeActions(edge: .leading) { Button("Edit", systemImage: "pencil") { editing = true } }
+            .accessibilityAction(named: "Edit Item") { editing = true }
+            .accessibilityAction(named: "Move Up") { move(-1) }
+            .accessibilityAction(named: "Move Down") { move(1) }
+            .sheet(isPresented: $editing) { GroceryEditorView(item: item) }
+    }
+    private func move(_ direction: Int) {
+        var items = store.groceries
+        guard let index = items.firstIndex(where: { $0.id == item.id }), items.indices.contains(index + direction) else { return }
+        items.swapAt(index, index + direction)
+        store.reorderGroceries(items)
+    }
+}
+
+private struct GroceryEditorView: View {
+    let item: GroceryItem
+    @Environment(HouseholdStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+    @State private var amount: String
+    @State private var discard = false
+    init(item: GroceryItem) {
+        self.item = item
+        _name = State(initialValue: item.name)
+        _amount = State(initialValue: item.amount)
+    }
+    private var isDirty: Bool { name != item.name || amount != item.amount }
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Item Name (Required)", text: $name)
+                TextField("Amount", text: $amount)
+            }
+            .navigationTitle("Edit Grocery Item").navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if isDirty { discard = true } else { dismiss() } } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        var updated = item
+                        updated.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                        updated.amount = amount.trimmingCharacters(in: .whitespacesAndNewlines)
+                        store.updateGrocery(updated); dismiss()
+                    }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).buttonStyle(.borderedProminent)
+                }
+            }
+        }
+        .background { DraftDismissalGuard(isDirty: isDirty) { discard = true } }
+        .confirmationDialog("Discard Changes?", isPresented: $discard, titleVisibility: .visible) {
+            Button("Discard Changes", role: .destructive) { dismiss() }
+            Button("Keep Editing") { }
+        }
     }
 }

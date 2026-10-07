@@ -8,6 +8,10 @@
 	<string>728572783584-nsnkc0bhchjkcvpek7i8253b627rpng7.apps.googleusercontent.com</string>
 	<key>CFBundleURLTypes</key>
 	<array>
+        <dict>
+            <key>CFBundleURLSchemes</key>
+            <array><string>calendish</string></array>
+        </dict>
 		<dict>
 			<key>CFBundleURLSchemes</key>
 			<array>

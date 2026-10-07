@@ -16,16 +16,31 @@ enum GroceryReviewPeriod: String, Identifiable {
 
 struct MealPlanView: View {
     @Environment(HouseholdStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selection: MealSelection?
     @State private var reviewPeriod: GroceryReviewPeriod?
     @State private var removing: PlannedMeal?
     @State private var showCalendar = false
     @State private var visibleWeek: Date?
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         List {
             Section {
-                weekStrip
+                if typeSize.isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 8) {
+                        DatePicker("Planning Day", selection: Binding(get: { store.planningDate }, set: { store.planningDate = Calendar.current.startOfDay(for: $0) }), in: CalendarDays.plannableRange, displayedComponents: .date)
+                        ForEach(CalendarDays.week(containing: store.planningDate), id: \.self) { day in
+                            Button { store.planningDate = day } label: {
+                                Label(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()), systemImage: Calendar.current.isDate(day, inSameDayAs: store.planningDate) ? "checkmark.circle.fill" : "circle")
+                                    .foregroundStyle(Calendar.current.isDate(day, inSameDayAs: store.planningDate) ? CalendishStyle.accent : Color.primary)
+                                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            }
+                            .accessibilityValue(dayStatus(day))
+                            .accessibilityAddTraits(Calendar.current.isDate(day, inSameDayAs: store.planningDate) ? .isSelected : [])
+                        }
+                    }
+                } else { weekStrip }
             }.listRowBackground(Color.clear).listRowSeparator(.hidden)
                 .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
 
@@ -36,10 +51,10 @@ struct MealPlanView: View {
                         if let meal = store.meal(on: store.planningDate, slot: slot), let recipe = store.recipe(for: meal) {
                             NavigationLink(value: recipe) { RecipeRow(recipe: recipe) }
                             HStack {
-                                Text("Planned for \(meal.servings)").font(.caption).foregroundStyle(.secondary)
+                                Text("\(meal.servings) servings").font(.caption).foregroundStyle(.secondary)
                                 Spacer()
                                 Button("Edit") { selection = MealSelection(date: store.planningDate, slot: slot, meal: meal) }
-                                    .font(.subheadline)
+                                    .font(.subheadline).frame(minHeight: 44).accessibilityLabel("Edit \(slot.title)")
                             }
                         } else {
                             Button {
@@ -75,7 +90,7 @@ struct MealPlanView: View {
         .navigationSubtitle(store.planningDate.formatted(.dateTime.month(.wide).year()))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Today") { withAnimation { store.planningDate = Calendar.current.startOfDay(for: .now) } }
+                Button("Today") { withAnimation(reduceMotion ? nil : .default) { store.planningDate = Calendar.current.startOfDay(for: .now) } }
                     .disabled(Calendar.current.isDateInToday(store.planningDate))
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -86,7 +101,7 @@ struct MealPlanView: View {
                             set: { store.planningDate = Calendar.current.startOfDay(for: $0); showCalendar = false }
                         ), in: CalendarDays.plannableRange, displayedComponents: .date)
                             .datePickerStyle(.graphical)
-                            .frame(width: 320)
+                            .frame(idealWidth: 320, maxWidth: 400)
                             .padding()
                             .presentationCompactAdaptation(.popover)
                     }
@@ -129,7 +144,7 @@ struct MealPlanView: View {
         }
         .onChange(of: store.planningDate) { _, date in
             let week = CalendarDays.startOfWeek(date)
-            if visibleWeek != week { withAnimation { visibleWeek = week } }
+            if visibleWeek != week { withAnimation(reduceMotion ? nil : .default) { visibleWeek = week } }
         }
     }
 
@@ -148,7 +163,13 @@ struct MealPlanView: View {
             .foregroundStyle(selected ? CalendishStyle.onAccent : Color.primary)
             .background(selected ? CalendishStyle.accent : Color.clear, in: RoundedRectangle(cornerRadius: 18))
         }.buttonStyle(.plain).accessibilityLabel(day.formatted(date: .complete, time: .omitted))
+            .accessibilityValue(dayStatus(day))
             .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func dayStatus(_ day: Date) -> String {
+        let count = store.meals.filter { Calendar.current.isDate($0.date, inSameDayAs: day) }.count
+        return (Calendar.current.isDateInToday(day) ? "Today, " : "") + "\(count) \(count == 1 ? "meal" : "meals") planned"
     }
 
     private func groceryCandidates(for period: GroceryReviewPeriod) -> [GroceryImportCandidate] {
@@ -168,12 +189,17 @@ struct MealPlanView: View {
 struct MealPickerView: View {
     let selection: MealSelection
     @Environment(HouseholdStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
     @State private var search = ""
     @State private var recipeID: UUID?
     @State private var servings = 4
     @State private var date = Date.now
     @State private var slot = MealSlot.dinner
+    @State private var initialValues: String?
+    @State private var discardChanges = false
+    private var values: String { "\(recipeID?.uuidString ?? "")|\(servings)|\(date.timeIntervalSince1970)|\(slot.rawValue)" }
+    private var isDirty: Bool { initialValues != nil && values != initialValues }
     /// Another meal already in the chosen day and slot, which saving will replace.
     private var replacing: Recipe? {
         guard let existing = store.meal(on: date, slot: slot), existing.id != selection.meal?.id else { return nil }
@@ -195,7 +221,8 @@ struct MealPickerView: View {
                             .imageScale(.small)
                     }
                     .pickerStyle(.menu)
-                    Stepper("Servings: \(servings)", value: $servings, in: 1...1000)
+                    .tint(nil)
+                    ServingsField(servings: $servings)
                 } footer: {
                     if let replacing { Text("This replaces \(replacing.title).") }
                 }
@@ -208,16 +235,21 @@ struct MealPickerView: View {
                             HStack {
                                 RecipeRow(recipe: recipe)
                                 Spacer()
-                                if recipeID == recipe.id { Image(systemName: "checkmark.circle.fill").foregroundStyle(CalendishStyle.accent) }
+                                if recipeID == recipe.id { Image(systemName: "checkmark.circle.fill").foregroundStyle(CalendishStyle.accent).accessibilityHidden(true) }
                             }
                         }.buttonStyle(.plain)
+                            .accessibilityValue(recipeID == recipe.id ? "Selected" : "Not selected")
+                            .accessibilityAddTraits(recipeID == recipe.id ? .isSelected : [])
+                    }
+                    if recipes.isEmpty {
+                        ContentUnavailableView(store.recipes.isEmpty ? "Add a Recipe First" : "No Matching Recipes", systemImage: "book.closed", description: Text(store.recipes.isEmpty ? "Open Recipes and tap Add Recipe to write your first dish." : "Try another search."))
                     }
                 }
             }
             .searchable(text: $search, prompt: "Find a recipe")
             .navigationTitle(selection.meal == nil ? "Plan a meal" : "Edit meal").navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         if let recipe = store.recipes.first(where: { $0.id == recipeID }) {
@@ -225,14 +257,22 @@ struct MealPickerView: View {
                             dismiss()
                         }
                     }.disabled(recipeID == nil)
+                    .buttonStyle(.borderedProminent)
                 }
             }
             .onAppear {
+                guard initialValues == nil else { return }
                 recipeID = selection.meal?.recipeID ?? selection.recipeID
                 servings = selection.meal?.servings ?? store.recipes.first { $0.id == recipeID }?.servings ?? 4
                 date = selection.date
                 slot = selection.slot
+                initialValues = values
             }
+        }
+        .background { DraftDismissalGuard(isDirty: isDirty) { discardChanges = true } }
+        .confirmationDialog("Discard Meal Changes?", isPresented: $discardChanges, titleVisibility: .visible) {
+            Button("Discard Changes", role: .destructive) { dismiss() }
+            Button("Keep Editing") { }
         }
     }
 }

@@ -27,6 +27,14 @@ enum CalendishStyle {
     static let surface = Color(.secondarySystemGroupedBackground)
 }
 
+/// Preserves native menu rendering and lets action roles choose colors instead of the app's forced tint.
+struct CalendishMenuStyle: MenuStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Menu(configuration)
+            .tint(nil)
+    }
+}
+
 /// A recipe's photo, or its symbol on a tinted tile when it has none.
 struct RecipeArtwork: View {
     let recipe: Recipe
@@ -34,13 +42,13 @@ struct RecipeArtwork: View {
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: compact ? 14 : 24)
         ZStack {
-            shape.fill(CalendishStyle.accent.opacity(0.09))
+            shape.fill(Color(.tertiarySystemFill))
             if let path = recipe.imagePath {
                 RecipePhoto(path: path, thumbnail: compact)
             } else {
                 Image(systemName: recipe.symbol)
                     .font(.system(size: compact ? 25 : 64, weight: .light))
-                    .foregroundStyle(CalendishStyle.accent)
+                    .foregroundStyle(.secondary)
             }
         }
         .clipShape(shape)
@@ -60,14 +68,13 @@ struct RecipeRow: View {
                         Image(systemName: "star.fill").font(.caption).foregroundStyle(.yellow).accessibilityLabel("Favorite")
                     }
                 }
-                HStack(spacing: 6) {
+                FlowLayout(spacing: 6) {
                     HStack(spacing: 4) {
                         Image(systemName: "clock")
                             .font(.caption)
                             .accessibilityHidden(true)
                         Text("\(recipe.minutes) min")
                     }
-                    Text("·").accessibilityHidden(true)
                     HStack(spacing: 4) {
                         Image(systemName: "person.2")
                             .font(.caption)
@@ -78,7 +85,7 @@ struct RecipeRow: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 if !recipe.tags.isEmpty {
-                    HStack(spacing: 4) {
+                    FlowLayout(spacing: 4) {
                         ForEach(recipe.tags.prefix(2), id: \.self) { TagPill(tag: $0, compact: true) }
                         if recipe.tags.count > 2 {
                             Text("+\(recipe.tags.count - 2)").font(.caption.weight(.medium)).foregroundStyle(.secondary)
@@ -98,13 +105,13 @@ struct TagPill: View {
     var muted = false
     var body: some View {
         HStack(spacing: 4) {
-            Text(tag).lineLimit(1)
+            Text(tag).fixedSize(horizontal: false, vertical: true)
             if let systemImage { Image(systemName: systemImage).font(.caption2.weight(.bold)).imageScale(.small) }
         }
         .font(compact ? .caption.weight(.medium) : .subheadline.weight(.medium))
-        .foregroundStyle(muted ? Color.secondary : CalendishStyle.accent)
+        .foregroundStyle(Color.secondary)
         .padding(.horizontal, compact ? 8 : 12).padding(.vertical, compact ? 3 : 6)
-        .background(muted ? Color(.tertiarySystemFill) : CalendishStyle.accent.opacity(0.14), in: .capsule)
+        .background(Color(.tertiarySystemFill), in: .capsule)
     }
 }
 
@@ -118,14 +125,19 @@ struct FlowLayout: Layout {
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let layout = arrange(width: bounds.width, subviews: subviews)
         for (subview, origin) in zip(subviews, layout.origins) {
-            subview.place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), proposal: ProposedViewSize(width: bounds.width, height: nil))
+            let size = measuredSize(subview, width: bounds.width)
+            subview.place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), proposal: ProposedViewSize(size))
         }
+    }
+    private func measuredSize(_ subview: LayoutSubview, width: CGFloat) -> CGSize {
+        let ideal = subview.sizeThatFits(.unspecified)
+        return ideal.width > width ? subview.sizeThatFits(ProposedViewSize(width: width, height: nil)) : ideal
     }
     private func arrange(width: CGFloat, subviews: Subviews) -> (origins: [CGPoint], width: CGFloat, height: CGFloat) {
         var origins: [CGPoint] = []
         var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, maxX: CGFloat = 0
         for subview in subviews {
-            let size = subview.sizeThatFits(ProposedViewSize(width: width, height: nil))
+            let size = measuredSize(subview, width: width)
             if x > 0 && x + size.width > width {
                 x = 0
                 y += rowHeight + spacing
@@ -194,5 +206,52 @@ struct GlassActionStyle: ViewModifier {
             if prominent { content.buttonStyle(.borderedProminent).foregroundStyle(CalendishStyle.onAccent) }
             else { content.buttonStyle(.bordered) }
         }
+    }
+}
+
+struct ServingsField: View {
+    @Binding var servings: Int
+    var body: some View {
+        VStack(alignment: .leading) {
+            HStack {
+                Text("Servings")
+                TextField("Servings", value: $servings, format: .number)
+                    .keyboardType(.numberPad).multilineTextAlignment(.trailing)
+                    .accessibilityLabel("Number of servings")
+            }
+            Stepper("Adjust Servings", value: $servings, in: 1...1000)
+        }
+        .onChange(of: servings) { _, value in servings = min(1000, max(1, value)) }
+    }
+}
+
+/// Keeps clean sheets swipe-dismissible and confirms attempts to discard an edited sheet.
+struct DraftDismissalGuard: UIViewRepresentable {
+    let isDirty: Bool
+    let onAttempt: () -> Void
+    func makeUIView(context: Context) -> UIView { UIView() }
+    func updateUIView(_ view: UIView, context: Context) {
+        context.coordinator.isDirty = isDirty
+        context.coordinator.onAttempt = onAttempt
+        DispatchQueue.main.async {
+            // Resolve the sheet containing this view, never a dialog it presents.
+            var responder: UIResponder? = view
+            while let current = responder, !(current is UIViewController) { responder = current.next }
+            var controller = responder as? UIViewController
+            while let current = controller {
+                if current.presentingViewController != nil {
+                    current.presentationController?.delegate = context.coordinator
+                    break
+                }
+                controller = current.parent
+            }
+        }
+    }
+    func makeCoordinator() -> Coordinator { Coordinator() }
+    final class Coordinator: NSObject, UIAdaptivePresentationControllerDelegate {
+        var isDirty = false
+        var onAttempt: () -> Void = {}
+        func presentationControllerShouldDismiss(_ presentationController: UIPresentationController) -> Bool { !isDirty }
+        func presentationControllerDidAttemptToDismiss(_ presentationController: UIPresentationController) { onAttempt() }
     }
 }

@@ -22,6 +22,7 @@ final class HouseholdStore {
     var planningDate = Calendar.current.startOfDay(for: Date.now)
     /// The latest failed save or load, shown as an alert.
     var errorMessage: String?
+    var needsPasswordReset = false
 
     private let isPreview: Bool
     private var channel: RealtimeChannelV2?
@@ -73,7 +74,8 @@ final class HouseholdStore {
     /// Follows sign-in state for the life of the app.
     func start() async {
         guard !isPreview else { return }
-        for await (_, session) in supabase.auth.authStateChanges {
+        for await (event, session) in supabase.auth.authStateChanges {
+            if event == .passwordRecovery { needsPasswordReset = true }
             if let session {
                 // A stored session can start out expired; the client refreshes it and emits again.
                 if session.isExpired { continue }
@@ -83,6 +85,7 @@ final class HouseholdStore {
                 }
             } else {
                 await stopRealtime()
+                needsPasswordReset = false
                 GIDSignIn.sharedInstance.signOut()
                 userID = nil
                 household = nil
@@ -198,6 +201,15 @@ final class HouseholdStore {
         }
     }
 
+    func updatePassword(_ password: String) async throws {
+        try await supabase.auth.update(user: UserAttributes(password: password))
+        needsPasswordReset = false
+    }
+
+    func resetPassword(email: String) async throws {
+        try await supabase.auth.resetPasswordForEmail(email, redirectTo: URL(string: "calendish://login-callback"))
+    }
+
     private func enter(_ row: HouseholdRecord) async throws {
         household = Household(id: row.id, name: row.name, inviteCode: row.inviteCode)
         try await reload()
@@ -277,7 +289,7 @@ final class HouseholdStore {
     }
 
     /// Saves a recipe, uploading a new photo first when there is one. The new photo shows right away from the cache.
-    func saveRecipe(_ recipe: Recipe, photo: PhotoChange = .keep) {
+    func saveRecipe(_ recipe: Recipe, photo: PhotoChange = .keep, onSaved: (() -> Void)? = nil) {
         var recipe = recipe
         let previousPath = recipes.first { $0.id == recipe.id }?.imagePath
         var upload: (path: String, data: Data)?
@@ -298,6 +310,7 @@ final class HouseholdStore {
             recipes.insert(recipe, at: 0)
         }
         guard let id = household?.id else { return }
+        if isPreview { onSaved?(); return }
         let record = recipe.record(household: id)
         let stalePath = previousPath != recipe.imagePath ? previousPath : nil
         save {
@@ -306,8 +319,26 @@ final class HouseholdStore {
                     .upload(upload.path, data: upload.data, options: FileOptions(cacheControl: "31536000", contentType: "image/jpeg"))
             }
             try await supabase.from("recipes").upsert(record).execute()
+            onSaved?()
             if let stalePath {
                 _ = try? await supabase.storage.from(RecipePhotos.bucket).remove(paths: [stalePath])
+            }
+        }
+    }
+
+    /// Deleting a recipe also deletes its planned meals through the database's cascading foreign key.
+    /// Grocery items are independent and remain on the shopping list.
+    func deleteRecipe(_ recipe: Recipe) {
+        guard let householdID = household?.id else { return }
+        recipes.removeAll { $0.id == recipe.id }
+        meals.removeAll { $0.recipeID == recipe.id }
+        save {
+            try await supabase.from("recipes").delete()
+                .eq("id", value: recipe.id)
+                .eq("household_id", value: householdID)
+                .execute()
+            if let path = recipe.imagePath {
+                _ = try? await supabase.storage.from(RecipePhotos.bucket).remove(paths: [path])
             }
         }
     }
@@ -394,6 +425,19 @@ final class HouseholdStore {
                 await refresh()
             }
         }
+    }
+
+    func updateGrocery(_ item: GroceryItem) {
+        guard let index = groceries.firstIndex(where: { $0.id == item.id }), let id = household?.id else { return }
+        groceries[index] = item
+        save { try await supabase.from("grocery_items").upsert(item.record(household: id)).execute() }
+    }
+
+    func importGroceries(_ items: [GroceryItem]) {
+        guard let id = household?.id else { return }
+        groceries.append(contentsOf: items)
+        groceries.sort { $0.position < $1.position }
+        save { try await supabase.from("grocery_items").insert(items.map { $0.record(household: id) }).execute() }
     }
 
     private func report(_ error: Error) {

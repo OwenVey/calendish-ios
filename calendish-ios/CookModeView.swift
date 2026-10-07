@@ -1,24 +1,32 @@
 import SwiftUI
 import AudioToolbox
+import UserNotifications
+import Observation
 
-/// Full-screen, landscape step-by-step view for cooking a recipe.
+/// Full-screen, adaptive step-by-step view for cooking a recipe.
 struct CookModeView: View {
     @Environment(\.dismiss) private var dismiss
     let recipe: Recipe
     @Binding var checked: Set<UUID>
     @State private var stepIndex = 0
     @State private var showIngredients = true
-    @State private var timers: [CookTimer] = []
-    @State private var finishedTimer: CookTimer?
+    @Environment(CookingTimers.self) private var timerStore
+    @Environment(\.dynamicTypeSize) private var typeSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var showIngredientSheet = false
+    @State private var wideLayout = false
+    private var timers: [CookTimer] { timerStore.timers.filter { $0.recipeID == recipe.id } }
     private var isLastStep: Bool { stepIndex >= recipe.steps.count - 1 }
 
     var body: some View {
         NavigationStack {
+            GeometryReader { geometry in
+            let wide = geometry.size.width >= 850 && !typeSize.isAccessibilitySize
             HStack(spacing: 0) {
-                if showIngredients {
+                if wide && showIngredients {
                     ingredientList
-                        .frame(width: 300)
-                        .transition(.move(edge: .leading).combined(with: .opacity))
+                        .frame(width: min(340, geometry.size.width * 0.35))
+                        .transition(reduceMotion ? .identity : .move(edge: .leading).combined(with: .opacity))
                 }
                 TabView(selection: $stepIndex) {
                     ForEach(Array(recipe.steps.enumerated()), id: \.offset) { index, step in
@@ -27,6 +35,9 @@ struct CookModeView: View {
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
             }
+            .onAppear { wideLayout = wide }
+            .onChange(of: wide) { _, value in wideLayout = value }
+            }
             .background(CalendishStyle.background)
             .navigationTitle(recipe.title).navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -34,15 +45,15 @@ struct CookModeView: View {
                     Button(role: .close) { dismiss() }
                 }
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(showIngredients ? "Hide ingredients" : "Show ingredients", systemImage: "sidebar.leading") {
-                        withAnimation { showIngredients.toggle() }
+                    Button(wideLayout && showIngredients ? "Hide Ingredients" : "Show Ingredients", systemImage: "list.bullet") {
+                        if wideLayout { withAnimation(reduceMotion ? nil : .default) { showIngredients.toggle() } } else { showIngredientSheet = true }
                     }
                 }
                 if let next = timers.min(by: { $0.end < $1.end }) {
                     ToolbarItem(placement: .topBarTrailing) { timerMenu(next: next) }
                 }
                 ToolbarItem(placement: .bottomBar) {
-                    Button("Previous step", systemImage: "chevron.backward") { withAnimation { stepIndex -= 1 } }
+                    Button("Previous step", systemImage: "chevron.backward") { withAnimation(reduceMotion ? nil : .default) { stepIndex -= 1 } }
                         .disabled(stepIndex == 0)
                 }
                 ToolbarSpacer(.flexible, placement: .bottomBar)
@@ -56,25 +67,32 @@ struct CookModeView: View {
                     }
                 } else {
                     ToolbarItem(placement: .bottomBar) {
-                        Button("Next step", systemImage: "chevron.forward") { withAnimation { stepIndex += 1 } }
+                        Button("Next step", systemImage: "chevron.forward") { withAnimation(reduceMotion ? nil : .default) { stepIndex += 1 } }
                     }
                 }
             }
         }
         .sensoryFeedback(.selection, trigger: stepIndex)
-        .sensoryFeedback(.success, trigger: finishedTimer?.id) { _, new in new != nil }
-        .task(id: timers.map(\.end)) { await waitForNextTimer() }
-        .alert("Timer done", isPresented: Binding(get: { finishedTimer != nil }, set: { if !$0 { finishedTimer = nil } }), presenting: finishedTimer) { _ in
-            Button("OK") {}
-        } message: { timer in
-            Text("Your \(timer.durationText) timer for step \(timer.stepIndex + 1) is up.")
+        .sensoryFeedback(.success, trigger: timerStore.finished.first?.id)
+        .alert("Timer Done", isPresented: Binding(get: { !timerStore.finished.isEmpty }, set: { if !$0 { timerStore.acknowledge() } })) {
+            Button("Done") { }
+        } message: {
+            Text(timerStore.finished.map { "\($0.recipeTitle), step \($0.stepIndex + 1): your \($0.durationText) timer is up." }.joined(separator: "\n\n"))
+        }
+        .sheet(isPresented: $showIngredientSheet) {
+            NavigationStack {
+                ingredientList.navigationTitle("Ingredients")
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showIngredientSheet = false } } }
+            }
+            .presentationBackground(Color(.systemGroupedBackground))
+            .presentationDragIndicator(.visible)
         }
         .onAppear {
-            OrientationLock.lock(.landscape)
+            timerStore.isCooking = true
             UIApplication.shared.isIdleTimerDisabled = true
         }
         .onDisappear {
-            OrientationLock.unlock()
+            timerStore.isCooking = false
             UIApplication.shared.isIdleTimerDisabled = false
         }
     }
@@ -113,6 +131,7 @@ struct CookModeView: View {
             VStack(alignment: .leading, spacing: 20) {
                 Text("STEP \(index + 1)").font(.subheadline.weight(.semibold)).tracking(1.4).foregroundStyle(CalendishStyle.accent)
                 Text(step).font(.title).lineSpacing(6)
+                if let warning = timerStore.notificationWarning { Text(warning).font(.footnote).foregroundStyle(.secondary) }
                 if let duration = CookTimer.duration(in: step) {
                     if let timer = timers.first(where: { $0.stepIndex == index }) {
                         HStack(spacing: 12) {
@@ -120,12 +139,12 @@ struct CookModeView: View {
                                 Text(timerInterval: Date.now...max(timer.end, .now), countsDown: true).monospacedDigit()
                             } icon: { Image(systemName: "timer") }
                                 .font(.title3.weight(.semibold)).foregroundStyle(CalendishStyle.accent)
-                            Button("Cancel", role: .destructive) { timers.removeAll { $0.id == timer.id } }
+                            Button("Cancel", role: .destructive) { timerStore.cancel(timer) }
                                 .modifier(GlassActionStyle())
                         }
                     } else {
                         Button("Start \(CookTimer.format(duration)) timer", systemImage: "timer") {
-                            timers.append(CookTimer(stepIndex: index, duration: duration))
+                            timerStore.start(recipe: recipe, stepIndex: index, duration: duration)
                         }
                         .controlSize(.large).modifier(GlassActionStyle())
                     }
@@ -140,8 +159,8 @@ struct CookModeView: View {
         Menu {
             ForEach(timers.sorted { $0.end < $1.end }) { timer in
                 Section("Step \(timer.stepIndex + 1) · \(timer.durationText)") {
-                    Button("Go to step", systemImage: "arrow.right") { withAnimation { stepIndex = timer.stepIndex } }
-                    Button("Cancel timer", systemImage: "xmark", role: .destructive) { timers.removeAll { $0.id == timer.id } }
+                    Button("Go to step", systemImage: "arrow.right") { withAnimation(reduceMotion ? nil : .default) { stepIndex = timer.stepIndex } }
+                    Button("Cancel timer", systemImage: "xmark", role: .destructive) { timerStore.cancel(timer) }
                 }
             }
         } label: {
@@ -153,23 +172,19 @@ struct CookModeView: View {
         .accessibilityLabel("Running timers")
     }
 
-    /// Sleeps until the soonest timer ends, then alerts. Restarts whenever timers change.
-    private func waitForNextTimer() async {
-        guard let next = timers.min(by: { $0.end < $1.end }) else { return }
-        try? await Task.sleep(for: .seconds(max(0, next.end.timeIntervalSinceNow)))
-        guard !Task.isCancelled else { return }
-        timers.removeAll { $0.id == next.id }
-        finishedTimer = next
-        AudioServicesPlayAlertSound(SystemSoundID(1005))
-    }
 }
 
-struct CookTimer: Identifiable {
-    let id = UUID()
+struct CookTimer: Identifiable, Codable {
+    let id: UUID
+    let recipeID: UUID
+    let recipeTitle: String
     let stepIndex: Int
     let duration: TimeInterval
     let end: Date
-    init(stepIndex: Int, duration: TimeInterval) {
+    init(recipe: Recipe, stepIndex: Int, duration: TimeInterval) {
+        id = UUID()
+        recipeID = recipe.id
+        recipeTitle = recipe.title
         self.stepIndex = stepIndex
         self.duration = duration
         end = .now.addingTimeInterval(duration)
@@ -189,5 +204,56 @@ struct CookTimer: Identifiable {
         case "m": return value * 60
         default: return value
         }
+    }
+}
+
+/// End dates persist independently of cooking screens; notifications cover background expiration.
+@Observable
+final class CookingTimers {
+    private(set) var timers: [CookTimer] = []
+    var finished: [CookTimer] = []
+    var isCooking = false
+    var notificationWarning: String?
+    private let storageKey = "activeCookingTimers"
+    init() {
+        if let data = UserDefaults.standard.data(forKey: storageKey), let saved = try? JSONDecoder().decode([CookTimer].self, from: data) { timers = saved }
+    }
+    private func persist() { UserDefaults.standard.set(try? JSONEncoder().encode(timers), forKey: storageKey) }
+    func start(recipe: Recipe, stepIndex: Int, duration: TimeInterval) {
+        guard duration > 0 else { return }
+        let timer = CookTimer(recipe: recipe, stepIndex: stepIndex, duration: duration)
+        timers.append(timer); persist()
+        Task {
+            do {
+                let center = UNUserNotificationCenter.current()
+                let granted = try await center.requestAuthorization(options: [.alert, .sound])
+                guard granted else {
+                    notificationWarning = "Notifications are off. Keep Calendish open to hear your timers, or enable notifications in Settings."
+                    return
+                }
+                notificationWarning = nil
+                guard timers.contains(where: { $0.id == timer.id }), timer.end > .now else { return }
+                let content = UNMutableNotificationContent()
+                content.title = "Timer Done"
+                content.body = "\(timer.recipeTitle), step \(timer.stepIndex + 1): your \(timer.durationText) timer is up."
+                content.sound = .default
+                try await center.add(UNNotificationRequest(identifier: timer.id.uuidString, content: content,
+                    trigger: UNTimeIntervalNotificationTrigger(timeInterval: max(1, timer.end.timeIntervalSinceNow), repeats: false)))
+                if !timers.contains(where: { $0.id == timer.id }) { center.removePendingNotificationRequests(withIdentifiers: [timer.id.uuidString]) }
+            } catch { notificationWarning = "Couldn’t schedule a timer notification. Keep Calendish open for the alert." }
+        }
+    }
+    func acknowledge() { finished.removeAll() }
+    func cancel(_ timer: CookTimer) {
+        timers.removeAll { $0.id == timer.id }; persist()
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [timer.id.uuidString])
+    }
+    func waitForNextTimer() async {
+        guard let next = timers.min(by: { $0.end < $1.end }) else { return }
+        do { try await Task.sleep(for: .seconds(max(0, next.end.timeIntervalSinceNow))) } catch { return }
+        guard !Task.isCancelled else { return }
+        timers.removeAll { $0.id == next.id }; persist()
+        finished.append(next)
+        AudioServicesPlayAlertSound(SystemSoundID(1005))
     }
 }
