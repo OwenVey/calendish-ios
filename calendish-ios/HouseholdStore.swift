@@ -28,6 +28,18 @@ final class HouseholdStore {
     private var channel: RealtimeChannelV2?
     private var realtimeTask: Task<Void, Never>?
     private var reloadTask: Task<Void, Never>?
+    private var realtimeConnectionTask: Task<Void, Never>?
+    private var realtimeStarting = false
+    private var writeTask: Task<Void, Never>?
+    private var savingTasks: [UUID: Task<Void, Never>] = [:]
+    private var pendingWrites = 0
+    private var writeRevision: UInt64 = 0
+    private var realtimeStatusTask: Task<Void, Never>?
+    private var groceryReloadTask: Task<Void, Never>?
+    private var groceryReloadID = UUID()
+    private var groceryWriteTask: Task<Void, Never>?
+    private var grocerySync = GrocerySyncState()
+    private var syncSession = UUID()
 
     init() { isPreview = false }
 
@@ -75,24 +87,40 @@ final class HouseholdStore {
     func start() async {
         guard !isPreview else { return }
         for await (event, session) in supabase.auth.authStateChanges {
-            if event == .passwordRecovery { needsPasswordReset = true }
             if let session {
                 // A stored session can start out expired; the client refreshes it and emits again.
                 if session.isExpired { continue }
                 if userID != session.user.id {
+                    await resetAccountData()
                     userID = session.user.id
                     await loadHousehold()
                 }
+                if event == .passwordRecovery { needsPasswordReset = true }
             } else {
-                await stopRealtime()
-                needsPasswordReset = false
+                await resetAccountData()
                 GIDSignIn.sharedInstance.signOut()
                 userID = nil
-                household = nil
-                members = []; recipes = []; meals = []; groceries = []
                 phase = .signedOut
             }
         }
+    }
+
+    /// Invalidates in-flight reads/writes before awaiting channel teardown.
+    private func resetAccountData() async {
+        phase = .loading
+        syncSession = UUID()
+        for task in savingTasks.values { task.cancel() }
+        savingTasks.removeAll()
+        writeTask?.cancel(); writeTask = nil
+        groceryWriteTask?.cancel(); groceryWriteTask = nil
+        pendingWrites = 0
+        writeRevision &+= 1
+        grocerySync = GrocerySyncState()
+        needsPasswordReset = false
+        household = nil
+        members = []; recipes = []; meals = []; groceries = []
+        RecipePhotos.shared.clearCache()
+        await stopRealtime()
     }
 
     /// Signs in with Google's native sheet and hands the ID token to Supabase. Does nothing if the person cancels.
@@ -236,40 +264,181 @@ final class HouseholdStore {
     /// Fetches everything for the household. The data set is small enough to refetch whole.
     func reload() async throws {
         guard !isPreview, let id = household?.id else { return }
+        let session = syncSession
+        grocerySync.invalidate()
+        let groceryRevision = grocerySync.revision
+        let revision = writeRevision
         async let householdRow: HouseholdRecord = supabase.from("households").select().eq("id", value: id).single().execute().value
-        async let memberRows: [MemberRecord] = supabase.from("household_members").select().eq("household_id", value: id).order("joined_at").execute().value
-        async let recipeRows: [RecipeRecord] = supabase.from("recipes").select().eq("household_id", value: id).order("created_at", ascending: false).execute().value
-        async let mealRows: [PlannedMealRecord] = supabase.from("planned_meals").select().eq("household_id", value: id).execute().value
-        async let groceryRows: [GroceryItemRecord] = supabase.from("grocery_items").select().eq("household_id", value: id).order("position").order("created_at").execute().value
+        async let memberRows: [MemberRecord] = fetchRows("household_members", householdID: id, idColumn: "user_id", key: \.userID)
+        async let recipeRows: [RecipeRecord] = fetchRows("recipes", householdID: id, key: \.id)
+        async let mealRows: [PlannedMealRecord] = fetchRows("planned_meals", householdID: id, key: \.id)
+        async let groceryRows: [GroceryItemRecord] = fetchRows("grocery_items", householdID: id, key: \.id)
         let (h, m, r, p, g) = try await (householdRow, memberRows, recipeRows, mealRows, groceryRows)
-        household = Household(id: h.id, name: h.name, inviteCode: h.inviteCode)
-        members = m.map { HouseholdMember(userID: $0.userID, displayName: $0.displayName, role: $0.role, avatarURL: $0.avatarURL.flatMap(URL.init)) }
-        recipes = r.map(Recipe.init)
-        meals = p.compactMap(PlannedMeal.init)
-        groceries = g.map(GroceryItem.init)
+        guard !Task.isCancelled, session == syncSession, household?.id == id else { return }
+        if pendingWrites == 0, revision == writeRevision {
+            household = Household(id: h.id, name: h.name, inviteCode: h.inviteCode)
+            members = m.map { HouseholdMember(userID: $0.userID, displayName: $0.displayName, role: $0.role, avatarURL: $0.avatarURL.flatMap(URL.init)) }
+            recipes = r.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }.map(Recipe.init)
+            meals = p.compactMap(PlannedMeal.init)
+        }
+        if groceryRevision == grocerySync.revision {
+            groceries = grocerySync.merging(g.map(GroceryItem.init))
+        } else {
+            scheduleGroceryReload()
+        }
+    }
+
+    /// Keyset pagination avoids the Data API's default row cap without increasingly
+    /// expensive offsets. Sorting for display happens after all pages are loaded.
+    private func fetchRows<Row: Decodable>(_ table: String, householdID: UUID,
+                                           idColumn: String = "id", key: KeyPath<Row, UUID>) async throws -> [Row] {
+        var rows: [Row] = []
+        var cursor: UUID?
+        let pageSize = 500
+        while true {
+            try Task.checkCancellation()
+            var query = supabase.from(table).select().eq("household_id", value: householdID)
+            if let cursor { query = query.gt(idColumn, value: cursor) }
+            let page: [Row] = try await query.order(idColumn).limit(pageSize).execute().value
+            rows.append(contentsOf: page)
+            guard page.count == pageSize, let last = page.last else { return rows }
+            cursor = last[keyPath: key]
+        }
     }
 
     func refresh() async {
         do { try await reload() } catch { report(error) }
     }
 
+    func resumeSync() async {
+        guard phase == .ready, !isPreview else { return }
+        if channel?.status != .subscribed {
+            await startRealtime()
+        }
+        await refresh()
+    }
+
     private func startRealtime() async {
+        guard !realtimeStarting else { return }
+        realtimeStarting = true
+        defer { realtimeStarting = false }
+        let session = syncSession
         await stopRealtime()
-        let channel = supabase.channel("household")
-        // Policies limit inserts and updates to this household's rows; any change triggers a refetch.
-        let changes = channel.postgresChange(AnyAction.self, schema: "public")
+        guard session == syncSession, let householdID = household?.id else { return }
+        await supabase.realtimeV2.setAuth()
+        guard session == syncSession else { return }
+        let channel = supabase.channel("household:\(householdID.uuidString.lowercased())") {
+            $0.isPrivate = true
+        }
+        let changes = channel.broadcastStream(event: "CHANGE")
+        let statuses = channel.statusChange
         self.channel = channel
-        do { try await channel.subscribeWithError() } catch { report(error) }
         realtimeTask = Task { [weak self] in
-            for await _ in changes { self?.scheduleReload() }
+            for await payload in changes {
+                guard !Task.isCancelled, let self, session == self.syncSession else { return }
+                // Broadcast contains only a table name. All data is fetched through
+                // RLS; private channel authorization also prevents cross-household events.
+                // supabase-swift delivers the Broadcast envelope, with our data
+                // nested under "payload", rather than the inner object alone.
+                guard let table = payload["payload"]?.objectValue?["table"]?.stringValue else { continue }
+                if table == "grocery_items" {
+                    self.scheduleGroceryReload()
+                } else {
+                    self.scheduleReload()
+                }
+            }
+        }
+        realtimeStatusTask = Task { [weak self] in
+            for await status in statuses {
+                guard !Task.isCancelled else { return }
+                // Subscribe before fetching: closes the initial-load gap and catches
+                // changes missed during a network outage on every successful rejoin.
+                if status == .subscribed { await self?.refresh() }
+            }
+        }
+        realtimeConnectionTask = Task { [weak self] in
+            var reportedFailure = false
+            while !Task.isCancelled {
+                if channel.status != .subscribed {
+                    do {
+                        try await channel.subscribeWithError()
+                        reportedFailure = false
+                    } catch {
+                        guard !Task.isCancelled else { return }
+                        if !reportedFailure { self?.report(error); reportedFailure = true }
+                    }
+                }
+                // The SDK reconnects automatically; this also retries if its
+                // finite retry budget is exhausted while the tab remains open.
+                do { try await Task.sleep(for: .seconds(5)) } catch { return }
+            }
         }
     }
 
     private func stopRealtime() async {
         realtimeTask?.cancel()
         realtimeTask = nil
+        realtimeConnectionTask?.cancel()
+        realtimeConnectionTask = nil
+        realtimeStatusTask?.cancel()
+        realtimeStatusTask = nil
+        reloadTask?.cancel()
+        reloadTask = nil
+        groceryReloadID = UUID()
+        groceryReloadTask?.cancel()
+        groceryReloadTask = nil
         if let channel { await supabase.removeChannel(channel) }
         channel = nil
+    }
+
+    /// One fetch at a time. Changes during a fetch invalidate its snapshot and
+    /// request another pass, rather than cancelling or publishing stale results.
+    private func scheduleGroceryReload() {
+        grocerySync.invalidate()
+        guard groceryReloadTask == nil, !isPreview, let id = household?.id else { return }
+        let session = syncSession
+        let reloadID = UUID()
+        groceryReloadID = reloadID
+        groceryReloadTask = Task { [weak self] in
+            guard let self else { return }
+            defer { if reloadID == groceryReloadID { groceryReloadTask = nil } }
+            var reportedFailure = false
+            while !Task.isCancelled, session == syncSession, household?.id == id {
+                let revision = grocerySync.revision
+                do {
+                    let rows: [GroceryItemRecord] = try await fetchRows("grocery_items", householdID: id, key: \.id)
+                    guard !Task.isCancelled, session == syncSession, household?.id == id else { return }
+                    if revision != grocerySync.revision { continue }
+                    groceries = grocerySync.merging(rows.map(GroceryItem.init))
+                    return
+                } catch {
+                    guard !Task.isCancelled, session == syncSession else { return }
+                    if !reportedFailure { report(error); reportedFailure = true }
+                    // A failed fetch must not leave the tab stale when the socket
+                    // remains connected and no further database events arrive.
+                    do { try await Task.sleep(for: .seconds(3)) } catch { return }
+                }
+            }
+        }
+    }
+
+    /// Serialize local writes so rapid check/uncheck taps reach the server in order.
+    private func saveGroceries(_ changes: [GrocerySyncState.Change], operation: @escaping () async throws -> Void) {
+        guard !isPreview else { return }
+        let token = grocerySync.begin(changes)
+        let session = syncSession
+        let previous = groceryWriteTask
+        groceryWriteTask = Task { [weak self] in
+            await previous?.value
+            guard let self, !Task.isCancelled, session == syncSession else { return }
+            defer { savingTasks[token] = nil }
+            do { try await operation() }
+            catch { if session == syncSession { report(error) } }
+            guard session == syncSession else { return }
+            grocerySync.finish(token)
+            scheduleGroceryReload()
+        }
+        savingTasks[token] = groceryWriteTask
     }
 
     /// Coalesces a burst of change events into one refetch.
@@ -313,13 +482,14 @@ final class HouseholdStore {
         if isPreview { onSaved?(); return }
         let record = recipe.record(household: id)
         let stalePath = previousPath != recipe.imagePath ? previousPath : nil
-        save {
+        save(onSuccess: onSaved) {
             if let upload {
                 try await supabase.storage.from(RecipePhotos.bucket)
                     .upload(upload.path, data: upload.data, options: FileOptions(cacheControl: "31536000", contentType: "image/jpeg"))
             }
+            try Task.checkCancellation()
             try await supabase.from("recipes").upsert(record).execute()
-            onSaved?()
+            try Task.checkCancellation()
             if let stalePath {
                 _ = try? await supabase.storage.from(RecipePhotos.bucket).remove(paths: [stalePath])
             }
@@ -344,9 +514,12 @@ final class HouseholdStore {
     }
 
     func toggleFavorite(_ recipe: Recipe) {
-        var recipe = recipe
-        recipe.isFavorite.toggle()
-        saveRecipe(recipe)
+        guard let index = recipes.firstIndex(where: { $0.id == recipe.id }) else { return }
+        recipes[index].isFavorite.toggle()
+        let favorite = recipes[index].isFavorite
+        save {
+            try await supabase.from("recipes").update(["is_favorite": favorite]).eq("id", value: recipe.id).execute()
+        }
     }
 
     // MARK: Meal plan
@@ -359,13 +532,8 @@ final class HouseholdStore {
         meals.removeAll { $0.id == moving?.id || $0.id == replaced?.id }
         meals.append(meal)
         guard let id = household?.id else { return }
-        let removedIDs = [moving?.id, replaced?.id].compactMap(\.self)
-        save {
-            if !removedIDs.isEmpty {
-                try await supabase.from("planned_meals").delete().in("id", values: removedIDs).execute()
-            }
-            try await supabase.from("planned_meals").insert(meal.record(household: id)).execute()
-        }
+        let parameters = SaveMealParameters(meal: meal.record(household: id), movingID: moving?.id)
+        save { try await supabase.rpc("save_planned_meal", params: parameters).execute() }
     }
 
     func removeMeal(_ meal: PlannedMeal) {
@@ -379,14 +547,16 @@ final class HouseholdStore {
         let item = GroceryItem(name: name, amount: amount, source: source, position: (groceries.map(\.position).max() ?? 0) + 1)
         groceries.append(item)
         guard let id = household?.id else { return }
-        save { try await supabase.from("grocery_items").insert(item.record(household: id)).execute() }
+        saveGroceries([.insert(item)]) { try await supabase.from("grocery_items").insert(item.record(household: id)).execute() }
     }
 
     func toggleGrocery(_ item: GroceryItem) {
         guard let index = groceries.firstIndex(where: { $0.id == item.id }) else { return }
         groceries[index].isComplete.toggle()
         let isComplete = groceries[index].isComplete
-        save { try await supabase.from("grocery_items").update(["is_complete": isComplete]).eq("id", value: item.id).execute() }
+        saveGroceries([.edit(item.id, name: nil, amount: nil, source: nil, isComplete: isComplete, position: nil)]) {
+            try await supabase.from("grocery_items").update(["is_complete": isComplete]).eq("id", value: item.id).execute()
+        }
     }
 
     /// Saves a new order for the whole list by renumbering every item's position.
@@ -397,15 +567,19 @@ final class HouseholdStore {
             return item
         }
         guard let id = household?.id else { return }
-        let rows = groceries.map { $0.record(household: id) }
-        save { try await supabase.from("grocery_items").upsert(rows).execute() }
+        let positions = groceries.map { ($0.id, $0.position) }
+        let changes = positions.map { GrocerySyncState.Change.edit($0.0, name: nil, amount: nil, source: nil, isComplete: nil, position: $0.1) }
+        let parameters = GroceryOrderParameters(target_household: id, item_ids: positions.map(\.0), item_positions: positions.map(\.1))
+        saveGroceries(changes) { try await supabase.rpc("reorder_groceries", params: parameters).execute() }
     }
 
     func removeGroceries(_ items: [GroceryItem]) {
         let ids = Set(items.map(\.id))
         groceries.removeAll { ids.contains($0.id) }
         guard !ids.isEmpty else { return }
-        save { try await supabase.from("grocery_items").delete().in("id", values: Array(ids)).execute() }
+        saveGroceries(ids.map { .delete($0) }) {
+            try await supabase.from("grocery_items").delete().in("id", values: Array(ids)).execute()
+        }
     }
 
     func clearCompletedGroceries() {
@@ -415,29 +589,54 @@ final class HouseholdStore {
     // MARK: Saving
 
     /// Runs a write in the background. On failure, shows the error and refetches so the screen matches the server.
-    private func save(_ operation: @escaping () async throws -> Void) {
+    private func save(onSuccess: (() -> Void)? = nil, _ operation: @escaping () async throws -> Void) {
         guard !isPreview else { return }
-        Task {
+        let session = syncSession
+        let token = UUID()
+        let previous = writeTask
+        pendingWrites += 1
+        writeRevision &+= 1
+        writeTask = Task { [weak self] in
+            await previous?.value
+            guard let self, !Task.isCancelled, session == syncSession else { return }
+            defer { savingTasks[token] = nil }
             do {
                 try await operation()
-            } catch {
-                report(error)
-                await refresh()
-            }
+                if session == syncSession { onSuccess?() }
+            } catch { if session == syncSession { report(error) } }
+            guard session == syncSession else { return }
+            pendingWrites -= 1
+            writeRevision &+= 1
+            if pendingWrites == 0 { await refresh() }
         }
+        savingTasks[token] = writeTask
     }
 
-    func updateGrocery(_ item: GroceryItem) {
+    func updateGrocery(_ item: GroceryItem, original: GroceryItem) {
         guard let index = groceries.firstIndex(where: { $0.id == item.id }), let id = household?.id else { return }
-        groceries[index] = item
-        save { try await supabase.from("grocery_items").upsert(item.record(household: id)).execute() }
+        let previous = original
+        let patch = GroceryEdit(
+            name: previous.name == item.name ? nil : item.name,
+            amount: previous.amount == item.amount ? nil : item.amount,
+            source: previous.source == item.source ? nil : item.source)
+        // The editor owns text fields only; preserve live checkmarks and ordering.
+        guard patch.name != nil || patch.amount != nil || patch.source != nil else { return }
+        if let name = patch.name { groceries[index].name = name }
+        if let amount = patch.amount { groceries[index].amount = amount }
+        if let source = patch.source { groceries[index].source = source }
+        saveGroceries([.edit(item.id, name: patch.name, amount: patch.amount, source: patch.source, isComplete: nil, position: nil)]) {
+            try await supabase.from("grocery_items").update(patch)
+                .eq("household_id", value: id).eq("id", value: item.id).execute()
+        }
     }
 
     func importGroceries(_ items: [GroceryItem]) {
         guard let id = household?.id else { return }
         groceries.append(contentsOf: items)
         groceries.sort { $0.position < $1.position }
-        save { try await supabase.from("grocery_items").insert(items.map { $0.record(household: id) }).execute() }
+        saveGroceries(items.map { .insert($0) }) {
+            try await supabase.from("grocery_items").insert(items.map { $0.record(household: id) }).execute()
+        }
     }
 
     private func report(_ error: Error) {

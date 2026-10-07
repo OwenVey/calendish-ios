@@ -57,7 +57,7 @@ struct ContentView: View {
         .sheet(isPresented: Binding(get: { store.needsPasswordReset }, set: { store.needsPasswordReset = $0 })) { PasswordResetView() }
         .onChange(of: scenePhase) { _, phase in
             // Catch up on anything missed while Realtime was disconnected in the background.
-            if phase == .active, store.phase == .ready { Task { await store.refresh() } }
+            if phase == .active, store.phase == .ready { Task { await store.resumeSync() } }
         }
         .alert("Couldn’t sync", isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) {
             Button("OK") {}

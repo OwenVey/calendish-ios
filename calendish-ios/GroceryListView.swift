@@ -257,7 +257,7 @@ private struct GroceryEditorView: View {
                         var updated = item
                         updated.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
                         updated.amount = amount.trimmingCharacters(in: .whitespacesAndNewlines)
-                        store.updateGrocery(updated); dismiss()
+                        store.updateGrocery(updated, original: item); dismiss()
                     }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).modifier(GlassActionStyle(prominent: true))
                 }
             }

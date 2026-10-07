@@ -34,6 +34,7 @@ nonisolated struct MemberRecord: Codable, Sendable {
 nonisolated struct RecipeRecord: Codable, Sendable {
     var id: UUID
     var householdID: UUID
+    var createdAt: Date? = nil
     var title: String
     var summary: String
     var minutes: Int
@@ -50,6 +51,7 @@ nonisolated struct RecipeRecord: Codable, Sendable {
     var category: String?
     var yieldText: String?
     enum CodingKeys: String, CodingKey {
+        case createdAt = "created_at"
         case id, householdID = "household_id", title, summary, minutes, servings, tags, symbol, ingredients, steps
         case isFavorite = "is_favorite", imagePath = "image_path"
         case prepMinutes = "prep_minutes", cookMinutes = "cook_minutes", recipeLink = "recipe_link"
@@ -152,4 +154,37 @@ enum DayFormat {
         guard parts.count == 3 else { return nil }
         return Calendar.current.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2]))
     }
+}
+
+/// Omitted fields remain unchanged when another shopper edits the same item.
+nonisolated struct GroceryEdit: Encodable, Sendable {
+    var name: String?
+    var amount: String?
+    var source: String?
+}
+
+nonisolated struct SaveMealParameters: Encodable, Sendable {
+    var target_household: UUID
+    var meal_id: UUID
+    var meal_date: String
+    var meal_slot: String
+    var meal_recipe: UUID
+    var meal_servings: Int
+    var moving_id: UUID?
+
+    init(meal: PlannedMealRecord, movingID: UUID?) {
+        target_household = meal.householdID
+        meal_id = meal.id
+        meal_date = meal.date
+        meal_slot = meal.slot
+        meal_recipe = meal.recipeID
+        meal_servings = meal.servings
+        moving_id = movingID
+    }
+}
+
+nonisolated struct GroceryOrderParameters: Encodable, Sendable {
+    var target_household: UUID
+    var item_ids: [UUID]
+    var item_positions: [Double]
 }

@@ -143,11 +143,11 @@ private struct PasswordStepView: View {
     @State private var message: String?
     @State private var notice: String?
     @FocusState private var focused: Bool
-    private var canSubmit: Bool { password.count >= 6 && !working }
+    private var canSubmit: Bool { password.count >= (creatingAccount ? 8 : 6) && !working }
 
     var body: some View {
         AuthStep(title: creatingAccount ? "Create a password" : "Enter your password",
-                 subtitle: creatingAccount ? "Use at least 6 characters." : nil) {
+                 subtitle: creatingAccount ? "Use at least 8 characters." : nil) {
             VStack(alignment: .leading, spacing: 14) {
                 Button { dismiss() } label: {
                     HStack(spacing: 6) {
@@ -409,7 +409,7 @@ struct PasswordResetView: View {
                 Section {
                     SecureField("New Password", text: $password).textContentType(.newPassword)
                     SecureField("Confirm Password", text: $confirmation).textContentType(.newPassword)
-                } footer: { Text("Use at least 6 characters. Both passwords must match.") }
+                } footer: { Text("Use at least 8 characters. Both passwords must match.") }
                 if let message { Section { Text(message).foregroundStyle(.red) } }
                 if working { ProgressView("Saving Password…") }
             }
@@ -424,7 +424,7 @@ struct PasswordResetView: View {
                             do { try await store.updatePassword(password); dismiss() }
                             catch { message = error.localizedDescription }
                         }
-                    }.disabled(working || password.count < 6 || confirmation != password).modifier(GlassActionStyle(prominent: true))
+                    }.disabled(working || password.count < 8 || confirmation != password).modifier(GlassActionStyle(prominent: true))
                 }
             }
         }.interactiveDismissDisabled(working || !password.isEmpty)

@@ -14,8 +14,18 @@ final class RecipePhotos {
         cache.totalCostLimit = 64 * 1024 * 1024
         return cache
     }()
+    private var generation = UUID()
     private var loads: [String: Task<UIImage?, Never>] = [:]
     private let directory = URL.cachesDirectory.appending(path: "RecipePhotos", directoryHint: .isDirectory)
+
+    /// Private household photos must not survive an account change on this device.
+    func clearCache() {
+        generation = UUID()
+        for load in loads.values { load.cancel() }
+        loads.removeAll()
+        memory.removeAllObjects()
+        try? FileManager.default.removeItem(at: directory)
+    }
 
     /// Shrinks a photo to a sensible size for the app and encodes it as JPEG.
     static func uploadData(for image: UIImage) -> Data? {
@@ -39,15 +49,17 @@ final class RecipePhotos {
         let key = key(path, thumbnail)
         if let image = memory.object(forKey: key as NSString) { return image }
         if let load = loads[key] { return await load.value }
+        let generation = generation
         let file = fileURL(for: path)
         let load = Task { () -> UIImage? in
             var data = try? Data(contentsOf: file)
             if data == nil, let downloaded = try? await supabase.storage.from(Self.bucket).download(path: path) {
+                guard !Task.isCancelled, generation == self.generation else { return nil }
                 try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                 try? downloaded.write(to: file)
                 data = downloaded
             }
-            guard let data, let image = UIImage(data: data) else { return nil }
+            guard !Task.isCancelled, generation == self.generation, let data, let image = UIImage(data: data) else { return nil }
             let prepared = thumbnail
                 ? await image.byPreparingThumbnail(ofSize: CGSize(width: 320, height: 320))
                 : await image.byPreparingForDisplay()
@@ -55,6 +67,7 @@ final class RecipePhotos {
         }
         loads[key] = load
         let image = await load.value
+        guard generation == self.generation else { return nil }
         loads[key] = nil
         if let image {
             let cost = Int(image.size.width * image.size.height * image.scale * image.scale * 4)

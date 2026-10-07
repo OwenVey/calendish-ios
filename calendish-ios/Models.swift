@@ -83,8 +83,8 @@ struct Recipe: Identifiable, Hashable {
     /// What the recipe makes when that isn't just servings, such as "24 cookies".
     var yieldText: String?
 
-    static func == (lhs: Recipe, rhs: Recipe) -> Bool { lhs.id == rhs.id }
-    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    // Keep synthesized value equality: Observation compares recipe arrays before
+    // notifying views. ID-only equality hides edits to an existing recipe.
 }
 
 enum MealSlot: String, CaseIterable, Identifiable {
