@@ -205,6 +205,8 @@ struct RecipeDetailView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let initialRecipe: Recipe
     @State private var checked: Set<UUID> = []
+    /// Servings the cook scaled to, or nil to use the recipe as written.
+    @State private var scaledServings: Int?
     @State private var showImportOutline = false
     @State private var showEditor = false
     @State private var confirmDelete = false
@@ -221,6 +223,9 @@ struct RecipeDetailView: View {
     init(recipe: Recipe) { initialRecipe = recipe }
     /// Reads the latest copy from the store so edits show up immediately.
     private var recipe: Recipe { store.recipes.first { $0.id == initialRecipe.id } ?? initialRecipe }
+    private var servings: Int { scaledServings ?? recipe.servings }
+    private var isScaled: Bool { servings != recipe.servings && recipe.servings > 0 }
+    private var scale: Double { isScaled ? Double(servings) / Double(recipe.servings) : 1 }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -261,7 +266,8 @@ struct RecipeDetailView: View {
                     }
                 }
                 VStack(alignment: .leading, spacing: 8) {
-                    SectionHeading(title: "Ingredients", subtitle: "Check things off as you cook.")
+                    SectionHeading(title: "Ingredients", subtitle: ingredientsSubtitle)
+                    servingsStepper
                     ForEach(recipe.ingredients) { ingredient in
                         Button {
                             if checked.contains(ingredient.id) { checked.remove(ingredient.id) }
@@ -270,7 +276,7 @@ struct RecipeDetailView: View {
                             HStack(spacing: 14) {
                                 Image(systemName: checked.contains(ingredient.id) ? "checkmark.circle.fill" : "circle")
                                     .font(.title3).foregroundStyle(checked.contains(ingredient.id) ? CalendishStyle.accent : Color.secondary)
-                                Text(ingredient.text).strikethrough(checked.contains(ingredient.id)).foregroundStyle(.primary)
+                                Text(ingredient.scaled(by: scale)).strikethrough(checked.contains(ingredient.id)).foregroundStyle(.primary)
                                 Spacer()
                             }.padding(.vertical, 12).contentShape(Rectangle())
                         }.buttonStyle(.plain)
@@ -356,10 +362,39 @@ struct RecipeDetailView: View {
             RecipeSourceBrowser(url: source.url)
                 .ignoresSafeArea()
         }
-        .fullScreenCover(isPresented: $isCooking) { CookModeView(recipe: recipe, checked: $checked) }
+        .fullScreenCover(isPresented: $isCooking) { CookModeView(recipe: recipe, servings: servings, checked: $checked) }
         .sheet(isPresented: $showImportOutline) {
-            GroceryImportReviewView(candidates: [GroceryImportCandidate(recipe: recipe, servings: recipe.servings)])
+            GroceryImportReviewView(candidates: [GroceryImportCandidate(recipe: recipe, servings: servings)])
         }
+    }
+}
+
+extension RecipeDetailView {
+    private var ingredientsSubtitle: String {
+        guard isScaled else { return "Check things off as you cook." }
+        let scaledYield = recipe.yieldText.map { " · Makes \(Ingredient.scale($0, by: scale))" } ?? ""
+        return "Scaled from \(recipe.servings) servings\(scaledYield)."
+    }
+
+    private var servingsStepper: some View {
+        HStack(spacing: 12) {
+            Label {
+                Text("\(servings) servings").monospacedDigit().contentTransition(.numericText(value: Double(servings)))
+            } icon: { Image(systemName: "person.2") }
+            if isScaled {
+                Button("Reset") { scaledServings = nil }
+                    .font(.subheadline)
+                    .accessibilityLabel("Reset to \(recipe.servings) servings")
+                    .transition(.opacity)
+            }
+            Spacer()
+            Stepper("Servings", value: Binding(get: { servings }, set: { scaledServings = $0 }), in: 1...100)
+                .labelsHidden()
+                .accessibilityValue("\(servings) servings")
+        }
+        .padding(.vertical, 6)
+        .animation(reduceMotion ? nil : .snappy, value: servings)
+        .sensoryFeedback(.selection, trigger: servings)
     }
 }
 

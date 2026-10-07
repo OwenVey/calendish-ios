@@ -7,26 +7,8 @@ struct GroceryImportCandidate: Identifiable {
 
     /// Scale recognized leading quantities; keep free-form instructions intact for review.
     var ingredientLines: [String] {
-        recipe.ingredients.map { ingredient in
-            guard servings != recipe.servings, recipe.servings > 0 else { return ingredient.text }
-            let text = ingredient.text
-            let fractions: [Character: Double] = ["¼": 0.25, "½": 0.5, "¾": 0.75, "⅓": 1.0 / 3, "⅔": 2.0 / 3, "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875]
-            guard let match = text.firstMatch(of: /^(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?[¼½¾⅓⅔⅛⅜⅝⅞]?|[¼½¾⅓⅔⅛⅜⅝⅞])\s+(.+)$/) else { return text }
-            let quantity = String(match.output.1)
-            let value: Double?
-            if let last = quantity.last, let fraction = fractions[last] {
-                value = (Double(quantity.dropLast()) ?? 0) + fraction
-            } else if quantity.contains("/") {
-                let parts = quantity.split(separator: " ")
-                let fraction = parts.last!.split(separator: "/")
-                if fraction.count == 2, let numerator = Double(fraction[0]), let denominator = Double(fraction[1]), denominator > 0 {
-                    value = (parts.count > 1 ? Double(parts[0]) ?? 0 : 0) + numerator / denominator
-                } else { value = nil }
-            } else { value = Double(quantity) }
-            guard let value else { return text }
-            let scaled = value * Double(servings) / Double(recipe.servings)
-            return "\(scaled.formatted(.number.precision(.fractionLength(0...2)))) \(match.output.2)"
-        }
+        guard recipe.servings > 0 else { return recipe.ingredients.map(\.text) }
+        return recipe.ingredients.map { $0.scaled(by: Double(servings) / Double(recipe.servings)) }
     }
 }
 

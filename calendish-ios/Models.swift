@@ -3,6 +3,63 @@ import Foundation
 nonisolated struct Ingredient: Identifiable, Codable, Hashable, Sendable {
     var id = UUID()
     var text: String
+
+    /// The ingredient with its leading quantity, or range like "2–3", multiplied by `factor`.
+    /// Lines without a recognizable quantity, such as "Salt to taste", stay as written.
+    func scaled(by factor: Double) -> String { Ingredient.scale(text, by: factor) }
+
+    static func scale(_ text: String, by factor: Double) -> String {
+        guard factor != 1, factor > 0,
+              let match = text.firstMatch(of: #/^(\s*)(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?(?:\s?[¼½¾⅓⅔⅛⅜⅝⅞])?|[¼½¾⅓⅔⅛⅜⅝⅞])(?:(\s*[-–]\s*|\s+to\s+)(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?(?:\s?[¼½¾⅓⅔⅛⅜⅝⅞])?|[¼½¾⅓⅔⅛⅜⅝⅞]))?(?=\s|\(|\p{L}|$)/#),
+              let low = quantity(String(match.output.2)) else { return text }
+        let usesDecimals = match.output.2.contains { $0 == "." || $0 == "," }
+        var result = String(match.output.1) + format(low * factor, decimals: usesDecimals)
+        if let separator = match.output.3, let highText = match.output.4 {
+            guard let high = quantity(String(highText)) else { return text }
+            result += separator + format(high * factor, decimals: usesDecimals || highText.contains { $0 == "." || $0 == "," })
+        }
+        return result + text[match.range.upperBound...]
+    }
+
+    private static let fractionGlyphs: [(Character, Double)] = [
+        ("⅛", 0.125), ("¼", 0.25), ("⅓", 1.0 / 3), ("⅜", 0.375), ("½", 0.5), ("⅝", 0.625), ("⅔", 2.0 / 3), ("¾", 0.75), ("⅞", 0.875)
+    ]
+
+    private static func quantity(_ token: String) -> Double? {
+        var token = token.replacingOccurrences(of: ",", with: ".")
+        var total = 0.0
+        if let last = token.last, let glyph = fractionGlyphs.first(where: { $0.0 == last }) {
+            total += glyph.1
+            token = String(token.dropLast()).trimmingCharacters(in: .whitespaces)
+            if token.isEmpty { return total }
+        }
+        let parts = token.split(separator: " ")
+        for part in parts {
+            if part.contains("/") {
+                let pieces = part.split(separator: "/")
+                guard pieces.count == 2, let numerator = Double(pieces[0]), let denominator = Double(pieces[1]), denominator > 0 else { return nil }
+                total += numerator / denominator
+            } else {
+                guard let whole = Double(part) else { return nil }
+                total += whole
+            }
+        }
+        return total
+    }
+
+    /// Kitchen-friendly numbers: "1½" rather than "1.5", unless the recipe wrote decimals itself.
+    private static func format(_ value: Double, decimals: Bool) -> String {
+        if !decimals {
+            let whole = value.rounded(.down)
+            let remainder = value - whole
+            if remainder < 0.03 { return whole.formatted(.number.precision(.fractionLength(0))) }
+            if remainder > 0.97 { return (whole + 1).formatted(.number.precision(.fractionLength(0))) }
+            if let glyph = fractionGlyphs.first(where: { abs($0.1 - remainder) < 0.03 }) {
+                return (whole > 0 ? whole.formatted(.number.precision(.fractionLength(0))) : "") + String(glyph.0)
+            }
+        }
+        return value.formatted(.number.precision(.fractionLength(0...2)))
+    }
 }
 
 struct Recipe: Identifiable, Hashable {

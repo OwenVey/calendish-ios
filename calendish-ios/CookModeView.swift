@@ -7,6 +7,8 @@ import Observation
 struct CookModeView: View {
     @Environment(\.dismiss) private var dismiss
     let recipe: Recipe
+    /// The servings chosen on the recipe page; ingredient quantities scale to match.
+    var servings: Int
     @Binding var checked: Set<UUID>
     @State private var stepIndex = 0
     @State private var showIngredients = true
@@ -16,6 +18,7 @@ struct CookModeView: View {
     @State private var showIngredientSheet = false
     @State private var wideLayout = false
     private var timers: [CookTimer] { timerStore.timers.filter { $0.recipeID == recipe.id } }
+    private var scale: Double { recipe.servings > 0 ? Double(servings) / Double(recipe.servings) : 1 }
     private var isLastStep: Bool { stepIndex >= recipe.steps.count - 1 }
 
     var body: some View {
@@ -106,7 +109,7 @@ struct CookModeView: View {
                         if isChecked { checked.remove(ingredient.id) } else { checked.insert(ingredient.id) }
                     } label: {
                         Label {
-                            Text(ingredient.text).strikethrough(isChecked).foregroundStyle(isChecked ? .secondary : .primary)
+                            Text(ingredient.scaled(by: scale)).strikethrough(isChecked).foregroundStyle(isChecked ? .secondary : .primary)
                         } icon: {
                             Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
                                 .foregroundStyle(isChecked ? CalendishStyle.accent : Color.secondary)
@@ -118,7 +121,7 @@ struct CookModeView: View {
             } header: {
                 Text("Ingredients")
             } footer: {
-                Text("\(recipe.servings) servings · \(recipe.minutes) min")
+                Text("\(servings) servings · \(recipe.minutes) min")
             }
         }
         .listStyle(.insetGrouped)
