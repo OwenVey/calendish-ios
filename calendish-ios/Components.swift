@@ -60,7 +60,23 @@ struct RecipeRow: View {
                         Image(systemName: "star.fill").font(.caption).foregroundStyle(.yellow).accessibilityLabel("Favorite")
                     }
                 }
-                Text("\(recipe.minutes) min · \(recipe.servings) servings").font(.subheadline).foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.caption)
+                            .accessibilityHidden(true)
+                        Text("\(recipe.minutes) min")
+                    }
+                    Text("·").accessibilityHidden(true)
+                    HStack(spacing: 4) {
+                        Image(systemName: "person.2")
+                            .font(.caption)
+                            .accessibilityHidden(true)
+                        Text("\(recipe.servings) servings")
+                    }
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
                 if !recipe.tags.isEmpty {
                     HStack(spacing: 4) {
                         ForEach(recipe.tags.prefix(2), id: \.self) { TagPill(tag: $0, compact: true) }

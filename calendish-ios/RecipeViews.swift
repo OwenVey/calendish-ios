@@ -31,6 +31,7 @@ struct RecipeBookView: View {
         List {
             ForEach(filteredRecipes) { recipe in
                 NavigationLink(value: recipe) { RecipeRow(recipe: recipe) }
+                    .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
             }
         }
         .overlay {

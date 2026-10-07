@@ -188,7 +188,13 @@ struct MealPickerView: View {
                     DatePicker("Day", selection: $date, in: CalendarDays.plannableRange, displayedComponents: .date)
                     Picker("Meal", selection: $slot) {
                         ForEach(MealSlot.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) }
+                    } currentValueLabel: {
+                        Label(slot.title, systemImage: slot.symbol)
+                            .labelStyle(.titleAndIcon)
+                            .font(.body)
+                            .imageScale(.small)
                     }
+                    .pickerStyle(.menu)
                     Stepper("Servings: \(servings)", value: $servings, in: 1...1000)
                 } footer: {
                     if let replacing { Text("This replaces \(replacing.title).") }
