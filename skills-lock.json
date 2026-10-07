@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "app-icon": {
+      "source": "code-with-beto/skills",
+      "sourceType": "github",
+      "skillPath": "plugins/cwb-app-icon/skills/app-icon/SKILL.md",
+      "computedHash": "ac75d061ea3aff614eda234c14e71dadc4e29cdb4bde15c1f56c2f36e4584644"
+    },
+    "apple-design": {
+      "source": "dickwu/apple-design-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "bd7ec2979b70d5e4ca6a86e2ad95dc5bc336986ce6b03e0d84dfabbe43611296"
+    }
+  }
+}
