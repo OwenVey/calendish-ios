@@ -61,9 +61,66 @@ struct RecipeRow: View {
                     }
                 }
                 Text("\(recipe.minutes) min · \(recipe.servings) servings").font(.subheadline).foregroundStyle(.secondary)
-                Text(recipe.tag).font(.caption).foregroundStyle(CalendishStyle.accent)
+                if !recipe.tags.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(recipe.tags.prefix(2), id: \.self) { TagPill(tag: $0, compact: true) }
+                        if recipe.tags.count > 2 {
+                            Text("+\(recipe.tags.count - 2)").font(.caption.weight(.medium)).foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }.padding(.vertical, 4)
         }
+    }
+}
+
+/// A recipe tag on a tinted capsule. Muted pills are for tags that haven't been added yet.
+struct TagPill: View {
+    let tag: String
+    var systemImage: String? = nil
+    var compact = false
+    var muted = false
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(tag).lineLimit(1)
+            if let systemImage { Image(systemName: systemImage).font(.caption2.weight(.bold)).imageScale(.small) }
+        }
+        .font(compact ? .caption.weight(.medium) : .subheadline.weight(.medium))
+        .foregroundStyle(muted ? Color.secondary : CalendishStyle.accent)
+        .padding(.horizontal, compact ? 8 : 12).padding(.vertical, compact ? 3 : 6)
+        .background(muted ? Color(.tertiarySystemFill) : CalendishStyle.accent.opacity(0.14), in: .capsule)
+    }
+}
+
+/// Lays out views left to right, wrapping onto a new line when a row runs out of room.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let layout = arrange(width: proposal.width ?? .infinity, subviews: subviews)
+        return CGSize(width: layout.width, height: layout.height)
+    }
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let layout = arrange(width: bounds.width, subviews: subviews)
+        for (subview, origin) in zip(subviews, layout.origins) {
+            subview.place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), proposal: ProposedViewSize(width: bounds.width, height: nil))
+        }
+    }
+    private func arrange(width: CGFloat, subviews: Subviews) -> (origins: [CGPoint], width: CGFloat, height: CGFloat) {
+        var origins: [CGPoint] = []
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, maxX: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(ProposedViewSize(width: width, height: nil))
+            if x > 0 && x + size.width > width {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            origins.append(CGPoint(x: x, y: y))
+            maxX = max(maxX, x + size.width)
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return (origins, maxX, y + rowHeight)
     }
 }
 

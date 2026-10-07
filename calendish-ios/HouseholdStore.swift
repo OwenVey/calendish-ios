@@ -58,6 +58,12 @@ final class HouseholdStore {
     var remainingGroceries: Int { groceries.filter { !$0.isComplete }.count }
     var currentMember: HouseholdMember? { members.first { $0.userID == userID } }
     func recipe(for meal: PlannedMeal) -> Recipe? { recipes.first { $0.id == meal.recipeID } }
+    /// Every tag in the recipe book, sorted, with tags that differ only by case folded together.
+    var recipeTags: [String] {
+        var seen = Set<String>()
+        return recipes.flatMap(\.tags).filter { seen.insert($0.lowercased()).inserted }
+            .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
     func meal(on date: Date, slot: MealSlot) -> PlannedMeal? {
         meals.first { Calendar.current.isDate($0.date, inSameDayAs: date) && $0.slot == slot }
     }

@@ -13,9 +13,9 @@ struct RecipeBookView: View {
     }
     private var filteredRecipes: [Recipe] {
         let recipes = store.recipes.filter { recipe in
-            (selectedTag == "All recipes" || recipe.tag == selectedTag) &&
+            (selectedTag == "All recipes" || recipe.tags.contains { $0.caseInsensitiveCompare(selectedTag) == .orderedSame }) &&
             (!favoritesOnly || recipe.isFavorite) &&
-            (search.isEmpty || ([recipe.title, recipe.summary] + recipe.ingredients.map(\.text)).contains { $0.localizedCaseInsensitiveContains(search) })
+            (search.isEmpty || ([recipe.title, recipe.summary] + recipe.tags + recipe.ingredients.map(\.text)).contains { $0.localizedCaseInsensitiveContains(search) })
         }
         return alphabetical ? recipes.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending } : recipes
     }
@@ -60,7 +60,7 @@ struct RecipeBookView: View {
                         Toggle("Favorites Only", systemImage: "star", isOn: $favoritesOnly)
                         Picker("Filter", selection: $selectedTag) {
                             Text("All Recipes").tag("All recipes")
-                            ForEach(Array(Set(store.recipes.map(\.tag))).sorted(), id: \.self) { Text($0).tag($0) }
+                            ForEach(store.recipeTags, id: \.self) { Text($0).tag($0) }
                         }
                     }
                 } label: {
@@ -115,7 +115,6 @@ struct RecipeDetailView: View {
                         }
                     }
                 VStack(alignment: .leading, spacing: 12) {
-                    Text(recipe.tag.uppercased()).font(.caption.weight(.semibold)).tracking(1.4).foregroundStyle(CalendishStyle.accent)
                     Text(recipe.title).font(.largeTitle.bold())
                         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named("recipeContent")).maxY } action: { titleBottom = $0 }
                     Text(recipe.summary).foregroundStyle(.secondary)
@@ -123,6 +122,14 @@ struct RecipeDetailView: View {
                         Label("\(recipe.minutes) min", systemImage: "clock")
                         Label("\(recipe.servings) servings", systemImage: "person.2")
                     }.font(.subheadline).foregroundStyle(.secondary)
+                    if !recipe.tags.isEmpty {
+                        FlowLayout {
+                            ForEach(recipe.tags, id: \.self) { TagPill(tag: $0) }
+                        }
+                        .padding(.top, 4)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("Tags: \(recipe.tags.formatted(.list(type: .and)))")
+                    }
                 }
                 VStack(alignment: .leading, spacing: 8) {
                     SectionHeading(title: "Ingredients", subtitle: "Check things off as you cook.")
@@ -214,6 +221,9 @@ struct RecipeEditorView: View {
     @State private var summary: String
     @State private var servings: Int
     @State private var minutes: Int
+    @State private var tags: [String]
+    @State private var newTag = ""
+    @FocusState private var isTagFieldFocused: Bool
     @State private var ingredients: [Ingredient]
     @FocusState private var focusedIngredient: Ingredient.ID?
     @State private var steps: [StepDraft]
@@ -233,6 +243,7 @@ struct RecipeEditorView: View {
         _summary = State(initialValue: recipe?.summary ?? "")
         _servings = State(initialValue: recipe?.servings ?? 4)
         _minutes = State(initialValue: recipe?.minutes ?? 30)
+        _tags = State(initialValue: recipe?.tags ?? [])
         _ingredients = State(initialValue: recipe.map { $0.ingredients.isEmpty ? [Ingredient(text: "")] : $0.ingredients } ?? [Ingredient(text: "")])
         _steps = State(initialValue: recipe.map { $0.steps.isEmpty ? [StepDraft()] : $0.steps.map { StepDraft(text: $0) } } ?? [StepDraft()])
     }
@@ -276,6 +287,46 @@ struct RecipeEditorView: View {
                     Stepper("Total time: \(minutes) min", value: $minutes, in: 0...1440, step: 5)
                 }
                 Section {
+                    if !tags.isEmpty {
+                        FlowLayout {
+                            ForEach(tags, id: \.self) { tag in
+                                Button { withAnimation { tags.removeAll { $0 == tag } } } label: {
+                                    TagPill(tag: tag, systemImage: "xmark")
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Remove \(tag)")
+                            }
+                        }
+                        .padding(.vertical, 6)
+                    }
+                    TextField("Add a tag", text: $newTag)
+                        .focused($isTagFieldFocused)
+                        .textInputAutocapitalization(.words)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            guard addTag(newTag) else { return }
+                            isTagFieldFocused = true
+                        }
+                    if !tagSuggestions.isEmpty {
+                        ScrollView(.horizontal) {
+                            HStack(spacing: 8) {
+                                ForEach(tagSuggestions, id: \.self) { tag in
+                                    Button { addTag(tag) } label: { TagPill(tag: tag, systemImage: "plus", muted: true) }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("Add \(tag)")
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                        }
+                        .scrollIndicators(.hidden)
+                        .listRowInsets(EdgeInsets(top: 10, leading: 0, bottom: 10, trailing: 0))
+                    }
+                } header: {
+                    Text("Tags")
+                } footer: {
+                    if !tags.isEmpty { Text("Tap a tag to remove it.") }
+                }
+                Section {
                     ForEach($ingredients) { $ingredient in
                         TextField("e.g. 2 cups flour", text: $ingredient.text)
                             .focused($focusedIngredient, equals: ingredient.id)
@@ -295,7 +346,7 @@ struct RecipeEditorView: View {
                 } header: {
                     Text("Ingredients")
                 } footer: {
-                    Text("Swipe to delete. Touch and hold to reorder.")
+                    Text("Drag the handles to reorder.")
                 }
                 Section {
                     ForEach($steps) { $step in
@@ -322,9 +373,11 @@ struct RecipeEditorView: View {
                 } header: {
                     Text("Instructions")
                 } footer: {
-                    Text("Swipe to delete. Touch and hold to reorder.")
+                    Text("Drag the handles to reorder.")
                 }
             }
+            // Always editing, so ingredient and step rows show the delete control and drag handle.
+            .environment(\.editMode, .constant(.active))
             .navigationTitle(original == nil ? "New recipe" : "Edit recipe").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -336,11 +389,13 @@ struct RecipeEditorView: View {
                             return ingredient.text.isEmpty ? nil : ingredient
                         }
                         let savedSteps = steps.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-                        var recipe = original ?? Recipe(title: "", summary: "", minutes: 0, servings: 0, tag: "Homemade", symbol: "fork.knife", ingredients: [], steps: [])
+                        var recipe = original ?? Recipe(title: "", summary: "", minutes: 0, servings: 0, tags: [], symbol: "fork.knife", ingredients: [], steps: [])
                         recipe.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
                         recipe.summary = summary
                         recipe.minutes = minutes
                         recipe.servings = servings
+                        addTag(newTag)
+                        recipe.tags = tags
                         recipe.ingredients = savedIngredients
                         recipe.steps = savedSteps
                         store.saveRecipe(recipe, photo: photoChange)
@@ -349,6 +404,26 @@ struct RecipeEditorView: View {
                 }
             }
         }
+    }
+    /// Tags from the rest of the recipe book that this recipe doesn't have yet, narrowed by what's typed.
+    private var tagSuggestions: [String] {
+        let typed = newTag.trimmingCharacters(in: .whitespacesAndNewlines)
+        return store.recipeTags.filter { suggestion in
+            !tags.contains { $0.caseInsensitiveCompare(suggestion) == .orderedSame } &&
+            (typed.isEmpty || suggestion.localizedCaseInsensitiveContains(typed))
+        }
+    }
+    /// Adds a tag, reusing the spelling of a matching tag elsewhere in the recipe book. Returns false when there was nothing to add.
+    @discardableResult
+    private func addTag(_ text: String) -> Bool {
+        let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        newTag = ""
+        guard !typed.isEmpty else { return false }
+        let tag = store.recipeTags.first { $0.caseInsensitiveCompare(typed) == .orderedSame } ?? typed
+        if !tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) {
+            withAnimation { tags.append(tag) }
+        }
+        return true
     }
     private func addIngredient(after id: Ingredient.ID?) {
         let index = ingredients.firstIndex { $0.id == id }.map { $0 + 1 } ?? ingredients.endIndex
