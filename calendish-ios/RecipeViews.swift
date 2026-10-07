@@ -23,7 +23,6 @@ struct RecipeBookView: View {
     @State private var pdfError: String?
     @State private var recipeToDelete: Recipe?
     @State private var confirmDelete = false
-    @State private var comingSoon: String?
     private enum RecipeSheet: String, Identifiable {
         case manual, link, text, photos, scan, pdf
         var id: Self { self }
@@ -99,8 +98,6 @@ struct RecipeBookView: View {
                     Button("Add Manually", systemImage: "square.and.pencil") { sheet = .manual }
                     Section {
                         Button("From Link", systemImage: "link") { sheet = .link }
-                        // TODO: In-app browser with an import button.
-                        Button("Browse Web", systemImage: "safari") { comingSoon = "Browse Web" }
                     }
                     Section("Smart Import") {
                         if VNDocumentCameraViewController.isSupported {
@@ -122,11 +119,6 @@ struct RecipeBookView: View {
             Button("Cancel", role: .cancel) { recipeToDelete = nil }
         } message: { _ in
             Text("This deletes the recipe and any meals planned with it for your household. Grocery items will stay on your list. This can’t be undone.")
-        }
-        .alert(comingSoon ?? "", isPresented: Binding(get: { comingSoon != nil }, set: { if !$0 { comingSoon = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("This import option is coming soon.")
         }
         .photosPicker(isPresented: $showPhotoPicker, selection: $photoItems, maxSelectionCount: 10, selectionBehavior: .ordered, matching: .images, preferredItemEncoding: .compatible)
         .onChange(of: photoItems) { _, items in
