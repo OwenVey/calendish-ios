@@ -15,6 +15,7 @@ struct Recipe: Identifiable, Hashable {
     var symbol: String
     var ingredients: [Ingredient]
     var steps: [String]
+    var isFavorite = false
 
     static func == (lhs: Recipe, rhs: Recipe) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }

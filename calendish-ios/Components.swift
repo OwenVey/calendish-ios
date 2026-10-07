@@ -46,7 +46,12 @@ struct RecipeRow: View {
         HStack(spacing: 14) {
             RecipeArtwork(recipe: recipe, compact: true).frame(width: 64, height: 64)
             VStack(alignment: .leading, spacing: 6) {
-                Text(recipe.title).font(.headline).foregroundStyle(.primary)
+                HStack(spacing: 6) {
+                    Text(recipe.title).font(.headline).foregroundStyle(.primary)
+                    if recipe.isFavorite {
+                        Image(systemName: "star.fill").font(.caption).foregroundStyle(.yellow).accessibilityLabel("Favorite")
+                    }
+                }
                 Text("\(recipe.minutes) min · \(recipe.servings) servings").font(.subheadline).foregroundStyle(.secondary)
                 Text(recipe.tag).font(.caption).foregroundStyle(CalendishStyle.accent)
             }.padding(.vertical, 4)

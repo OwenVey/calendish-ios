@@ -5,6 +5,7 @@ struct RecipeBookView: View {
     @State private var search = ""
     @State private var selectedTag = "All recipes"
     @State private var alphabetical = false
+    @State private var favoritesOnly = false
     @State private var sheet: RecipeSheet?
     private enum RecipeSheet: String, Identifiable {
         case manual, link
@@ -13,14 +14,17 @@ struct RecipeBookView: View {
     private var filteredRecipes: [Recipe] {
         let recipes = store.recipes.filter { recipe in
             (selectedTag == "All recipes" || recipe.tag == selectedTag) &&
+            (!favoritesOnly || recipe.isFavorite) &&
             (search.isEmpty || ([recipe.title, recipe.summary] + recipe.ingredients.map(\.text)).contains { $0.localizedCaseInsensitiveContains(search) })
         }
         return alphabetical ? recipes.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending } : recipes
     }
     private var subtitle: String {
         let count = filteredRecipes.count == 1 ? "1 recipe" : "\(filteredRecipes.count) recipes"
-        return selectedTag == "All recipes" ? count : "\(selectedTag) · \(count)"
+        let filters = (favoritesOnly ? ["Favorites"] : []) + (selectedTag == "All recipes" ? [] : [selectedTag])
+        return (filters + [count]).joined(separator: " · ")
     }
+    private var isFiltered: Bool { favoritesOnly || selectedTag != "All recipes" }
 
     var body: some View {
         List {
@@ -30,7 +34,13 @@ struct RecipeBookView: View {
         }
         .overlay {
             if filteredRecipes.isEmpty {
-                ContentUnavailableView(store.recipes.isEmpty ? "Your recipe book starts here" : "No matching recipes", systemImage: "book.closed", description: Text(store.recipes.isEmpty ? "Save something you love to cook." : "Try another search or tag."))
+                if store.recipes.isEmpty {
+                    ContentUnavailableView("Your recipe book starts here", systemImage: "book.closed", description: Text("Save something you love to cook."))
+                } else if favoritesOnly && search.isEmpty && !store.recipes.contains(where: \.isFavorite) {
+                    ContentUnavailableView("No favorites yet", systemImage: "star", description: Text("Tap the star on a recipe to save it here."))
+                } else {
+                    ContentUnavailableView("No matching recipes", systemImage: "book.closed", description: Text("Try another search or tag."))
+                }
             }
         }
         .navigationTitle("Recipes")
@@ -47,13 +57,14 @@ struct RecipeBookView: View {
                         }
                     }
                     Section("Filter") {
+                        Toggle("Favorites Only", systemImage: "star", isOn: $favoritesOnly)
                         Picker("Filter", selection: $selectedTag) {
                             Text("All Recipes").tag("All recipes")
                             ForEach(Array(Set(store.recipes.map(\.tag))).sorted(), id: \.self) { Text($0).tag($0) }
                         }
                     }
                 } label: {
-                    Label("Sort and filter", systemImage: selectedTag == "All recipes" ? "line.3.horizontal.decrease" : "line.3.horizontal.decrease.circle.fill")
+                    Label("Sort and filter", systemImage: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -130,6 +141,13 @@ struct RecipeDetailView: View {
         .navigationTitle("Recipe").navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(recipe.isFavorite ? "Remove from Favorites" : "Add to Favorites", systemImage: recipe.isFavorite ? "star.fill" : "star") {
+                    store.toggleFavorite(recipe)
+                }
+                .tint(recipe.isFavorite ? .yellow : nil)
+                .sensoryFeedback(.selection, trigger: recipe.isFavorite)
+            }
             ToolbarItem(placement: .topBarTrailing) { Button("Edit") { showEditor = true } }
             ToolbarItem(placement: .bottomBar) {
                 Button("Plan", systemImage: "calendar.badge.plus") {

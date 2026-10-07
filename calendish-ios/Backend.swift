@@ -42,8 +42,10 @@ nonisolated struct RecipeRecord: Codable, Sendable {
     var symbol: String
     var ingredients: [Ingredient]
     var steps: [String]
+    var isFavorite: Bool
     enum CodingKeys: String, CodingKey {
         case id, householdID = "household_id", title, summary, minutes, servings, tag, symbol, ingredients, steps
+        case isFavorite = "is_favorite"
     }
 }
 
@@ -76,11 +78,11 @@ nonisolated struct GroceryItemRecord: Codable, Sendable {
 extension Recipe {
     init(_ row: RecipeRecord) {
         self.init(id: row.id, title: row.title, summary: row.summary, minutes: row.minutes, servings: row.servings,
-                  tag: row.tag, symbol: row.symbol, ingredients: row.ingredients, steps: row.steps)
+                  tag: row.tag, symbol: row.symbol, ingredients: row.ingredients, steps: row.steps, isFavorite: row.isFavorite)
     }
     func record(household: UUID) -> RecipeRecord {
         RecipeRecord(id: id, householdID: household, title: title, summary: summary, minutes: minutes, servings: servings,
-                  tag: tag, symbol: symbol, ingredients: ingredients, steps: steps)
+                  tag: tag, symbol: symbol, ingredients: ingredients, steps: steps, isFavorite: isFavorite)
     }
 }
 

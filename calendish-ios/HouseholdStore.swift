@@ -276,6 +276,12 @@ final class HouseholdStore {
         save { try await supabase.from("recipes").upsert(recipe.record(household: id)).execute() }
     }
 
+    func toggleFavorite(_ recipe: Recipe) {
+        var recipe = recipe
+        recipe.isFavorite.toggle()
+        saveRecipe(recipe)
+    }
+
     // MARK: Meal plan
 
     /// Plans a recipe in a day's slot, replacing whatever was there. Pass `moving` to relocate an existing meal.
