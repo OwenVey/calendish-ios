@@ -18,11 +18,14 @@ struct RecipeBookView: View {
     @State private var photoItems: [PhotosPickerItem] = []
     @State private var showScanner = false
     @State private var scannedPages: [Data] = []
+    @State private var showPDFPicker = false
+    @State private var pdfData: Data?
+    @State private var pdfError: String?
     @State private var recipeToDelete: Recipe?
     @State private var confirmDelete = false
     @State private var comingSoon: String?
     private enum RecipeSheet: String, Identifiable {
-        case manual, link, text, photos, scan
+        case manual, link, text, photos, scan, pdf
         var id: Self { self }
     }
     private var filteredRecipes: [Recipe] {
@@ -100,13 +103,12 @@ struct RecipeBookView: View {
                         Button("Browse Web", systemImage: "safari") { comingSoon = "Browse Web" }
                     }
                     Section("Smart Import") {
-                        // TODO: Wire up PDF import.
                         if VNDocumentCameraViewController.isSupported {
                             Button("From Camera", systemImage: "camera") { showScanner = true }
                         }
                         Button("From Photos", systemImage: "photo") { showPhotoPicker = true }
                         Button("From Text", systemImage: "text.alignleft") { sheet = .text }
-                        Button("From PDF", systemImage: "doc.richtext") { comingSoon = "Import from PDF" }
+                        Button("From PDF", systemImage: "doc.richtext") { showPDFPicker = true }
                     }
                 } label: { Label("Add recipe", systemImage: "plus") }
             }
@@ -133,24 +135,42 @@ struct RecipeBookView: View {
         .fullScreenCover(isPresented: $showScanner, onDismiss: { if !scannedPages.isEmpty { sheet = .scan } }) {
             DocumentScanner { scannedPages = $0 }.ignoresSafeArea()
         }
-        .sheet(item: $sheet, onDismiss: { photoItems = []; scannedPages = [] }) { destination in
+        .fileImporter(isPresented: $showPDFPicker, allowedContentTypes: [.pdf]) { result in
+            guard case .success(let url) = result else { return }
+            let isScoped = url.startAccessingSecurityScopedResource()
+            defer { if isScoped { url.stopAccessingSecurityScopedResource() } }
+            do {
+                pdfData = try Data(contentsOf: url)
+                sheet = .pdf
+            } catch {
+                pdfError = error.localizedDescription
+            }
+        }
+        .alert("Couldn’t Open PDF", isPresented: Binding(get: { pdfError != nil }, set: { if !$0 { pdfError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(pdfError ?? "")
+        }
+        .sheet(item: $sheet, onDismiss: { photoItems = []; scannedPages = []; pdfData = nil }) { destination in
             switch destination {
             case .manual: RecipeEditorView()
             case .link: RecipeLinkView(recipeLink: $recipeLink)
             case .text: RecipeTextView(recipeText: $recipeText)
-            case .photos: RecipeImageImportView(source: .photos(photoItems), recipeText: $recipeText)
-            case .scan: RecipeImageImportView(source: .scan(scannedPages), recipeText: $recipeText)
+            case .photos: RecipeDocumentImportView(source: .photos(photoItems), recipeText: $recipeText)
+            case .scan: RecipeDocumentImportView(source: .scan(scannedPages), recipeText: $recipeText)
+            case .pdf: RecipeDocumentImportView(source: .pdf(pdfData ?? Data()), recipeText: $recipeText)
             }
         }
     }
 }
 
-/// Reads the recipe in screenshots, photos, or scanned pages, then hands it to the editor to review.
+/// Reads the recipe in screenshots, photos, scanned pages, or a PDF, then hands it to the editor to review.
 /// When the text can't be parsed, it can be fixed up in the text import instead.
-private struct RecipeImageImportView: View {
+private struct RecipeDocumentImportView: View {
     enum Source {
         case photos([PhotosPickerItem])
         case scan([Data])
+        case pdf(Data)
     }
     @Environment(\.dismiss) private var dismiss
     let source: Source
@@ -161,27 +181,35 @@ private struct RecipeImageImportView: View {
     @State private var editingText = false
 
     private var title: String {
-        if case .scan = source { "Add from scan" } else { "Add from photos" }
+        switch source {
+        case .photos: "Add from photos"
+        case .scan: "Add from scan"
+        case .pdf: "Add from PDF"
+        }
     }
     private var progressTitle: String {
         switch source {
         case .photos(let items): items.count == 1 ? "Reading photo…" : "Reading \(items.count) photos…"
         case .scan(let pages): pages.count == 1 ? "Reading page…" : "Reading \(pages.count) pages…"
+        case .pdf: "Reading PDF…"
         }
     }
 
     private func read() async {
         do {
-            var images: [Data] = []
+            let text: String
             switch source {
             case .photos(let items):
+                var images: [Data] = []
                 for item in items {
                     if let data = try await item.loadTransferable(type: Data.self) { images.append(data) }
                 }
+                text = try await RecipeImageImporter.text(in: images)
             case .scan(let pages):
-                images = pages
+                text = try await RecipeImageImporter.text(in: pages)
+            case .pdf(let data):
+                text = try await RecipePDFImporter.text(in: data)
             }
-            let text = try await RecipeImageImporter.text(in: images)
             recognizedText = text
             imported = try await RecipeTextImporter.parse(text)
         } catch {
