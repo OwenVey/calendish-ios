@@ -92,6 +92,9 @@ struct RecipeDetailView: View {
     @State private var showEditor = false
     @State private var isCooking = false
     @State private var planning: MealSelection?
+    /// Bottom edge of the large title within the scroll content; the nav bar title appears once it scrolls under the bar.
+    @State private var titleBottom: CGFloat = .infinity
+    @State private var showsNavTitle = false
     init(recipe: Recipe) { initialRecipe = recipe }
     /// Reads the latest copy from the store so edits show up immediately.
     private var recipe: Recipe { store.recipes.first { $0.id == initialRecipe.id } ?? initialRecipe }
@@ -114,6 +117,7 @@ struct RecipeDetailView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text(recipe.tag.uppercased()).font(.caption.weight(.semibold)).tracking(1.4).foregroundStyle(CalendishStyle.accent)
                     Text(recipe.title).font(.largeTitle.bold())
+                        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named("recipeContent")).maxY } action: { titleBottom = $0 }
                     Text(recipe.summary).foregroundStyle(.secondary)
                     HStack(spacing: 24) {
                         Label("\(recipe.minutes) min", systemImage: "clock")
@@ -149,10 +153,19 @@ struct RecipeDetailView: View {
                     }
                 }
             }.padding(20)
+            .coordinateSpace(name: "recipeContent")
         }
-        .navigationTitle("Recipe").navigationBarTitleDisplayMode(.inline)
+        .onScrollGeometryChange(for: Bool.self) { $0.contentOffset.y + $0.contentInsets.top > titleBottom } action: { _, scrolledPast in
+            withAnimation(.easeInOut(duration: 0.2)) { showsNavTitle = scrolledPast }
+        }
+        .navigationTitle(recipe.title).navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(recipe.title).font(.headline).lineLimit(1)
+                    .opacity(showsNavTitle ? 1 : 0)
+                    .accessibilityHidden(!showsNavTitle)
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(recipe.isFavorite ? "Remove from Favorites" : "Add to Favorites", systemImage: recipe.isFavorite ? "star.fill" : "star") {
                     store.toggleFavorite(recipe)
