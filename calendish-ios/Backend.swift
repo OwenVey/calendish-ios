@@ -43,9 +43,27 @@ nonisolated struct RecipeRecord: Codable, Sendable {
     var ingredients: [Ingredient]
     var steps: [String]
     var isFavorite: Bool
+    var imagePath: String?
     enum CodingKeys: String, CodingKey {
         case id, householdID = "household_id", title, summary, minutes, servings, tag, symbol, ingredients, steps
-        case isFavorite = "is_favorite"
+        case isFavorite = "is_favorite", imagePath = "image_path"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(householdID, forKey: .householdID)
+        try container.encode(title, forKey: .title)
+        try container.encode(summary, forKey: .summary)
+        try container.encode(minutes, forKey: .minutes)
+        try container.encode(servings, forKey: .servings)
+        try container.encode(tag, forKey: .tag)
+        try container.encode(symbol, forKey: .symbol)
+        try container.encode(ingredients, forKey: .ingredients)
+        try container.encode(steps, forKey: .steps)
+        try container.encode(isFavorite, forKey: .isFavorite)
+        // Write an explicit null so removing a photo clears the column.
+        try container.encode(imagePath, forKey: .imagePath)
     }
 }
 
@@ -78,11 +96,11 @@ nonisolated struct GroceryItemRecord: Codable, Sendable {
 extension Recipe {
     init(_ row: RecipeRecord) {
         self.init(id: row.id, title: row.title, summary: row.summary, minutes: row.minutes, servings: row.servings,
-                  tag: row.tag, symbol: row.symbol, ingredients: row.ingredients, steps: row.steps, isFavorite: row.isFavorite)
+                  tag: row.tag, symbol: row.symbol, ingredients: row.ingredients, steps: row.steps, isFavorite: row.isFavorite, imagePath: row.imagePath)
     }
     func record(household: UUID) -> RecipeRecord {
         RecipeRecord(id: id, householdID: household, title: title, summary: summary, minutes: minutes, servings: servings,
-                  tag: tag, symbol: symbol, ingredients: ingredients, steps: steps, isFavorite: isFavorite)
+                  tag: tag, symbol: symbol, ingredients: ingredients, steps: steps, isFavorite: isFavorite, imagePath: imagePath)
     }
 }
 

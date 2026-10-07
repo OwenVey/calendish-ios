@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Take photos of your recipes.</string>
 	<key>GIDClientID</key>
 	<string>728572783584-nsnkc0bhchjkcvpek7i8253b627rpng7.apps.googleusercontent.com</string>
 	<key>CFBundleURLTypes</key>

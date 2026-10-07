@@ -4,7 +4,8 @@ A shared recipe book, meal planner, and grocery list for your household. Built w
 
 ## Features
 
-- **Recipes.** A searchable recipe book with tag filters, sorting, recipe details, a manual recipe form, and a full-screen cook mode with step-by-step instructions, ingredient checkmarks, and timers.
+- **Recipes.** A searchable recipe book with photos, favorites, tag filters, sorting, recipe details, a manual recipe form, and a full-screen cook mode with step-by-step instructions, ingredient checkmarks, and timers.
+- **Recipe photos.** Take a photo with the camera, or choose one from the photo library, Files, or the clipboard.
 - **Meal Plan.** A swipeable week strip and calendar with breakfast, lunch, and dinner slots. Pick recipes, set servings, and move or remove meals.
 - **Groceries.** A shared checklist with a remaining-item count, grouping by recipe, reordering, and bulk clearing.
 - **Households.** Sign in with Google or email, then create a household or join one with an invite code. Everyone in the household sees the same data, and changes sync live.
@@ -44,6 +45,7 @@ calendish-ios/
 ├── Backend.swift                 Supabase client and row mapping
 ├── Models.swift                  Recipe, meal, and grocery models
 ├── RecipeViews.swift             Recipe book, detail, and forms
+├── RecipePhotos.swift            Photo picking, uploads, and caching
 ├── CookModeView.swift            Step-by-step cooking view
 ├── MealPlanView.swift            Week strip and meal slots
 ├── GroceryListView.swift         Grocery checklist
@@ -60,7 +62,7 @@ scripts/
 
 ## Backend
 
-Every row belongs to a household, and Row Level Security limits access to that household's members. `HouseholdStore` applies edits on screen right away and saves them in the background. Other members' changes arrive over Realtime, and the app refetches when it returns to the foreground.
+Every row belongs to a household, and Row Level Security limits access to that household's members. Recipe photos live in a private Storage bucket (`recipe-images`) under a folder for each household, with the same members-only rule. `HouseholdStore` applies edits on screen right away and saves them in the background. Other members' changes arrive over Realtime, and the app refetches when it returns to the foreground.
 
 SwiftUI previews use `HouseholdStore.preview()`, which has sample data and makes no network calls.
 

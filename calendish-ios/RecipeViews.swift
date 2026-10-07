@@ -98,7 +98,19 @@ struct RecipeDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                RecipeArtwork(recipe: recipe).frame(height: 190)
+                RecipeArtwork(recipe: recipe)
+                    .frame(height: recipe.imagePath == nil ? 190 : 260)
+                    .overlay(alignment: .bottomTrailing) {
+                        if recipe.imagePath == nil {
+                            PhotoSourceMenu(hasPhoto: false, onPick: { store.saveRecipe(recipe, photo: .replace($0)) }, onRemove: {}) {
+                                Label("Add Photo", systemImage: "camera")
+                                    .font(.subheadline.weight(.semibold))
+                                    .padding(.horizontal, 14).padding(.vertical, 10)
+                                    .glassEffect(.regular.interactive(), in: .capsule)
+                            }
+                            .padding(12)
+                        }
+                    }
                 VStack(alignment: .leading, spacing: 12) {
                     Text(recipe.tag.uppercased()).font(.caption.weight(.semibold)).tracking(1.4).foregroundStyle(CalendishStyle.accent)
                     Text(recipe.title).font(.largeTitle.bold())
@@ -193,6 +205,15 @@ struct RecipeEditorView: View {
     @FocusState private var focusedIngredient: Ingredient.ID?
     @State private var steps: [StepDraft]
     @FocusState private var focusedStep: StepDraft.ID?
+    /// A photo picked in this session, saved along with the recipe.
+    @State private var newPhoto: UIImage?
+    @State private var removesPhoto = false
+    private var keptPhotoPath: String? { removesPhoto ? nil : original?.imagePath }
+    private var hasPhoto: Bool { newPhoto != nil || keptPhotoPath != nil }
+    private var photoChange: HouseholdStore.PhotoChange {
+        if let newPhoto { return .replace(newPhoto) }
+        return removesPhoto ? .remove : .keep
+    }
     init(recipe: Recipe? = nil) {
         original = recipe
         _title = State(initialValue: recipe?.title ?? "")
@@ -210,6 +231,31 @@ struct RecipeEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    PhotoSourceMenu(hasPhoto: hasPhoto, onPick: { newPhoto = $0 }, onRemove: { newPhoto = nil; removesPhoto = true }) {
+                        VStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 20).fill(CalendishStyle.accent.opacity(0.09))
+                                if let newPhoto {
+                                    Image(uiImage: newPhoto).resizable().scaledToFill()
+                                } else if let keptPhotoPath {
+                                    RecipePhoto(path: keptPhotoPath)
+                                } else {
+                                    Image(systemName: "camera").font(.system(size: 40, weight: .light)).foregroundStyle(CalendishStyle.accent)
+                                }
+                            }
+                            .frame(height: 180)
+                            .clipShape(.rect(cornerRadius: 20))
+                            Text(hasPhoto ? "Edit Photo" : "Add Photo")
+                                .font(.subheadline.weight(.semibold)).foregroundStyle(CalendishStyle.accent)
+                        }
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(hasPhoto ? "Edit Photo" : "Add Photo")
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
                 Section("The basics") {
                     TextField("Recipe title", text: $title)
                     TextField("A little about this recipe", text: $summary, axis: .vertical)
@@ -284,7 +330,7 @@ struct RecipeEditorView: View {
                         recipe.servings = servings
                         recipe.ingredients = savedIngredients
                         recipe.steps = savedSteps
-                        store.saveRecipe(recipe)
+                        store.saveRecipe(recipe, photo: photoChange)
                         dismiss()
                     }.disabled(!canSave)
                 }

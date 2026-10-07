@@ -266,14 +266,44 @@ final class HouseholdStore {
 
     // MARK: Recipes
 
-    func saveRecipe(_ recipe: Recipe) {
+    enum PhotoChange {
+        case keep, replace(UIImage), remove
+    }
+
+    /// Saves a recipe, uploading a new photo first when there is one. The new photo shows right away from the cache.
+    func saveRecipe(_ recipe: Recipe, photo: PhotoChange = .keep) {
+        var recipe = recipe
+        let previousPath = recipes.first { $0.id == recipe.id }?.imagePath
+        var upload: (path: String, data: Data)?
+        switch photo {
+        case .keep: break
+        case .replace(let image):
+            guard let householdID = household?.id, let data = RecipePhotos.uploadData(for: image) else { break }
+            let path = "\(householdID.uuidString.lowercased())/\(UUID().uuidString.lowercased()).jpg"
+            RecipePhotos.shared.insert(data, for: path)
+            recipe.imagePath = path
+            upload = (path, data)
+        case .remove:
+            recipe.imagePath = nil
+        }
         if let index = recipes.firstIndex(where: { $0.id == recipe.id }) {
             recipes[index] = recipe
         } else {
             recipes.insert(recipe, at: 0)
         }
         guard let id = household?.id else { return }
-        save { try await supabase.from("recipes").upsert(recipe.record(household: id)).execute() }
+        let record = recipe.record(household: id)
+        let stalePath = previousPath != recipe.imagePath ? previousPath : nil
+        save {
+            if let upload {
+                try await supabase.storage.from(RecipePhotos.bucket)
+                    .upload(upload.path, data: upload.data, options: FileOptions(cacheControl: "31536000", contentType: "image/jpeg"))
+            }
+            try await supabase.from("recipes").upsert(record).execute()
+            if let stalePath {
+                _ = try? await supabase.storage.from(RecipePhotos.bucket).remove(paths: [stalePath])
+            }
+        }
     }
 
     func toggleFavorite(_ recipe: Recipe) {

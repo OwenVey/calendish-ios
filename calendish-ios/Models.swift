@@ -16,6 +16,8 @@ struct Recipe: Identifiable, Hashable {
     var ingredients: [Ingredient]
     var steps: [String]
     var isFavorite = false
+    /// Where the photo lives in the `recipe-images` bucket, or nil when there's no photo.
+    var imagePath: String?
 
     static func == (lhs: Recipe, rhs: Recipe) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
