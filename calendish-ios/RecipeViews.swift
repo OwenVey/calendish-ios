@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct RecipeBookView: View {
     @Environment(HouseholdStore.self) private var store
@@ -118,8 +119,9 @@ struct RecipeDetailView: View {
                     Text(recipe.title).font(.largeTitle.bold())
                         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named("recipeContent")).maxY } action: { titleBottom = $0 }
                     Text(recipe.summary).foregroundStyle(.secondary)
-                    HStack(spacing: 24) {
-                        Label("\(recipe.minutes) min", systemImage: "clock")
+                    FlowLayout(spacing: 16) {
+                        Label("Prep: \(recipe.prepMinutes) min", systemImage: "clock")
+                        Label("Cook: \(recipe.cookMinutes) min", systemImage: "flame")
                         Label("\(recipe.servings) servings", systemImage: "person.2")
                     }.font(.subheadline).foregroundStyle(.secondary)
                     if !recipe.tags.isEmpty {
@@ -220,7 +222,8 @@ struct RecipeEditorView: View {
     @State private var title: String
     @State private var summary: String
     @State private var servings: Int
-    @State private var minutes: Int
+    @State private var prepMinutes: Int
+    @State private var cookMinutes: Int
     @State private var tags: [String]
     @State private var newTag = ""
     @FocusState private var isTagFieldFocused: Bool
@@ -242,7 +245,8 @@ struct RecipeEditorView: View {
         _title = State(initialValue: recipe?.title ?? "")
         _summary = State(initialValue: recipe?.summary ?? "")
         _servings = State(initialValue: recipe?.servings ?? 4)
-        _minutes = State(initialValue: recipe?.minutes ?? 30)
+        _prepMinutes = State(initialValue: recipe?.prepMinutes ?? 10)
+        _cookMinutes = State(initialValue: recipe?.cookMinutes ?? 20)
         _tags = State(initialValue: recipe?.tags ?? [])
         _ingredients = State(initialValue: recipe.map { $0.ingredients.isEmpty ? [Ingredient(text: "")] : $0.ingredients } ?? [Ingredient(text: "")])
         _steps = State(initialValue: recipe.map { $0.steps.isEmpty ? [StepDraft()] : $0.steps.map { StepDraft(text: $0) } } ?? [StepDraft()])
@@ -284,7 +288,8 @@ struct RecipeEditorView: View {
                     TextField("Recipe title", text: $title)
                     TextField("A little about this recipe", text: $summary, axis: .vertical)
                     Stepper("Servings: \(servings)", value: $servings, in: 1...1000)
-                    Stepper("Total time: \(minutes) min", value: $minutes, in: 0...1440, step: 5)
+                    RecipeDurationField(title: "Prep time", minutes: $prepMinutes)
+                    RecipeDurationField(title: "Cook time", minutes: $cookMinutes)
                 }
                 Section {
                     if !tags.isEmpty {
@@ -389,10 +394,11 @@ struct RecipeEditorView: View {
                             return ingredient.text.isEmpty ? nil : ingredient
                         }
                         let savedSteps = steps.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-                        var recipe = original ?? Recipe(title: "", summary: "", minutes: 0, servings: 0, tags: [], symbol: "fork.knife", ingredients: [], steps: [])
+                        var recipe = original ?? Recipe(title: "", summary: "", prepMinutes: 0, cookMinutes: 0, servings: 0, tags: [], symbol: "fork.knife", ingredients: [], steps: [])
                         recipe.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
                         recipe.summary = summary
-                        recipe.minutes = minutes
+                        recipe.prepMinutes = prepMinutes
+                        recipe.cookMinutes = cookMinutes
                         recipe.servings = servings
                         addTag(newTag)
                         recipe.tags = tags
@@ -430,6 +436,63 @@ struct RecipeEditorView: View {
         let ingredient = Ingredient(text: "")
         ingredients.insert(ingredient, at: index)
         focusedIngredient = ingredient.id
+    }
+}
+
+/// Expands a compact form row into the system's hour/minute duration wheels.
+private struct RecipeDurationField: View {
+    let title: String
+    @Binding var minutes: Int
+
+    private var formattedDuration: String {
+        Duration.seconds(minutes * 60).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
+    }
+
+    var body: some View {
+        DisclosureGroup {
+            RecipeDurationPicker(minutes: $minutes, title: title)
+                .frame(maxWidth: .infinity)
+                .frame(height: 180)
+        } label: {
+            LabeledContent(title, value: formattedDuration)
+        }
+    }
+}
+
+private struct RecipeDurationPicker: UIViewRepresentable {
+    @Binding var minutes: Int
+    let title: String
+
+    func makeUIView(context: Context) -> UIDatePicker {
+        let picker = UIDatePicker()
+        picker.datePickerMode = .countDownTimer
+        picker.preferredDatePickerStyle = .wheels
+        picker.minuteInterval = 1
+        picker.countDownDuration = TimeInterval(min(minutes, 1439) * 60)
+        picker.accessibilityLabel = title
+        picker.addTarget(context.coordinator, action: #selector(Coordinator.durationChanged(_:)), for: .valueChanged)
+        return picker
+    }
+
+    func updateUIView(_ picker: UIDatePicker, context: Context) {
+        context.coordinator.minutes = $minutes
+        let duration = TimeInterval(min(minutes, 1439) * 60)
+        if picker.countDownDuration != duration {
+            picker.countDownDuration = duration
+        }
+        picker.accessibilityLabel = title
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(minutes: $minutes) }
+
+    final class Coordinator: NSObject {
+        var minutes: Binding<Int>
+
+        init(minutes: Binding<Int>) { self.minutes = minutes }
+
+        @objc func durationChanged(_ picker: UIDatePicker) {
+            minutes.wrappedValue = Int((picker.countDownDuration / 60).rounded())
+        }
     }
 }
 

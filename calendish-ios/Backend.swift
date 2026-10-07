@@ -37,6 +37,8 @@ nonisolated struct RecipeRecord: Codable, Sendable {
     var title: String
     var summary: String
     var minutes: Int
+    var prepMinutes: Int?
+    var cookMinutes: Int?
     var servings: Int
     var tags: [String]
     var symbol: String
@@ -47,6 +49,7 @@ nonisolated struct RecipeRecord: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id, householdID = "household_id", title, summary, minutes, servings, tags, symbol, ingredients, steps
         case isFavorite = "is_favorite", imagePath = "image_path"
+        case prepMinutes = "prep_minutes", cookMinutes = "cook_minutes"
     }
 
     func encode(to encoder: Encoder) throws {
@@ -56,6 +59,8 @@ nonisolated struct RecipeRecord: Codable, Sendable {
         try container.encode(title, forKey: .title)
         try container.encode(summary, forKey: .summary)
         try container.encode(minutes, forKey: .minutes)
+        try container.encodeIfPresent(prepMinutes, forKey: .prepMinutes)
+        try container.encodeIfPresent(cookMinutes, forKey: .cookMinutes)
         try container.encode(servings, forKey: .servings)
         try container.encode(tags, forKey: .tags)
         try container.encode(symbol, forKey: .symbol)
@@ -95,11 +100,13 @@ nonisolated struct GroceryItemRecord: Codable, Sendable {
 
 extension Recipe {
     init(_ row: RecipeRecord) {
-        self.init(id: row.id, title: row.title, summary: row.summary, minutes: row.minutes, servings: row.servings,
+        self.init(id: row.id, title: row.title, summary: row.summary,
+                  prepMinutes: row.prepMinutes ?? 0, cookMinutes: row.cookMinutes ?? row.minutes, servings: row.servings,
                   tags: row.tags, symbol: row.symbol, ingredients: row.ingredients, steps: row.steps, isFavorite: row.isFavorite, imagePath: row.imagePath)
     }
     func record(household: UUID) -> RecipeRecord {
-        RecipeRecord(id: id, householdID: household, title: title, summary: summary, minutes: minutes, servings: servings,
+        RecipeRecord(id: id, householdID: household, title: title, summary: summary, minutes: minutes,
+                  prepMinutes: prepMinutes, cookMinutes: cookMinutes, servings: servings,
                   tags: tags, symbol: symbol, ingredients: ingredients, steps: steps, isFavorite: isFavorite, imagePath: imagePath)
     }
 }
