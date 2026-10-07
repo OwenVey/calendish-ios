@@ -97,7 +97,8 @@ enum RecipeTextImporter {
     }
 
     private static func parseHeadings(_ text: String) -> Recipe {
-        let lines = text.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let lines = text.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && $0.wholeMatch(of: #/(?i)advertisement|sponsored|ad/#) == nil }
         let ingredientsStart = lines.firstIndex { isHeading($0, ingredientsHeading) }
         let stepsStart = lines.indices.first { $0 > (ingredientsStart ?? -1) && isHeading(lines[$0], stepsHeading) }
         var ingredients: [String] = []
@@ -132,7 +133,7 @@ enum RecipeTextImporter {
 
     /// Drops bullets, checkboxes, and step numbers that come along when copying from a web page.
     nonisolated private static func cleanLine(_ line: String) -> String {
-        line.replacing(#/^\s*([▢☐□•●◦▪\-–*]|(?i:step)\s*\d+[.):]?|\d+[.):](?!\d))\s*/#, with: "")
+        line.replacing(#/^\s*([▢☐□•●◦▪\-–*\]\[|]|(?i:step)\s*\d+[.):]?|\d+[.):](?!\d))\s*/#, with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 

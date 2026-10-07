@@ -1,6 +1,7 @@
 import SwiftUI
 import UIKit
 import SafariServices
+import PhotosUI
 
 struct RecipeBookView: View {
     @Environment(HouseholdStore.self) private var store
@@ -12,11 +13,13 @@ struct RecipeBookView: View {
     @State private var sheet: RecipeSheet?
     @State private var recipeLink = ""
     @State private var recipeText = ""
+    @State private var showPhotoPicker = false
+    @State private var photoItems: [PhotosPickerItem] = []
     @State private var recipeToDelete: Recipe?
     @State private var confirmDelete = false
     @State private var comingSoon: String?
     private enum RecipeSheet: String, Identifiable {
-        case manual, link, text
+        case manual, link, text, photos
         var id: Self { self }
     }
     private var filteredRecipes: [Recipe] {
@@ -94,9 +97,9 @@ struct RecipeBookView: View {
                         Button("Browse Web", systemImage: "safari") { comingSoon = "Browse Web" }
                     }
                     Section("Smart Import") {
-                        // TODO: Wire up camera, photo library, and PDF import.
+                        // TODO: Wire up camera and PDF import.
                         Button("From Camera", systemImage: "camera") { comingSoon = "Import from Camera" }
-                        Button("From Photos", systemImage: "photo") { comingSoon = "Import from Photos" }
+                        Button("From Photos", systemImage: "photo") { showPhotoPicker = true }
                         Button("From Text", systemImage: "text.alignleft") { sheet = .text }
                         Button("From PDF", systemImage: "doc.richtext") { comingSoon = "Import from PDF" }
                     }
@@ -118,13 +121,68 @@ struct RecipeBookView: View {
         } message: {
             Text("This import option is coming soon.")
         }
-        .sheet(item: $sheet) { destination in
+        .photosPicker(isPresented: $showPhotoPicker, selection: $photoItems, maxSelectionCount: 10, selectionBehavior: .ordered, matching: .images, preferredItemEncoding: .compatible)
+        .onChange(of: photoItems) { _, items in
+            if !items.isEmpty { sheet = .photos }
+        }
+        .sheet(item: $sheet, onDismiss: { photoItems = [] }) { destination in
             switch destination {
             case .manual: RecipeEditorView()
             case .link: RecipeLinkView(recipeLink: $recipeLink)
             case .text: RecipeTextView(recipeText: $recipeText)
+            case .photos: RecipePhotoImportView(items: photoItems)
             }
         }
+    }
+}
+
+/// Reads the recipe in screenshots or photos, then hands it to the editor to review.
+private struct RecipePhotoImportView: View {
+    @Environment(\.dismiss) private var dismiss
+    let items: [PhotosPickerItem]
+    @State private var imported: ImportedRecipe?
+    @State private var errorMessage: String?
+
+    private func read() async {
+        do {
+            var images: [Data] = []
+            for item in items {
+                if let data = try await item.loadTransferable(type: Data.self) { images.append(data) }
+            }
+            imported = try await RecipeImageImporter.parse(images: images)
+        } catch {
+            guard !Task.isCancelled else { return }
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    var body: some View {
+        Group {
+            if let imported {
+                RecipeEditorView(imported: imported)
+            } else {
+                NavigationStack {
+                    Group {
+                        if let errorMessage {
+                            ContentUnavailableView("Couldn’t Read Recipe", systemImage: "text.viewfinder", description: Text(errorMessage))
+                        } else {
+                            ProgressView(items.count == 1 ? "Reading photo…" : "Reading \(items.count) photos…")
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .navigationTitle("Add from photos")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel", role: .cancel) { dismiss() }.toolbarGlyph()
+                        }
+                    }
+                }
+            }
+        }
+        .presentationDetents(imported == nil ? [.medium] : [.large])
+        .presentationDragIndicator(.visible)
+        .task { await read() }
     }
 }
 
