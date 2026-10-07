@@ -54,7 +54,7 @@ struct SignInView: View {
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }
                     .modifier(GlassActionStyle())
-                    .tint(CalendishStyle.accent)
+                    .tint(.primary)
                     .disabled(working)
                     Text(message ?? "Your household’s data stays private to its members.")
                         .font(.footnote)
