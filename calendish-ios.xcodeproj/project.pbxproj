@@ -7,11 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		CA1E0D150000000000000002 /* Calendish.icon in Resources */ = {isa = PBXBuildFile; fileRef = CA1E0D150000000000000001 /* Calendish.icon */; };
 		05BDE7703072DA7C00C5B9A0 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 05BDE7713072DA7C00C5B9A0 /* Supabase */; };
 		05BDE7733072DA7C00C5B9A0 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 05BDE7743072DA7C00C5B9A0 /* GoogleSignIn */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		CA1E0D150000000000000001 /* Calendish.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = design/Calendish.icon; sourceTree = "<group>"; };
 		05BDE75C3072DA7B00C5B9A0 /* calendish-ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "calendish-ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -51,6 +53,7 @@
 			isa = PBXGroup;
 			children = (
 				05BDE75E3072DA7B00C5B9A0 /* calendish-ios */,
+				CA1E0D150000000000000001 /* Calendish.icon */,
 				05BDE75D3072DA7B00C5B9A0 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -130,6 +133,7 @@
 		05BDE75A3072DA7B00C5B9A0 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
+				CA1E0D150000000000000002 /* Calendish.icon in Resources */,
 			);
 		};
 /* End PBXResourcesBuildPhase section */
@@ -265,14 +269,16 @@
 		05BDE7683072DA7C00C5B9A0 /* Debug configuration for PBXNativeTarget "calendish-ios" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Calendish;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Q97ES87SKW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "calendish-ios/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Calendish;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of your recipes.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -298,14 +304,16 @@
 		05BDE7693072DA7C00C5B9A0 /* Release configuration for PBXNativeTarget "calendish-ios" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = Calendish;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = Q97ES87SKW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "calendish-ios/Info.plist";
 				INFOPLIST_KEY_CFBundleDisplayName = Calendish;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Take photos of your recipes.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
