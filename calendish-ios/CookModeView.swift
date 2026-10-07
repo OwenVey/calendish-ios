@@ -17,6 +17,9 @@ struct CookModeView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showIngredientSheet = false
     @State private var wideLayout = false
+    @AppStorage(PreferenceKey.keepScreenAwake) private var keepScreenAwake = true
+    @AppStorage(PreferenceKey.cookingHaptics) private var haptics = true
+    @AppStorage(MeasurementPreference.storageKey) private var units = MeasurementPreference.original
     private var timers: [CookTimer] { timerStore.timers.filter { $0.recipeID == recipe.id } }
     private var scale: Double { recipe.servings > 0 ? Double(servings) / Double(recipe.servings) : 1 }
     private var isLastStep: Bool { stepIndex >= recipe.steps.count - 1 }
@@ -78,8 +81,8 @@ struct CookModeView: View {
                 }
             }
         }
-        .sensoryFeedback(.selection, trigger: stepIndex)
-        .sensoryFeedback(.success, trigger: timerStore.finished.first?.id)
+        .sensoryFeedback(.selection, trigger: stepIndex) { _, _ in haptics }
+        .sensoryFeedback(.success, trigger: timerStore.finished.first?.id) { _, _ in haptics }
         .alert("Timer Done", isPresented: Binding(get: { !timerStore.finished.isEmpty }, set: { if !$0 { timerStore.acknowledge() } })) {
             Button("Done") { }
         } message: {
@@ -95,8 +98,9 @@ struct CookModeView: View {
         }
         .onAppear {
             timerStore.isCooking = true
-            UIApplication.shared.isIdleTimerDisabled = true
+            UIApplication.shared.isIdleTimerDisabled = keepScreenAwake
         }
+        .onChange(of: keepScreenAwake) { _, awake in UIApplication.shared.isIdleTimerDisabled = awake }
         .onDisappear {
             timerStore.isCooking = false
             UIApplication.shared.isIdleTimerDisabled = false
@@ -112,7 +116,7 @@ struct CookModeView: View {
                         if isChecked { checked.remove(ingredient.id) } else { checked.insert(ingredient.id) }
                     } label: {
                         Label {
-                            Text(ingredient.scaled(by: scale)).strikethrough(isChecked).foregroundStyle(isChecked ? .secondary : .primary)
+                            Text(ingredient.display(scale: scale, units: units)).strikethrough(isChecked).foregroundStyle(isChecked ? .secondary : .primary)
                         } icon: {
                             Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
                                 .foregroundStyle(isChecked ? CalendishStyle.accent : Color.secondary)
@@ -129,14 +133,14 @@ struct CookModeView: View {
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
-        .sensoryFeedback(.selection, trigger: checked)
+        .sensoryFeedback(.selection, trigger: checked) { _, _ in haptics }
     }
 
     private func stepPage(_ step: String, at index: Int) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 Text("STEP \(index + 1)").font(.subheadline.weight(.semibold)).tracking(1.4).foregroundStyle(CalendishStyle.accent)
-                Text(step).font(.title).lineSpacing(6)
+                Text(Ingredient.convertTemperatures(in: step, to: units)).font(.title).lineSpacing(6)
                 if let warning = timerStore.notificationWarning { Text(warning).font(.footnote).foregroundStyle(.secondary) }
                 if let duration = CookTimer.duration(in: step) {
                     if let timer = timers.first(where: { $0.stepIndex == index }) {
@@ -242,7 +246,7 @@ final class CookingTimers {
                 let content = UNMutableNotificationContent()
                 content.title = "Timer Done"
                 content.body = "\(timer.recipeTitle), step \(timer.stepIndex + 1): your \(timer.durationText) timer is up."
-                content.sound = .default
+                if UserDefaults.standard.bool(forKey: PreferenceKey.timerSound) { content.sound = .default }
                 try await center.add(UNNotificationRequest(identifier: timer.id.uuidString, content: content,
                     trigger: UNTimeIntervalNotificationTrigger(timeInterval: max(1, timer.end.timeIntervalSinceNow), repeats: false)))
                 if !timers.contains(where: { $0.id == timer.id }) { center.removePendingNotificationRequests(withIdentifiers: [timer.id.uuidString]) }
@@ -260,6 +264,6 @@ final class CookingTimers {
         guard !Task.isCancelled else { return }
         timers.removeAll { $0.id == next.id }; persist()
         finished.append(next)
-        AudioServicesPlayAlertSound(SystemSoundID(1005))
+        if UserDefaults.standard.bool(forKey: PreferenceKey.timerSound) { AudioServicesPlayAlertSound(SystemSoundID(1005)) }
     }
 }

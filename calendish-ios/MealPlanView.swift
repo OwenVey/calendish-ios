@@ -23,6 +23,13 @@ struct MealPlanView: View {
     @State private var showCalendar = false
     @State private var visibleWeek: Date?
     @Environment(\.dynamicTypeSize) private var typeSize
+    @AppStorage(WeekStart.storageKey) private var weekStart = WeekStart.system
+    @AppStorage(MealSlot.enabledStorageKey) private var enabledSlots = MealSlot.allEnabled
+    /// Turned-off slots still appear on days that already have a meal in them.
+    private var visibleSlots: [MealSlot] {
+        let enabled = MealSlot.enabled(in: enabledSlots)
+        return MealSlot.allCases.filter { enabled.contains($0) || store.meal(on: store.planningDate, slot: $0) != nil }
+    }
 
     var body: some View {
         List {
@@ -50,7 +57,7 @@ struct MealPlanView: View {
                 .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
 
             Section {
-                ForEach(MealSlot.allCases) { slot in
+                ForEach(visibleSlots) { slot in
                     VStack(alignment: .leading, spacing: 16) {
                         Label(slot.title, systemImage: slot.symbol).font(.subheadline).foregroundStyle(.secondary)
                         if let meal = store.meal(on: store.planningDate, slot: slot), let recipe = store.recipe(for: meal) {
@@ -110,6 +117,7 @@ struct MealPlanView: View {
                             set: { store.planningDate = Calendar.current.startOfDay(for: $0); showCalendar = false }
                         ), in: CalendarDays.plannableRange, displayedComponents: .date)
                             .datePickerStyle(.graphical)
+                            .environment(\.calendar, weekStart.calendar)
                             .frame(idealWidth: 320, maxWidth: 400)
                             .padding()
                             .presentationCompactAdaptation(.popover)
@@ -146,6 +154,7 @@ struct MealPlanView: View {
         .scrollIndicators(.hidden)
         .scrollPosition(id: $visibleWeek)
         .onAppear { visibleWeek = CalendarDays.startOfWeek(store.planningDate) }
+        .onChange(of: weekStart) { _, _ in visibleWeek = CalendarDays.startOfWeek(store.planningDate) }
         .onChange(of: visibleWeek) { _, week in
             guard let week, week != CalendarDays.startOfWeek(store.planningDate) else { return }
             let weekday = Calendar.current.dateComponents([.day], from: CalendarDays.startOfWeek(store.planningDate), to: store.planningDate).day ?? 0
@@ -207,6 +216,12 @@ struct MealPickerView: View {
     @State private var slot = MealSlot.dinner
     @State private var initialValues: String?
     @State private var discardChanges = false
+    @AppStorage(MealSlot.enabledStorageKey) private var enabledSlots = MealSlot.allEnabled
+    /// Turned-off slots stay available when the meal being edited already uses one.
+    private var slots: [MealSlot] {
+        let enabled = MealSlot.enabled(in: enabledSlots)
+        return MealSlot.allCases.filter { enabled.contains($0) || $0 == selection.slot || $0 == slot }
+    }
     private var values: String { "\(recipeID?.uuidString ?? "")|\(servings)|\(date.timeIntervalSince1970)|\(slot.rawValue)" }
     private var isDirty: Bool { initialValues != nil && values != initialValues }
     /// Another meal already in the chosen day and slot, which saving will replace.
@@ -222,7 +237,7 @@ struct MealPickerView: View {
                 Section {
                     DatePicker("Day", selection: $date, in: CalendarDays.plannableRange, displayedComponents: .date)
                     Picker("Meal", selection: $slot) {
-                        ForEach(MealSlot.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) }
+                        ForEach(slots) { Label($0.title, systemImage: $0.symbol).tag($0) }
                     } currentValueLabel: {
                         Label(slot.title, systemImage: slot.symbol)
                             .labelStyle(.titleAndIcon)

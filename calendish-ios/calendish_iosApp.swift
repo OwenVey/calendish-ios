@@ -9,6 +9,7 @@ import SwiftUI
 
 @main
 struct calendish_iosApp: App {
+    init() { PreferenceKey.registerDefaults() }
 
     var body: some Scene {
         WindowGroup {

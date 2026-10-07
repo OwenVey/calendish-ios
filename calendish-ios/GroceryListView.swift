@@ -13,7 +13,7 @@ enum GroceryScope: String, CaseIterable, Identifiable {
 struct GroceryListView: View {
     @Environment(HouseholdStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var grouping = GroceryGrouping.none
+    @AppStorage(PreferenceKey.groceryGrouping) private var grouping = GroceryGrouping.none
     @State private var showCompleted = false
     @State private var clearCompleted = false
     @State private var newItem = ""

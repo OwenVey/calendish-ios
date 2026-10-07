@@ -10,7 +10,7 @@ struct RecipeBookView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var search = ""
     @State private var selectedTag = "All recipes"
-    @State private var alphabetical = false
+    @AppStorage(PreferenceKey.recipeSort) private var sort = RecipeSort.recent
     @State private var favoritesOnly = false
     @State private var sheet: RecipeSheet?
     @State private var importDrafts = RecipeImportDrafts()
@@ -33,7 +33,7 @@ struct RecipeBookView: View {
             (!favoritesOnly || recipe.isFavorite) &&
             (search.isEmpty || ([recipe.title, recipe.summary, recipe.category ?? ""] + recipe.tags + recipe.ingredients.map(\.text)).contains { $0.localizedCaseInsensitiveContains(search) })
         }
-        return alphabetical ? recipes.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending } : recipes
+        return sort == .title ? recipes.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending } : recipes
     }
     private var subtitle: String {
         let count = filteredRecipes.count == 1 ? "1 recipe" : "\(filteredRecipes.count) recipes"
@@ -77,9 +77,8 @@ struct RecipeBookView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Section("Sort By") {
-                        Picker("Sort By", selection: $alphabetical) {
-                            Text("Recently Updated").tag(false)
-                            Text("Title A–Z").tag(true)
+                        Picker("Sort By", selection: $sort) {
+                            ForEach(RecipeSort.allCases) { Text($0.title).tag($0) }
                         }
                     }
                     Section("Filter") {
@@ -175,6 +174,8 @@ struct RecipeDetailView: View {
     @State private var checked: Set<UUID> = []
     /// Servings the cook scaled to, or nil to use the recipe as written.
     @State private var scaledServings: Int?
+    @AppStorage(MeasurementPreference.storageKey) private var units = MeasurementPreference.original
+    @AppStorage(MealSlot.enabledStorageKey) private var enabledSlots = MealSlot.allEnabled
     @State private var showImportOutline = false
     @State private var showEditor = false
     @State private var confirmDelete = false
@@ -244,7 +245,7 @@ struct RecipeDetailView: View {
                             HStack(spacing: 14) {
                                 Image(systemName: checked.contains(ingredient.id) ? "checkmark.circle.fill" : "circle")
                                     .font(.title3).foregroundStyle(checked.contains(ingredient.id) ? CalendishStyle.accent : Color.secondary)
-                                Text(ingredient.scaled(by: scale)).strikethrough(checked.contains(ingredient.id)).foregroundStyle(.primary)
+                                Text(ingredient.display(scale: scale, units: units)).strikethrough(checked.contains(ingredient.id)).foregroundStyle(.primary)
                                 Spacer()
                             }.padding(.vertical, 12).contentShape(Rectangle())
                         }.buttonStyle(.plain)
@@ -258,7 +259,7 @@ struct RecipeDetailView: View {
                         HStack(alignment: .top, spacing: 14) {
                             Text("\(index + 1).").font(.headline).foregroundStyle(.secondary)
                                 .frame(minWidth: 30, alignment: .leading)
-                            Text(step).lineSpacing(5).frame(maxWidth: .infinity, alignment: .leading)
+                            Text(Ingredient.convertTemperatures(in: step, to: units)).lineSpacing(5).frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                 }
@@ -280,7 +281,8 @@ struct RecipeDetailView: View {
                     Section {
                         Button("Plan Meal", systemImage: "calendar.badge.plus") {
                             let date = store.planningDate
-                            let slot = MealSlot.allCases.first { store.meal(on: date, slot: $0) == nil } ?? .dinner
+                            let slots = MealSlot.enabled(in: enabledSlots)
+                            let slot = slots.first { store.meal(on: date, slot: $0) == nil } ?? slots.last!
                             planning = MealSelection(date: date, slot: slot, recipeID: recipe.id)
                         }
                         Button("Add to Groceries", systemImage: "basket") { showImportOutline = true }

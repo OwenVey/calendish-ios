@@ -7,8 +7,9 @@ struct GroceryImportCandidate: Identifiable {
 
     /// Scale recognized leading quantities; keep free-form instructions intact for review.
     var ingredientLines: [String] {
-        guard recipe.servings > 0 else { return recipe.ingredients.map(\.text) }
-        return recipe.ingredients.map { $0.scaled(by: Double(servings) / Double(recipe.servings)) }
+        guard recipe.servings > 0 else { return recipe.ingredients.map { Ingredient.convert($0.text, to: .current) } }
+        let units = MeasurementPreference.current
+        return recipe.ingredients.map { $0.display(scale: Double(servings) / Double(recipe.servings), units: units) }
     }
 }
 

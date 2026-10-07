@@ -1,9 +1,19 @@
 import SwiftUI
+import UserNotifications
 
 /// App and account settings, laid out like the Settings app: account card first, then grouped rows.
 struct SettingsView: View {
     @Environment(HouseholdStore.self) private var store
     @AppStorage("appearance") private var appearance: AppAppearance = .system
+    @AppStorage(WeekStart.storageKey) private var weekStart = WeekStart.system
+    @AppStorage(MealSlot.enabledStorageKey) private var enabledSlots = MealSlot.allEnabled
+    @AppStorage(PreferenceKey.recipeSort) private var recipeSort = RecipeSort.recent
+    @AppStorage(PreferenceKey.groceryGrouping) private var groceryGrouping = GroceryGrouping.none
+    @AppStorage(MeasurementPreference.storageKey) private var units = MeasurementPreference.original
+    private var mealsSummary: String {
+        let slots = MealSlot.enabled(in: enabledSlots)
+        return slots.count == MealSlot.allCases.count ? "All" : slots.map(\.title).formatted(.list(type: .and))
+    }
     var body: some View {
         Form {
             Section {
@@ -34,6 +44,44 @@ struct SettingsView: View {
                         SettingsLabel("Appearance", systemImage: "circle.lefthalf.filled", color: .blue)
                     }
                 }
+            }
+            Section {
+                Picker(selection: $weekStart) {
+                    ForEach(WeekStart.allCases) { Text($0.title).tag($0) }
+                } label: {
+                    SettingsLabel("Week Starts On", systemImage: "calendar", color: .red)
+                }
+                NavigationLink { MealSlotSettingsView() } label: {
+                    LabeledContent {
+                        Text(mealsSummary)
+                    } label: {
+                        SettingsLabel("Meals", systemImage: "fork.knife", color: .teal)
+                    }
+                }
+            }
+            Section {
+                Picker(selection: $recipeSort) {
+                    ForEach(RecipeSort.allCases) { Text($0.title).tag($0) }
+                } label: {
+                    SettingsLabel("Sort Recipes By", systemImage: "book.closed.fill", color: .brown)
+                }
+                Picker(selection: $groceryGrouping) {
+                    ForEach(GroceryGrouping.allCases) { Text($0.rawValue).tag($0) }
+                } label: {
+                    SettingsLabel("Group Groceries By", systemImage: "basket.fill", color: .green)
+                }
+            }
+            Section {
+                NavigationLink { CookingSettingsView() } label: {
+                    SettingsLabel("Cooking", systemImage: "frying.pan.fill", color: .purple)
+                }
+                Picker(selection: $units) {
+                    ForEach(MeasurementPreference.allCases) { Text($0.title).tag($0) }
+                } label: {
+                    SettingsLabel("Units", systemImage: "ruler.fill", color: .indigo)
+                }
+            } footer: {
+                Text("Units converts cups, ounces, pounds, and oven temperatures in recipes and cook mode. Saved recipes keep their original measurements.")
             }
             Section {
                 LabeledContent {
@@ -167,6 +215,86 @@ struct AppearanceSettingsView: View {
         }
         .navigationTitle("Appearance")
         .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct MealSlotSettingsView: View {
+    @AppStorage(MealSlot.enabledStorageKey) private var enabledSlots = MealSlot.allEnabled
+    var body: some View {
+        let enabled = MealSlot.enabled(in: enabledSlots)
+        Form {
+            Section {
+                ForEach(MealSlot.allCases) { slot in
+                    Toggle(isOn: Binding(
+                        get: { enabled.contains(slot) },
+                        set: { isOn in enabledSlots = MealSlot.storage(for: isOn ? enabled + [slot] : enabled.filter { $0 != slot }) }
+                    )) {
+                        Label(slot.title, systemImage: slot.symbol)
+                    }
+                    // Keep at least one meal to plan.
+                    .disabled(enabled == [slot])
+                }
+            } footer: {
+                Text("Choose which meals to plan. A turned-off meal still appears on days where it’s already planned.")
+            }
+        }
+        .navigationTitle("Meals")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct CookingSettingsView: View {
+    @AppStorage(PreferenceKey.keepScreenAwake) private var keepScreenAwake = true
+    @AppStorage(PreferenceKey.cookingHaptics) private var haptics = true
+    @AppStorage(PreferenceKey.timerSound) private var timerSound = true
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
+    @State private var notifications: UNAuthorizationStatus?
+    private var notificationsAllowed: Bool { [.authorized, .provisional, .ephemeral].contains(notifications) }
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Keep Screen Awake", isOn: $keepScreenAwake)
+            } footer: {
+                Text("Your screen stays on while cook mode is open.")
+            }
+            Section {
+                Toggle("Haptics", isOn: $haptics)
+            } footer: {
+                Text("Feel a tap when you change steps, check off ingredients, or finish a timer.")
+            }
+            Section {
+                Toggle("Timer Sound", isOn: $timerSound)
+                if let notifications {
+                    LabeledContent("Notifications", value: notificationsAllowed ? "On" : "Off")
+                    if notifications == .notDetermined {
+                        Button("Allow Notifications") {
+                            Task {
+                                _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+                                await loadNotificationStatus()
+                            }
+                        }
+                    } else {
+                        Button("Open Notification Settings") {
+                            if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
+                        }
+                    }
+                }
+            } header: {
+                Text("Timers")
+            } footer: {
+                Text("Timers alert you outside Calendish only when notifications are on.")
+            }
+        }
+        .navigationTitle("Cooking")
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await loadNotificationStatus() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await loadNotificationStatus() } }
+        }
+    }
+    private func loadNotificationStatus() async {
+        notifications = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
     }
 }
 
