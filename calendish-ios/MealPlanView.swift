@@ -260,12 +260,12 @@ struct MealPickerView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } }.toolbarGlyph() }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button {
                         if let recipe = store.recipes.first(where: { $0.id == recipeID }) {
                             store.saveMeal(date: date, slot: slot, recipe: recipe, servings: servings, moving: selection.meal)
                             dismiss()
                         }
-                    }.disabled(recipeID == nil)
+                    } label: { OnAccentLabel(title: "Save") }.disabled(recipeID == nil)
                     .modifier(GlassActionStyle(prominent: true))
                 }
             }

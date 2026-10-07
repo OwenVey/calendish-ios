@@ -254,12 +254,12 @@ private struct GroceryEditorView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if isDirty { discard = true } else { dismiss() } }.toolbarGlyph() }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button {
                         var updated = item
                         updated.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
                         updated.amount = amount.trimmingCharacters(in: .whitespacesAndNewlines)
                         store.updateGrocery(updated, original: item); dismiss()
-                    }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).modifier(GlassActionStyle(prominent: true))
+                    } label: { OnAccentLabel(title: "Save") }.disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty).modifier(GlassActionStyle(prominent: true))
                 }
             }
         }

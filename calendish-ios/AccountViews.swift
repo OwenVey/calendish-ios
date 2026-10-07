@@ -417,14 +417,14 @@ struct PasswordResetView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(working).toolbarGlyph() }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button {
                         Task {
                             working = true
                             defer { working = false }
                             do { try await store.updatePassword(password); dismiss() }
                             catch { message = error.localizedDescription }
                         }
-                    }.disabled(working || password.count < 8 || confirmation != password).modifier(GlassActionStyle(prominent: true))
+                    } label: { OnAccentLabel(title: "Save") }.disabled(working || password.count < 8 || confirmation != password).modifier(GlassActionStyle(prominent: true))
                 }
             }
         }.interactiveDismissDisabled(working || !password.isEmpty)

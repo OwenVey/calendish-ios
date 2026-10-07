@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import SafariServices
 import PhotosUI
+import VisionKit
 
 struct RecipeBookView: View {
     @Environment(HouseholdStore.self) private var store
@@ -15,11 +16,13 @@ struct RecipeBookView: View {
     @State private var recipeText = ""
     @State private var showPhotoPicker = false
     @State private var photoItems: [PhotosPickerItem] = []
+    @State private var showScanner = false
+    @State private var scannedPages: [Data] = []
     @State private var recipeToDelete: Recipe?
     @State private var confirmDelete = false
     @State private var comingSoon: String?
     private enum RecipeSheet: String, Identifiable {
-        case manual, link, text, photos
+        case manual, link, text, photos, scan
         var id: Self { self }
     }
     private var filteredRecipes: [Recipe] {
@@ -97,8 +100,10 @@ struct RecipeBookView: View {
                         Button("Browse Web", systemImage: "safari") { comingSoon = "Browse Web" }
                     }
                     Section("Smart Import") {
-                        // TODO: Wire up camera and PDF import.
-                        Button("From Camera", systemImage: "camera") { comingSoon = "Import from Camera" }
+                        // TODO: Wire up PDF import.
+                        if VNDocumentCameraViewController.isSupported {
+                            Button("From Camera", systemImage: "camera") { showScanner = true }
+                        }
                         Button("From Photos", systemImage: "photo") { showPhotoPicker = true }
                         Button("From Text", systemImage: "text.alignleft") { sheet = .text }
                         Button("From PDF", systemImage: "doc.richtext") { comingSoon = "Import from PDF" }
@@ -125,31 +130,60 @@ struct RecipeBookView: View {
         .onChange(of: photoItems) { _, items in
             if !items.isEmpty { sheet = .photos }
         }
-        .sheet(item: $sheet, onDismiss: { photoItems = [] }) { destination in
+        .fullScreenCover(isPresented: $showScanner, onDismiss: { if !scannedPages.isEmpty { sheet = .scan } }) {
+            DocumentScanner { scannedPages = $0 }.ignoresSafeArea()
+        }
+        .sheet(item: $sheet, onDismiss: { photoItems = []; scannedPages = [] }) { destination in
             switch destination {
             case .manual: RecipeEditorView()
             case .link: RecipeLinkView(recipeLink: $recipeLink)
             case .text: RecipeTextView(recipeText: $recipeText)
-            case .photos: RecipePhotoImportView(items: photoItems)
+            case .photos: RecipeImageImportView(source: .photos(photoItems), recipeText: $recipeText)
+            case .scan: RecipeImageImportView(source: .scan(scannedPages), recipeText: $recipeText)
             }
         }
     }
 }
 
-/// Reads the recipe in screenshots or photos, then hands it to the editor to review.
-private struct RecipePhotoImportView: View {
+/// Reads the recipe in screenshots, photos, or scanned pages, then hands it to the editor to review.
+/// When the text can't be parsed, it can be fixed up in the text import instead.
+private struct RecipeImageImportView: View {
+    enum Source {
+        case photos([PhotosPickerItem])
+        case scan([Data])
+    }
     @Environment(\.dismiss) private var dismiss
-    let items: [PhotosPickerItem]
+    let source: Source
+    @Binding var recipeText: String
     @State private var imported: ImportedRecipe?
     @State private var errorMessage: String?
+    @State private var recognizedText: String?
+    @State private var editingText = false
+
+    private var title: String {
+        if case .scan = source { "Add from scan" } else { "Add from photos" }
+    }
+    private var progressTitle: String {
+        switch source {
+        case .photos(let items): items.count == 1 ? "Reading photo…" : "Reading \(items.count) photos…"
+        case .scan(let pages): pages.count == 1 ? "Reading page…" : "Reading \(pages.count) pages…"
+        }
+    }
 
     private func read() async {
         do {
             var images: [Data] = []
-            for item in items {
-                if let data = try await item.loadTransferable(type: Data.self) { images.append(data) }
+            switch source {
+            case .photos(let items):
+                for item in items {
+                    if let data = try await item.loadTransferable(type: Data.self) { images.append(data) }
+                }
+            case .scan(let pages):
+                images = pages
             }
-            imported = try await RecipeImageImporter.parse(images: images)
+            let text = try await RecipeImageImporter.text(in: images)
+            recognizedText = text
+            imported = try await RecipeTextImporter.parse(text)
         } catch {
             guard !Task.isCancelled else { return }
             errorMessage = error.localizedDescription
@@ -160,17 +194,31 @@ private struct RecipePhotoImportView: View {
         Group {
             if let imported {
                 RecipeEditorView(imported: imported)
+            } else if editingText {
+                RecipeTextView(recipeText: $recipeText)
             } else {
                 NavigationStack {
                     Group {
                         if let errorMessage {
-                            ContentUnavailableView("Couldn’t Read Recipe", systemImage: "text.viewfinder", description: Text(errorMessage))
+                            ContentUnavailableView {
+                                Label("Couldn’t Read Recipe", systemImage: "text.viewfinder")
+                            } description: {
+                                Text(errorMessage)
+                            } actions: {
+                                if let recognizedText {
+                                    Button("Edit Text") {
+                                        recipeText = recognizedText
+                                        editingText = true
+                                    }
+                                    .modifier(GlassActionStyle(prominent: true))
+                                }
+                            }
                         } else {
-                            ProgressView(items.count == 1 ? "Reading photo…" : "Reading \(items.count) photos…")
+                            ProgressView(progressTitle)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .navigationTitle("Add from photos")
+                    .navigationTitle(title)
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
@@ -180,7 +228,7 @@ private struct RecipePhotoImportView: View {
                 }
             }
         }
-        .presentationDetents(imported == nil ? [.medium] : [.large])
+        .presentationDetents(imported == nil && !editingText ? [.medium] : [.large])
         .presentationDragIndicator(.visible)
         .task { await read() }
     }
@@ -530,7 +578,7 @@ struct RecipeDetailView: View {
             }
             ToolbarSpacer(.fixed, placement: .topBarTrailing)
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Start Cooking", systemImage: "play.fill") { isCooking = true }
+                Button { isCooking = true } label: { OnAccentLabel(title: "Start Cooking", systemImage: "play.fill") }
                     .labelStyle(.iconOnly)
                     .modifier(GlassActionStyle(prominent: true))
                     .disabled(recipe.steps.isEmpty)
@@ -840,7 +888,7 @@ struct RecipeEditorView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } }.toolbarGlyph() }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
+                    Button {
                         let savedIngredients = ingredients.compactMap { ingredient -> Ingredient? in
                             var ingredient = ingredient
                             ingredient.text = ingredient.text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -874,7 +922,8 @@ struct RecipeEditorView: View {
                             }
                         }
                         dismiss()
-                    }.disabled(!canSave)
+                    } label: { OnAccentLabel(title: "Save") }
+                    .disabled(!canSave)
                     .modifier(GlassActionStyle(prominent: true))
                 }
             }

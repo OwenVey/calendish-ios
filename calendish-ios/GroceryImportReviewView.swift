@@ -62,7 +62,7 @@ struct GroceryImportReviewView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.toolbarGlyph() }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
+                    Button {
                         let start = (store.groceries.map(\.position).max() ?? 0) + 1
                         var items: [GroceryItem] = []
                         for candidate in selectedCandidates {
@@ -72,7 +72,7 @@ struct GroceryImportReviewView: View {
                         }
                         store.importGroceries(items)
                         dismiss()
-                    }.disabled(ingredientCount == 0).modifier(GlassActionStyle(prominent: true))
+                    } label: { OnAccentLabel(title: "Add") }.disabled(ingredientCount == 0).modifier(GlassActionStyle(prominent: true))
                 }
             }
         }

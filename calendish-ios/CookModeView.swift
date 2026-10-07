@@ -68,7 +68,7 @@ struct CookModeView: View {
                 ToolbarSpacer(.flexible, placement: .bottomBar)
                 if isLastStep {
                     ToolbarItem(placement: .bottomBar) {
-                        Button("Finish", systemImage: "checkmark") { dismiss() }.modifier(GlassActionStyle(prominent: true))
+                        Button { dismiss() } label: { OnAccentLabel(title: "Finish", systemImage: "checkmark") }.modifier(GlassActionStyle(prominent: true))
                     }
                 } else {
                     ToolbarItem(placement: .bottomBar) {

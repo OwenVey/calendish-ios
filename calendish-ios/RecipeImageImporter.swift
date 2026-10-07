@@ -1,10 +1,10 @@
 import Foundation
 import Vision
 
-/// Reads the text in recipe screenshots and photos on device, then parses it like pasted text.
+/// Reads the text in recipe screenshots, photos, and scans on device, ready to parse like pasted text.
 nonisolated enum RecipeImageImporter {
-    /// Images are read in order, so a recipe split across screenshots comes out whole.
-    static func parse(images: [Data]) async throws -> ImportedRecipe {
+    /// The text of all the images, read in order so a recipe split across screenshots comes out whole.
+    static func text(in images: [Data]) async throws -> String {
         var lines: [String] = []
         for image in images {
             try Task.checkCancellation()
@@ -12,7 +12,7 @@ nonisolated enum RecipeImageImporter {
         }
         let text = lines.joined(separator: "\n")
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ImportError.noText }
-        return try await RecipeTextImporter.parse(text)
+        return text
     }
 
     /// Scrolling screenshots overlap, often with a line cut off at the edge of one of them,
@@ -36,10 +36,16 @@ nonisolated enum RecipeImageImporter {
         guard let document = try await RecognizeDocumentsRequest().perform(on: image).first?.document else { return "" }
         var entries: [(text: String, x: Double, numbered: Bool)] = []
         for paragraph in document.paragraphs {
+            let right = paragraph.lines.map { $0.boundingBox.origin.x + $0.boundingBox.width }
+            let left = paragraph.lines.map(\.boundingBox.origin.x).min() ?? 0
             for (index, line) in paragraph.lines.enumerated() {
-                guard let text = line.topCandidates(1).first?.string.trimmingCharacters(in: .whitespaces), !text.isEmpty else { continue }
+                let text = fixQuantity(line.topCandidates(1).first?.string.trimmingCharacters(in: .whitespaces) ?? "")
+                // Skip blanks and page numbers.
+                guard !text.isEmpty, text.wholeMatch(of: #/\d{1,4}/#) == nil else { continue }
                 let x = line.boundingBox.origin.x
-                let startsItem = text.prefixMatch(of: itemMarker) != nil
+                // A line after one that stopped short is a new item when it starts like one, as in an unbulleted ingredient list.
+                let previousStoppedShort = index > 0 && right[index - 1] - left < 0.8 * ((right.max() ?? 0) - left)
+                let startsItem = text.prefixMatch(of: itemMarker) != nil || (previousStoppedShort && text.prefixMatch(of: #/[\d¼½¾⅓⅔⅛\p{Lu}]/#) != nil)
                 // A wrapped line continues its paragraph, or hangs indented under a numbered step.
                 let continues = !startsItem && (index > 0 || entries.last.map { $0.numbered && x > $0.x + 0.02 } ?? false)
                 if continues, let last = entries.popLast() {
@@ -52,11 +58,17 @@ nonisolated enum RecipeImageImporter {
         return entries.map(\.text).joined(separator: "\n")
     }
 
+    /// OCR often drops the space in mixed numbers and before parentheses: "11/2 lb" and "1(14-oz) can".
+    private static func fixQuantity(_ line: String) -> String {
+        line.replacing(#/^(\d)([1-7]\/[2348])\b/#) { "\($0.output.1) \($0.output.2)" }
+            .replacing(#/^(\d+)\(/#) { "\($0.output.1) (" }
+    }
+
     /// Bullets, checkboxes (often read as "]" or "["), and step numbers that start a new item.
     private static var itemMarker: Regex<Substring> { #/[•●◦▪▢☐□\]\[|\-–*]\s|\d+[.)]\s/# }
 
     private enum ImportError: LocalizedError {
         case noText
-        var errorDescription: String? { "Couldn’t find any text in these photos." }
+        var errorDescription: String? { "Couldn’t find any text in these images." }
     }
 }
