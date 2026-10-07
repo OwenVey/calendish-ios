@@ -208,14 +208,19 @@ struct GroceryRow: View {
                     if !item.amount.isEmpty { Text(item.amount).font(.subheadline).foregroundStyle(.secondary) }
                 }
                 Spacer()
-            }.padding(.vertical, 8).contentShape(Rectangle())
+            }
+            .padding(.vertical, 8)
+            // Leave room for the native circular swipe actions and their labels.
+            .frame(minHeight: 80)
+            .contentShape(Rectangle())
         }.buttonStyle(.plain)
             .accessibilityLabel(item.amount.isEmpty ? item.name : "\(item.name), \(item.amount)")
             .accessibilityValue(item.isComplete ? "Completed" : "Not completed")
             .sensoryFeedback(.selection, trigger: feedback)
             .swipeActions(edge: .trailing) {
-                // Custom trailing actions replace the list's onDelete swipe, so Delete is restated here.
-                Button("Delete", systemImage: "trash", role: .destructive) { store.removeGroceries([item]) }
+                // Custom trailing actions replace the list's onDelete swipe.
+                Button("Remove", systemImage: "trash", role: .destructive) { store.removeGroceries([item]) }
+                    .tint(.red)
                 Button("Edit", systemImage: "pencil") { editing = true }
             }
             .accessibilityAction(named: "Edit Item") { editing = true }
