@@ -23,6 +23,8 @@ struct RecipeStepText: View {
     let recipe: Recipe
     let scale: Double
     let units: MeasurementPreference
+    /// Cooking mode reveals the matching rows in its ingredients panel instead of presenting a popover.
+    var onIngredientTap: (([UUID]) -> Void)? = nil
     @State private var frames = MentionFrames()
     @State private var shown: Mention?
 
@@ -69,12 +71,12 @@ struct RecipeStepText: View {
             .textRenderer(MentionRenderer(frames: frames))
             .onTapGesture { location in
                 // A wrapped name draws as one run per line, so any of its pieces counts.
-                shown = frames.mentions.first { $0.rect.insetBy(dx: -4, dy: -6).contains(location) }
+                select(frames.mentions.first { $0.rect.insetBy(dx: -4, dy: -6).contains(location) })
             }
             .accessibilityActions {
                 ForEach(Array(mentions.enumerated()), id: \.offset) { _, mention in
                     Button(String(displayed[mention.range])) {
-                        shown = frames.mentions.first { $0.ingredients == mention.ingredients } ?? Mention(ingredients: mention.ingredients)
+                        select(frames.mentions.first { $0.ingredients == mention.ingredients } ?? Mention(ingredients: mention.ingredients))
                     }
                 }
             }
@@ -96,6 +98,16 @@ struct RecipeStepText: View {
                 .onDisappear { TabBarTint.keepsColor(false) }
             }
     }
+
+    private func select(_ mention: Mention?) {
+        guard let mention else { shown = nil; return }
+        if let onIngredientTap {
+            onIngredientTap(mention.ingredients.filter(recipe.ingredients.indices.contains).map { recipe.ingredients[$0].id })
+        } else {
+            shown = mention
+        }
+    }
+
 }
 
 /// Popovers dim the app's tint behind them, which would gray out the selected tab. The tab bar keeps its color.
