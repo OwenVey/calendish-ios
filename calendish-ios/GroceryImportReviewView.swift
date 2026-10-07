@@ -60,7 +60,7 @@ struct GroceryImportReviewView: View {
             }
             .navigationTitle("Add to Groceries").navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.toolbarGlyph() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
                         let start = (store.groceries.map(\.position).max() ?? 0) + 1

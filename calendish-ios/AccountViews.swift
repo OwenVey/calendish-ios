@@ -112,7 +112,7 @@ private struct EmailSignInView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(role: .close) { dismiss() }
+                    Button(role: .close) { dismiss() }.toolbarGlyph()
                 }
             }
             .navigationDestination(for: PasswordStep.self) { step in
@@ -415,7 +415,7 @@ struct PasswordResetView: View {
             }
             .navigationTitle("Reset Password").navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(working) }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(working).toolbarGlyph() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         Task {

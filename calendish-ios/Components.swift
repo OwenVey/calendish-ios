@@ -255,6 +255,12 @@ extension View {
     func tabRootStyle() -> some View {
         toolbarTitleDisplayMode(.inlineLarge).listSectionSpacing(.compact).contentMargins(.top, 0, for: .scrollContent)
     }
+
+    /// Bar buttons stay monochrome like the system apps; only a screen's primary action (a prominent
+    /// glass button or a sheet's confirmation) carries the accent. Menus get the same through `CalendishMenuStyle`.
+    func toolbarGlyph() -> some View {
+        tint(nil)
+    }
 }
 
 /// The app's only button chrome. Prominent buttons are the screen's primary action, drawn in the accent

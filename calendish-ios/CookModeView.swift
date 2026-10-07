@@ -45,12 +45,13 @@ struct CookModeView: View {
             .navigationTitle(recipe.title).navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(role: .close) { dismiss() }
+                    Button(role: .close) { dismiss() }.toolbarGlyph()
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     Button(wideLayout && showIngredients ? "Hide Ingredients" : "Show Ingredients", systemImage: "list.bullet") {
                         if wideLayout { withAnimation(reduceMotion ? nil : .default) { showIngredients.toggle() } } else { showIngredientSheet = true }
                     }
+                    .toolbarGlyph()
                 }
                 if let next = timers.min(by: { $0.end < $1.end }) {
                     ToolbarItem(placement: .topBarTrailing) { timerMenu(next: next) }
@@ -58,6 +59,7 @@ struct CookModeView: View {
                 ToolbarItem(placement: .bottomBar) {
                     Button("Previous step", systemImage: "chevron.backward") { withAnimation(reduceMotion ? nil : .default) { stepIndex -= 1 } }
                         .disabled(stepIndex == 0)
+                        .toolbarGlyph()
                 }
                 ToolbarSpacer(.flexible, placement: .bottomBar)
                 ToolbarItem(placement: .bottomBar) {
@@ -71,6 +73,7 @@ struct CookModeView: View {
                 } else {
                     ToolbarItem(placement: .bottomBar) {
                         Button("Next step", systemImage: "chevron.forward") { withAnimation(reduceMotion ? nil : .default) { stepIndex += 1 } }
+                            .toolbarGlyph()
                     }
                 }
             }

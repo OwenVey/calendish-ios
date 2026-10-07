@@ -99,9 +99,11 @@ struct MealPlanView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Today") { withAnimation(reduceMotion ? nil : .default) { store.planningDate = Calendar.current.startOfDay(for: .now) } }
                     .disabled(Calendar.current.isDateInToday(store.planningDate))
+                    .toolbarGlyph()
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Choose a date", systemImage: "calendar") { showCalendar = true }
+                    .toolbarGlyph()
                     .popover(isPresented: $showCalendar) {
                         DatePicker("Selected day", selection: Binding(
                             get: { store.planningDate },
@@ -256,7 +258,7 @@ struct MealPickerView: View {
             .searchable(text: $search, prompt: "Find a recipe")
             .navigationTitle(selection.meal == nil ? "Plan a meal" : "Edit meal").navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } }.toolbarGlyph() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         if let recipe = store.recipes.first(where: { $0.id == recipeID }) {

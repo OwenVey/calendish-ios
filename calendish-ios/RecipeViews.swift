@@ -192,7 +192,7 @@ private struct RecipeLinkView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", role: .cancel) { dismiss() }
+                    Button("Cancel", role: .cancel) { dismiss() }.toolbarGlyph()
                 }
             }
         }
@@ -336,6 +336,7 @@ struct RecipeDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Edit Recipe", systemImage: "pencil") { showEditor = true }
                     .labelStyle(.iconOnly)
+                    .toolbarGlyph()
             }
             ToolbarSpacer(.fixed, placement: .topBarTrailing)
             ToolbarItem(placement: .topBarTrailing) {
@@ -647,7 +648,7 @@ struct RecipeEditorView: View {
             .environment(\.editMode, .constant(.active))
             .navigationTitle(original == nil ? "New recipe" : "Edit recipe").navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } }.toolbarGlyph() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         let savedIngredients = ingredients.compactMap { ingredient -> Ingredient? in

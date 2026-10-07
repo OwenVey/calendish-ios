@@ -126,7 +126,7 @@ struct GroceryListView: View {
             if !presented { scope = .all }
         }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) { EditButton().disabled(grouping != .none || searchPresented) }
+            ToolbarItem(placement: .topBarLeading) { EditButton().disabled(grouping != .none || searchPresented).toolbarGlyph() }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Picker(selection: $grouping) {
@@ -140,7 +140,7 @@ struct GroceryListView: View {
                 } label: { Label("List options", systemImage: "ellipsis") }
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button("New Item", systemImage: "plus") { newItemFocused = true }
+                Button("New Item", systemImage: "plus") { newItemFocused = true }.toolbarGlyph()
             }
         }
         .confirmationDialog("Clear all completed items?", isPresented: $clearCompleted, titleVisibility: .visible) {
@@ -247,7 +247,7 @@ private struct GroceryEditorView: View {
             }
             .navigationTitle("Edit Grocery Item").navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if isDirty { discard = true } else { dismiss() } } }
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if isDirty { discard = true } else { dismiss() } }.toolbarGlyph() }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         var updated = item
