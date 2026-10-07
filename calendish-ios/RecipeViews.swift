@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import SafariServices
 
 struct RecipeBookView: View {
     @Environment(HouseholdStore.self) private var store
@@ -9,8 +10,11 @@ struct RecipeBookView: View {
     @State private var alphabetical = false
     @State private var favoritesOnly = false
     @State private var sheet: RecipeSheet?
+    @State private var recipeLink = ""
+    @State private var recipeToDelete: Recipe?
+    @State private var confirmDelete = false
     private enum RecipeSheet: String, Identifiable {
-        case manual
+        case manual, link
         var id: Self { self }
     }
     private var filteredRecipes: [Recipe] {
@@ -33,6 +37,14 @@ struct RecipeBookView: View {
             ForEach(filteredRecipes) { recipe in
                 NavigationLink(value: recipe) { RecipeRow(recipe: recipe) }
                     .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        // A destructive swipe button removes the row before confirmation.
+                        Button("Delete", systemImage: "trash") {
+                            recipeToDelete = recipe
+                            confirmDelete = true
+                        }
+                        .tint(.red)
+                    }
             }
         }
         .overlay {
@@ -72,14 +84,116 @@ struct RecipeBookView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button("Write a recipe", systemImage: "square.and.pencil") { sheet = .manual }
+                    Button("Add manually", systemImage: "square.and.pencil") { sheet = .manual }
+                    Button("From link...", systemImage: "link") { sheet = .link }
                 } label: { Label("Add recipe", systemImage: "plus") }
             }
         }
         .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }
+        .confirmationDialog("Delete “\(recipeToDelete?.title ?? "recipe")”?", isPresented: $confirmDelete, titleVisibility: .visible, presenting: recipeToDelete) { recipe in
+            Button("Delete Recipe", role: .destructive) {
+                store.deleteRecipe(recipe)
+                recipeToDelete = nil
+            }
+            Button("Cancel", role: .cancel) { recipeToDelete = nil }
+        } message: { _ in
+            Text("This deletes the recipe and any meals planned with it for your household. Grocery items will stay on your list. This can’t be undone.")
+        }
         .sheet(item: $sheet) { destination in
             switch destination {
             case .manual: RecipeEditorView()
+            case .link: RecipeLinkView(recipeLink: $recipeLink)
+            }
+        }
+    }
+}
+
+private struct RecipeLinkView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Binding var recipeLink: String
+    @State private var imported: ImportedRecipe?
+    @State private var importTask: Task<Void, Never>?
+    @State private var importing = false
+    @State private var errorMessage: String?
+    private var validURL: URL? { RecipeLinkImporter.validatedURL(recipeLink) }
+
+    private func startImport() {
+        guard let url = validURL, !importing else { return }
+        importing = true
+        errorMessage = nil
+        importTask = Task {
+            defer { importing = false }
+            do {
+                let result = try await RecipeLinkImporter.fetch(url)
+                try Task.checkCancellation()
+                imported = result
+            } catch {
+                guard !Task.isCancelled else { return }
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    var body: some View {
+        Group {
+            if let imported {
+                RecipeEditorView(imported: imported)
+            } else {
+                linkForm
+            }
+        }
+        .presentationDetents(imported == nil ? [.medium, .large] : [.large])
+        .presentationDragIndicator(.visible)
+        .onDisappear { importTask?.cancel() }
+    }
+
+    private var linkForm: some View {
+        NavigationStack {
+            Form {
+                Section {
+                        TextField("https://example.com/recipe", text: $recipeLink)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .accessibilityLabel("Recipe URL")
+                            .submitLabel(.go)
+                            .onSubmit(startImport)
+                            .disabled(importing)
+                } header: {
+                    Text("Recipe URL")
+                } footer: {
+                    Text("Paste a link to a recipe.")
+                }
+                Section {
+                    Button(action: startImport) {
+                        HStack {
+                            if importing { ProgressView().tint(CalendishStyle.onAccent) }
+                            Text(importing ? "Importing…" : "Import")
+                        }
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, minHeight: 36)
+                    }
+                    .disabled(validURL == nil || importing)
+                    .buttonStyle(.borderedProminent)
+                    .tint(CalendishStyle.accent)
+                }
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+                if let errorMessage {
+                    Section {
+                        Text(errorMessage).foregroundStyle(.red)
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .contentMargins(.top, 12, for: .scrollContent)
+            .listSectionSpacing(16)
+            .navigationTitle("Add from link")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", role: .cancel) { dismiss() }
+                }
             }
         }
     }
@@ -96,6 +210,11 @@ struct RecipeDetailView: View {
     @State private var confirmDelete = false
     @State private var isCooking = false
     @State private var planning: MealSelection?
+    @State private var sourceToVisit: RecipeSource?
+    private struct RecipeSource: Identifiable {
+        let url: URL
+        var id: String { url.absoluteString }
+    }
     /// Bottom edge of the large title within the scroll content; the nav bar title appears once it scrolls under the bar.
     @State private var titleBottom: CGFloat = .infinity
     @State private var showsNavTitle = false
@@ -186,6 +305,9 @@ struct RecipeDetailView: View {
                             planning = MealSelection(date: date, slot: slot, recipeID: recipe.id)
                         }
                         Button("Add to Groceries", systemImage: "basket") { showImportOutline = true }
+                        if let link = recipe.recipeLink, let url = RecipeLinkImporter.validatedURL(link) {
+                            Button("Visit Source", systemImage: "safari") { sourceToVisit = RecipeSource(url: url) }
+                        }
                     }
                     Section {
                         Button(recipe.isFavorite ? "Remove from Favorites" : "Add to Favorites", systemImage: recipe.isFavorite ? "star.slash" : "star") {
@@ -226,10 +348,35 @@ struct RecipeDetailView: View {
         }
         .sheet(isPresented: $showEditor) { RecipeEditorView(recipe: recipe) }
         .sheet(item: $planning) { MealPickerView(selection: $0) }
+        .sheet(item: $sourceToVisit) { source in
+            RecipeSourceBrowser(url: source.url)
+                .ignoresSafeArea()
+        }
         .fullScreenCover(isPresented: $isCooking) { CookModeView(recipe: recipe, checked: $checked) }
         .sheet(isPresented: $showImportOutline) {
             GroceryImportReviewView(candidates: [GroceryImportCandidate(recipe: recipe, servings: recipe.servings)])
         }
+    }
+}
+
+private struct RecipeSourceBrowser: UIViewControllerRepresentable {
+    @Environment(\.dismiss) private var dismiss
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        let controller = SFSafariViewController(url: url)
+        controller.delegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(dismiss: dismiss) }
+
+    final class Coordinator: NSObject, SFSafariViewControllerDelegate {
+        let dismiss: DismissAction
+        init(dismiss: DismissAction) { self.dismiss = dismiss }
+        func safariViewControllerDidFinish(_ controller: SFSafariViewController) { dismiss() }
     }
 }
 
@@ -239,9 +386,11 @@ struct RecipeEditorView: View {
     @Environment(\.dismiss) private var dismiss
     /// The recipe being edited, or nil when writing a new one.
     private let original: Recipe?
+    private let importedDraftID: UUID?
     @State private var draftID = UUID()
     @State private var title: String
     @State private var summary: String
+    @State private var sourceLink: String
     @State private var servings: Int
     @State private var prepMinutes: Int
     @State private var cookMinutes: Int
@@ -260,9 +409,9 @@ struct RecipeEditorView: View {
     @State private var discardChanges = false
     @State private var initialDraft: Data?
     @State private var restoredDraft = false
-    private var draftKey: String { "recipeDraft.\(store.userID?.uuidString ?? "preview").\(original?.id.uuidString ?? "new")" }
+    private var draftKey: String { "recipeDraft.\(store.userID?.uuidString ?? "preview").\(original?.id.uuidString ?? importedDraftID?.uuidString ?? "new")" }
     private var draft: RecipeDraft {
-        RecipeDraft(id: draftID, title: title, summary: summary, servings: servings, prepMinutes: prepMinutes,
+        RecipeDraft(id: draftID, title: title, summary: summary, recipeLink: sourceLink, servings: servings, prepMinutes: prepMinutes,
                     cookMinutes: cookMinutes, tags: tags, newTag: newTag, ingredients: ingredients,
                     steps: steps.map(\.text), photo: draftPhoto, removesPhoto: removesPhoto)
     }
@@ -280,7 +429,7 @@ struct RecipeEditorView: View {
         if let data = UserDefaults.standard.data(forKey: draftKey),
            let saved = try? JSONDecoder().decode(RecipeDraft.self, from: data) {
             draftID = saved.id
-            title = saved.title; summary = saved.summary; servings = saved.servings
+            title = saved.title; summary = saved.summary; sourceLink = saved.recipeLink ?? ""; servings = saved.servings
             prepMinutes = saved.prepMinutes; cookMinutes = saved.cookMinutes
             tags = saved.tags; newTag = saved.newTag; ingredients = saved.ingredients
             steps = saved.steps.map { StepDraft(text: $0) }
@@ -294,11 +443,16 @@ struct RecipeEditorView: View {
         if let newPhoto { return .replace(newPhoto) }
         return removesPhoto ? .remove : .keep
     }
-    init(recipe: Recipe? = nil) {
+    init(recipe: Recipe? = nil, imported: ImportedRecipe? = nil) {
         original = recipe
+        importedDraftID = imported?.recipe.id
+        let recipe = recipe ?? imported?.recipe
+        _newPhoto = State(initialValue: imported?.photo.flatMap(UIImage.init(data:)))
+        _draftPhoto = State(initialValue: imported?.photo.flatMap(UIImage.init(data:)).flatMap { RecipePhotos.uploadData(for: $0) })
         _draftID = State(initialValue: recipe?.id ?? UUID())
         _title = State(initialValue: recipe?.title ?? "")
         _summary = State(initialValue: recipe?.summary ?? "")
+        _sourceLink = State(initialValue: recipe?.recipeLink ?? "")
         _servings = State(initialValue: recipe?.servings ?? 4)
         _prepMinutes = State(initialValue: recipe?.prepMinutes ?? 10)
         _cookMinutes = State(initialValue: recipe?.cookMinutes ?? 20)
@@ -342,6 +496,10 @@ struct RecipeEditorView: View {
                 Section {
                     TextField("Recipe Title (Required)", text: $title)
                     TextField("A little about this recipe", text: $summary, axis: .vertical)
+                    TextField("Recipe Link", text: $sourceLink)
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
                     ServingsField(servings: $servings)
                     RecipeDurationField(title: "Prep time", minutes: $prepMinutes)
                     RecipeDurationField(title: "Cook time", minutes: $cookMinutes)
@@ -454,6 +612,8 @@ struct RecipeEditorView: View {
                         var recipe = original ?? Recipe(id: draftID, title: "", summary: "", prepMinutes: 0, cookMinutes: 0, servings: 0, tags: [], symbol: "fork.knife", ingredients: [], steps: [])
                         recipe.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
                         recipe.summary = summary
+                        let link = sourceLink.trimmingCharacters(in: .whitespacesAndNewlines)
+                        recipe.recipeLink = link.isEmpty ? nil : link
                         recipe.prepMinutes = prepMinutes
                         recipe.cookMinutes = cookMinutes
                         recipe.servings = servings
@@ -584,6 +744,7 @@ private struct RecipeDraft: Codable {
     var id: UUID
     var title: String
     var summary: String
+    var recipeLink: String?
     var servings: Int
     var prepMinutes: Int
     var cookMinutes: Int
