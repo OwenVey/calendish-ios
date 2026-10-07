@@ -164,11 +164,34 @@ struct RecipeBookView: View {
     }
 }
 
+/// Imports a recipe shared from another app through the share extension, using the matching import screen.
+struct SharedRecipeImportView: View {
+    let item: SharedInbox.Item
+    @State private var recipeLink = ""
+    @State private var recipeText = ""
+
+    init(item: SharedInbox.Item) {
+        self.item = item
+        if case .link(let url) = item { _recipeLink = State(initialValue: url.absoluteString) }
+        if case .text(let text) = item { _recipeText = State(initialValue: text) }
+    }
+
+    var body: some View {
+        switch item {
+        case .link: RecipeLinkView(recipeLink: $recipeLink, startsImmediately: true)
+        case .text: RecipeTextView(recipeText: $recipeText, startsImmediately: true)
+        case .images(let images): RecipeDocumentImportView(source: .images(images), recipeText: $recipeText)
+        case .pdf(let data): RecipeDocumentImportView(source: .pdf(data), recipeText: $recipeText)
+        }
+    }
+}
+
 /// Reads the recipe in screenshots, photos, scanned pages, or a PDF, then hands it to the editor to review.
 /// When the text can't be parsed, it can be fixed up in the text import instead.
 private struct RecipeDocumentImportView: View {
     enum Source {
         case photos([PhotosPickerItem])
+        case images([Data])
         case scan([Data])
         case pdf(Data)
     }
@@ -182,7 +205,7 @@ private struct RecipeDocumentImportView: View {
 
     private var title: String {
         switch source {
-        case .photos: "Add from photos"
+        case .photos, .images: "Add from photos"
         case .scan: "Add from scan"
         case .pdf: "Add from PDF"
         }
@@ -190,6 +213,7 @@ private struct RecipeDocumentImportView: View {
     private var progressTitle: String {
         switch source {
         case .photos(let items): items.count == 1 ? "Reading photo…" : "Reading \(items.count) photos…"
+        case .images(let images): images.count == 1 ? "Reading photo…" : "Reading \(images.count) photos…"
         case .scan(let pages): pages.count == 1 ? "Reading page…" : "Reading \(pages.count) pages…"
         case .pdf: "Reading PDF…"
         }
@@ -205,8 +229,8 @@ private struct RecipeDocumentImportView: View {
                     if let data = try await item.loadTransferable(type: Data.self) { images.append(data) }
                 }
                 text = try await RecipeImageImporter.text(in: images)
-            case .scan(let pages):
-                text = try await RecipeImageImporter.text(in: pages)
+            case .images(let images), .scan(let images):
+                text = try await RecipeImageImporter.text(in: images)
             case .pdf(let data):
                 text = try await RecipePDFImporter.text(in: data)
             }
@@ -265,6 +289,8 @@ private struct RecipeDocumentImportView: View {
 private struct RecipeTextView: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var recipeText: String
+    /// Starts importing right away, for text shared from another app.
+    var startsImmediately = false
     @State private var imported: ImportedRecipe?
     @State private var importTask: Task<Void, Never>?
     @State private var importing = false
@@ -298,6 +324,7 @@ private struct RecipeTextView: View {
         }
         .presentationDragIndicator(.visible)
         .onDisappear { importTask?.cancel() }
+        .task { if startsImmediately { startImport() } }
     }
 
     private var textForm: some View {
@@ -377,6 +404,8 @@ private struct RecipeTextView: View {
 private struct RecipeLinkView: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var recipeLink: String
+    /// Starts importing right away, for a link shared from another app.
+    var startsImmediately = false
     @State private var imported: ImportedRecipe?
     @State private var importTask: Task<Void, Never>?
     @State private var importing = false
@@ -411,6 +440,7 @@ private struct RecipeLinkView: View {
         .presentationDetents(imported == nil ? [.medium, .large] : [.large])
         .presentationDragIndicator(.visible)
         .onDisappear { importTask?.cancel() }
+        .task { if startsImmediately { startImport() } }
     }
 
     private var linkForm: some View {

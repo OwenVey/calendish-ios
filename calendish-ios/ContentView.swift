@@ -12,6 +12,12 @@ struct ContentView: View {
     @State private var selectedTab: AppTab = .recipes
     @AppStorage("appearance") private var appearance: AppAppearance = .system
     @Environment(\.scenePhase) private var scenePhase
+    @State private var sharedImport: SharedImport?
+
+    private struct SharedImport: Identifiable {
+        let id: String
+        let item: SharedInbox.Item
+    }
 
     init(store: HouseholdStore = HouseholdStore()) {
         _store = State(initialValue: store)
@@ -54,10 +60,18 @@ struct ContentView: View {
             if url.scheme == "calendish" { supabase.auth.handle(url) }
             else { GIDSignIn.sharedInstance.handle(url) }
         }
-        .sheet(isPresented: Binding(get: { store.needsPasswordReset }, set: { store.needsPasswordReset = $0 })) { PasswordResetView() }
+        .sheet(isPresented: Binding(get: { store.needsPasswordReset }, set: { store.needsPasswordReset = $0 })) { PasswordResetView().environment(store) }
         .onChange(of: scenePhase) { _, phase in
             // Catch up on anything missed while Realtime was disconnected in the background.
             if phase == .active, store.phase == .ready { Task { await store.resumeSync() } }
+            if phase == .active { openNextShare() }
+        }
+        .onChange(of: store.phase) { _, _ in openNextShare() }
+        .sheet(item: $sharedImport, onDismiss: openNextShare) { share in
+            // Sheets attached out here sit outside the `.environment` modifiers above.
+            SharedRecipeImportView(item: share.item)
+                .environment(store)
+                .onAppear { SharedInbox.remove(share.id) }
         }
         .alert("Couldn’t sync", isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) {
             Button("OK") {}
@@ -65,6 +79,13 @@ struct ContentView: View {
             Text(store.errorMessage ?? "")
         }
         .menuStyle(CalendishMenuStyle())
+    }
+
+    /// Recipes shared from other apps open in the Recipes tab, one at a time.
+    private func openNextShare() {
+        guard store.phase == .ready, sharedImport == nil, let share = SharedInbox.next() else { return }
+        selectedTab = .recipes
+        sharedImport = SharedImport(id: share.id, item: share.item)
     }
 
     private var tabs: some View {
