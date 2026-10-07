@@ -59,7 +59,7 @@ struct RecipeBookView: View {
             }
         }
         .navigationTitle("Recipes")
-        .toolbarTitleDisplayMode(.inlineLarge)
+        .tabRootStyle()
         .navigationSubtitle(subtitle)
         .searchable(text: $search, prompt: "Recipes, ingredients, and more")
         .toolbar {

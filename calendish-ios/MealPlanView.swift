@@ -93,7 +93,7 @@ struct MealPlanView: View {
             }
         }
         .navigationTitle("Meal Plan")
-        .toolbarTitleDisplayMode(.inlineLarge)
+        .tabRootStyle()
         .navigationSubtitle(store.planningDate.formatted(.dateTime.month(.wide).year()))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

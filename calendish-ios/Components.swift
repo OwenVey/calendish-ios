@@ -249,6 +249,13 @@ struct SectionHeading: View {
     }
 }
 
+extension View {
+    /// Shared title and list spacing for top-level tab screens, so switching tabs never shifts the header or first section.
+    func tabRootStyle() -> some View {
+        toolbarTitleDisplayMode(.inlineLarge).listSectionSpacing(.compact)
+    }
+}
+
 /// The app's only button chrome. Prominent buttons are the screen's primary action, drawn in the accent
 /// with the on-accent label color.
 struct GlassActionStyle: ViewModifier {

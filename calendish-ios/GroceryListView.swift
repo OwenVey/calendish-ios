@@ -5,6 +5,11 @@ enum GroceryGrouping: String, CaseIterable, Identifiable {
     var id: Self { self }
 }
 
+enum GroceryScope: String, CaseIterable, Identifiable {
+    case all = "All", toBuy = "To Buy", completed = "Completed"
+    var id: Self { self }
+}
+
 struct GroceryListView: View {
     @Environment(HouseholdStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -12,9 +17,22 @@ struct GroceryListView: View {
     @State private var showCompleted = false
     @State private var clearCompleted = false
     @State private var newItem = ""
+    @State private var search = ""
+    @State private var searchPresented = false
+    @State private var scope = GroceryScope.all
     @FocusState private var newItemFocused: Bool
-    private var activeItems: [GroceryItem] { store.groceries.filter { !$0.isComplete } }
-    private var completedItems: [GroceryItem] { store.groceries.filter(\.isComplete) }
+    private var query: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
+    private var isSearching: Bool { !query.isEmpty }
+    private var matchingItems: [GroceryItem] {
+        guard isSearching else { return store.groceries }
+        return store.groceries.filter { [$0.name, $0.amount, $0.source].contains { $0.localizedCaseInsensitiveContains(query) } }
+    }
+    private var activeItems: [GroceryItem] { scope == .completed ? [] : matchingItems.filter { !$0.isComplete } }
+    private var completedItems: [GroceryItem] { scope == .toBuy ? [] : matchingItems.filter(\.isComplete) }
+    /// Offer to add the search text when the list has nothing by that exact name, so searching doubles as a duplicate check.
+    private var canAddSearch: Bool {
+        isSearching && scope != .completed && !store.groceries.contains { $0.name.localizedCaseInsensitiveCompare(query) == .orderedSame }
+    }
     private var groups: [String] { Array(Set(activeItems.map(\.source))).sorted() }
     private var subtitle: String {
         switch store.remainingGroceries {
@@ -26,6 +44,21 @@ struct GroceryListView: View {
 
     var body: some View {
         List {
+            if canAddSearch {
+                Section {
+                    Button {
+                        store.addGrocery(name: query)
+                        search = ""
+                    } label: {
+                        Label { Text("Add “\(query)”") } icon: {
+                            Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(CalendishStyle.accent)
+                        }
+                        .labelStyle(GroceryAddLabelStyle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 8)
+                }
+            }
             if grouping == .none {
                 Section {
                     ForEach(activeItems) { item in GroceryRow(item: item) }
@@ -37,7 +70,8 @@ struct GroceryListView: View {
                             store.reorderGroceries(store.groceries.map { $0.isComplete ? $0 : iterator.next()! })
                         }
                         .onDelete { offsets in store.removeGroceries(offsets.map { activeItems[$0] }) }
-                    newItemRow
+                        .moveDisabled(searchPresented)
+                    if !searchPresented { newItemRow }
                 }
             } else {
                 ForEach(groups, id: \.self) { group in
@@ -47,11 +81,12 @@ struct GroceryListView: View {
                             .onDelete { offsets in store.removeGroceries(offsets.map { items[$0] }) }
                     }
                 }
-                Section { newItemRow }
+                if !searchPresented { Section { newItemRow } }
             }
             if !completedItems.isEmpty {
                 Section {
-                    if showCompleted {
+                    // Search results include completed matches so nothing on the list is hidden from a search.
+                    if showCompleted || searchPresented {
                         ForEach(completedItems) { item in GroceryRow(item: item) }
                             .onDelete { offsets in store.removeGroceries(offsets.map { completedItems[$0] }) }
                     }
@@ -59,24 +94,39 @@ struct GroceryListView: View {
                     HStack {
                         Text("\(completedItems.count) Completed")
                         Spacer()
-                        Button(showCompleted ? "Hide" : "Show") { withAnimation(reduceMotion ? nil : .default) { showCompleted.toggle() } }
-                            .font(.subheadline).textCase(nil).frame(minWidth: 44, minHeight: 44)
+                        if !searchPresented {
+                            Button(showCompleted ? "Hide" : "Show") { withAnimation(reduceMotion ? nil : .default) { showCompleted.toggle() } }
+                                .font(.subheadline).textCase(nil).frame(minWidth: 44, minHeight: 44)
+                        }
                     }
                 }
             }
         }
         .animation(reduceMotion ? nil : .default, value: store.groceries.map(\.isComplete))
         .overlay {
-            if store.groceries.isEmpty && !newItemFocused {
+            if searchPresented && activeItems.isEmpty && completedItems.isEmpty && !canAddSearch && !store.groceries.isEmpty {
+                if isSearching {
+                    ContentUnavailableView.search(text: query)
+                } else {
+                    ContentUnavailableView(scope == .completed ? "No Completed Items" : "Nothing Left to Buy", systemImage: scope == .completed ? "checkmark.circle" : "basket")
+                }
+            } else if store.groceries.isEmpty && !newItemFocused {
                 ContentUnavailableView("All set for now", systemImage: "basket", description: Text("Tap New Item to start your household list."))
                     .allowsHitTesting(false)
             }
         }
         .navigationTitle("Groceries")
-        .toolbarTitleDisplayMode(.inlineLarge)
+        .tabRootStyle()
         .navigationSubtitle(subtitle)
+        .searchable(text: $search, isPresented: $searchPresented, prompt: "Search or add an item")
+        .searchScopes($scope, activation: .onSearchPresentation) {
+            ForEach(GroceryScope.allCases) { Text($0.rawValue).tag($0) }
+        }
+        .onChange(of: searchPresented) { _, presented in
+            if !presented { scope = .all }
+        }
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) { EditButton().disabled(grouping != .none) }
+            ToolbarItem(placement: .topBarLeading) { EditButton().disabled(grouping != .none || searchPresented) }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Picker(selection: $grouping) {
@@ -122,6 +172,18 @@ struct GroceryListView: View {
         newItem = ""
         guard !name.isEmpty else { return }
         store.addGrocery(name: name)
+    }
+}
+
+/// Lines the add-from-search row up with grocery rows' checkmark column.
+private struct GroceryAddLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 16) {
+            configuration.icon
+            configuration.title.font(.body.weight(.medium))
+            Spacer()
+        }
+        .contentShape(Rectangle())
     }
 }
 
