@@ -21,7 +21,6 @@ struct MealPlanView: View {
     @State private var reviewPeriod: GroceryReviewPeriod?
     @State private var removing: PlannedMeal?
     @State private var showCalendar = false
-    @State private var visibleWeek: Date?
     @Environment(\.dynamicTypeSize) private var typeSize
     @AppStorage(WeekStart.storageKey) private var weekStart = WeekStart.system
     @AppStorage(MealSlot.enabledStorageKey) private var enabledSlots = MealSlot.allEnabled
@@ -33,8 +32,8 @@ struct MealPlanView: View {
 
     var body: some View {
         List {
-            Section {
-                if typeSize.isAccessibilitySize {
+            if typeSize.isAccessibilitySize {
+                Section {
                     VStack(alignment: .leading, spacing: 8) {
                         DatePicker("Planning Day", selection: Binding(get: { store.planningDate }, set: { store.planningDate = Calendar.current.startOfDay(for: $0) }), in: CalendarDays.plannableRange, displayedComponents: .date)
                         ForEach(CalendarDays.week(containing: store.planningDate), id: \.self) { day in
@@ -52,9 +51,9 @@ struct MealPlanView: View {
                             .accessibilityAddTraits(selected ? .isSelected : [])
                         }
                     }
-                } else { weekStrip }
-            }.listRowBackground(Color.clear).listRowSeparator(.hidden)
-                .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+                }.listRowBackground(Color.clear).listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
+            }
 
             Section {
                 ForEach(visibleSlots) { slot in
@@ -101,6 +100,10 @@ struct MealPlanView: View {
         }
         .navigationTitle("Meal Plan")
         .tabRootStyle()
+        // Kept out of the List so paging between weeks doesn't compete with the list's scrolling.
+        .safeAreaBar(edge: .top) {
+            if !typeSize.isAccessibilitySize { WeekStrip().padding(.horizontal).padding(.bottom, 6) }
+        }
         .navigationSubtitle(store.planningDate.formatted(.dateTime.month(.wide).year()))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -138,57 +141,8 @@ struct MealPlanView: View {
         } message: { Text("The recipe stays in your recipe book.") }
     }
 
-    /// A horizontally paging strip of weeks. Swiping keeps the same weekday selected.
-    private var weekStrip: some View {
-        ScrollView(.horizontal) {
-            LazyHStack(spacing: 0) {
-                ForEach(CalendarDays.plannableWeeks, id: \.self) { week in
-                    HStack(spacing: 4) {
-                        ForEach(CalendarDays.week(containing: week), id: \.self) { day in dayButton(day) }
-                    }
-                    .containerRelativeFrame(.horizontal)
-                }
-            }
-            .scrollTargetLayout()
-        }
-        .scrollTargetBehavior(.paging)
-        .scrollIndicators(.hidden)
-        .scrollPosition(id: $visibleWeek)
-        .onAppear { visibleWeek = CalendarDays.startOfWeek(store.planningDate) }
-        .onChange(of: weekStart) { _, _ in visibleWeek = CalendarDays.startOfWeek(store.planningDate) }
-        .onChange(of: visibleWeek) { _, week in
-            guard let week, week != CalendarDays.startOfWeek(store.planningDate) else { return }
-            let weekday = Calendar.current.dateComponents([.day], from: CalendarDays.startOfWeek(store.planningDate), to: store.planningDate).day ?? 0
-            store.planningDate = Calendar.current.date(byAdding: .day, value: weekday, to: week)!
-        }
-        .onChange(of: store.planningDate) { _, date in
-            let week = CalendarDays.startOfWeek(date)
-            if visibleWeek != week { withAnimation(reduceMotion ? nil : .default) { visibleWeek = week } }
-        }
-    }
-
-    private func dayButton(_ day: Date) -> some View {
-        let selected = Calendar.current.isDate(day, inSameDayAs: store.planningDate)
-        let today = Calendar.current.isDateInToday(day)
-        return Button { store.planningDate = day } label: {
-            VStack(spacing: 9) {
-                Text(day.formatted(.dateTime.weekday(.narrow))).font(.caption)
-                Text(day.formatted(.dateTime.day())).font(.headline)
-                    .foregroundStyle(selected ? CalendishStyle.onAccent : (today ? CalendishStyle.accent : Color.primary))
-                Circle().fill(store.meals.contains { Calendar.current.isDate($0.date, inSameDayAs: day) } ? (selected ? CalendishStyle.onAccent : CalendishStyle.accent) : Color.clear)
-                    .frame(width: 5, height: 5)
-            }
-            .frame(maxWidth: .infinity).padding(.vertical, 12)
-            .foregroundStyle(selected ? CalendishStyle.onAccent : Color.primary)
-            .background(selected ? CalendishStyle.accent : Color.clear, in: RoundedRectangle(cornerRadius: 18))
-        }.buttonStyle(.plain).accessibilityLabel(day.formatted(date: .complete, time: .omitted))
-            .accessibilityValue(dayStatus(day))
-            .accessibilityAddTraits(selected ? .isSelected : [])
-    }
-
     private func dayStatus(_ day: Date) -> String {
-        let count = store.meals.filter { Calendar.current.isDate($0.date, inSameDayAs: day) }.count
-        return (Calendar.current.isDateInToday(day) ? "Today, " : "") + "\(count) \(count == 1 ? "meal" : "meals") planned"
+        WeekStrip.status(of: day, meals: store.meals.filter { Calendar.current.isDate($0.date, inSameDayAs: day) }.count)
     }
 
     private func groceryCandidates(for period: GroceryReviewPeriod) -> [GroceryImportCandidate] {
@@ -200,6 +154,93 @@ struct MealPlanView: View {
         }
         return GroceryImportCandidate.planned(meals)
 
+    }
+}
+
+/// A horizontally paging strip of weeks. Swiping keeps the same weekday selected.
+struct WeekStrip: View {
+    @Environment(HouseholdStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(WeekStart.storageKey) private var weekStart = WeekStart.system
+    @State private var weeks: [Date] = []
+    @State private var visibleWeek: Date?
+    @State private var isScrolling = false
+
+    var body: some View {
+        let calendar = Calendar.current
+        let mealCounts = Dictionary(store.meals.map { (calendar.startOfDay(for: $0.date), 1) }, uniquingKeysWith: +)
+        ScrollView(.horizontal) {
+            LazyHStack(spacing: 0) {
+                ForEach(weeks, id: \.self) { week in
+                    HStack(spacing: 4) {
+                        ForEach(0..<7, id: \.self) { offset in
+                            let day = calendar.date(byAdding: .day, value: offset, to: week)!
+                            dayButton(day, meals: mealCounts[day, default: 0])
+                        }
+                    }
+                    .containerRelativeFrame(.horizontal)
+                }
+            }
+            .scrollTargetLayout()
+        }
+        .scrollTargetBehavior(.paging)
+        .scrollIndicators(.hidden)
+        .scrollPosition(id: $visibleWeek)
+        // A horizontal scroll view otherwise takes all the height it's offered.
+        .fixedSize(horizontal: false, vertical: true)
+        .onAppear { if weeks.isEmpty { loadWeeks() } }
+        .onChange(of: weekStart) { _, _ in loadWeeks() }
+        // Commit the new week only once the swipe settles, so the screen doesn't redraw mid-gesture.
+        .onScrollPhaseChange { _, phase in
+            isScrolling = phase != .idle
+            guard phase == .idle, let week = visibleWeek else { return }
+            let current = CalendarDays.startOfWeek(store.planningDate)
+            guard week != current else { return }
+            let weekday = calendar.dateComponents([.day], from: current, to: store.planningDate).day ?? 0
+            store.planningDate = calendar.date(byAdding: .day, value: weekday, to: week)!
+        }
+        // Follow date changes made elsewhere (Today, the date picker) without fighting a swipe in progress.
+        .onChange(of: store.planningDate) { _, date in
+            let week = CalendarDays.startOfWeek(date)
+            guard !isScrolling, visibleWeek != week else { return }
+            withAnimation(reduceMotion ? nil : .default) { visibleWeek = week }
+        }
+    }
+
+    private func loadWeeks() {
+        weeks = CalendarDays.plannableWeeks
+        visibleWeek = CalendarDays.startOfWeek(store.planningDate)
+    }
+
+    private func dayButton(_ day: Date, meals: Int) -> some View {
+        let selected = Calendar.current.isDate(day, inSameDayAs: store.planningDate)
+        let today = Calendar.current.isDateInToday(day)
+        return Button { store.planningDate = day } label: {
+            VStack(spacing: 9) {
+                Text(day.formatted(.dateTime.weekday(.abbreviated))).font(.caption)
+                    .foregroundStyle(selected ? CalendishStyle.onAccent.opacity(0.75) : Color.secondary)
+                Text(day.formatted(.dateTime.day())).font(.headline)
+                    .foregroundStyle(selected ? CalendishStyle.onAccent : (today ? CalendishStyle.accent : Color.primary))
+                Circle().fill(meals > 0 ? (selected ? CalendishStyle.onAccent : CalendishStyle.accent) : Color.clear)
+                    .frame(width: 5, height: 5)
+            }
+            .frame(maxWidth: .infinity).padding(.vertical, 12)
+            .background {
+                if selected {
+                    // Non-interactive so the glass never claims the drag that pages between weeks.
+                    Color.clear
+                        .glassEffect(.regular.tint(CalendishStyle.accent), in: .rect(cornerRadius: 18))
+                        .transition(.opacity)
+                }
+            }
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: selected)
+        }.buttonStyle(.plain).accessibilityLabel(day.formatted(date: .complete, time: .omitted))
+            .accessibilityValue(Self.status(of: day, meals: meals))
+            .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    static func status(of day: Date, meals count: Int) -> String {
+        (Calendar.current.isDateInToday(day) ? "Today, " : "") + "\(count) \(count == 1 ? "meal" : "meals") planned"
     }
 }
 
