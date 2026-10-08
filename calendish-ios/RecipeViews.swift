@@ -23,6 +23,9 @@ struct RecipeBookView: View {
     @State private var fileError: String?
     @State private var recipeToDelete: Recipe?
     @State private var confirmDelete = false
+    @State private var planning: MealSelection?
+    @State private var groceryRecipe: Recipe?
+    @AppStorage(MealSlot.enabledStorageKey) private var enabledSlots = MealSlot.allEnabled
     private enum RecipeSheet: Identifiable {
         case manual
         case importing(RecipeImportView.Start)
@@ -63,6 +66,29 @@ struct RecipeBookView: View {
                             }
                             .tint(.red)
                         }
+                    }
+                    .calendishContextMenu {
+                        Section {
+                            Button("Plan Meal", systemImage: "calendar.badge.plus") {
+                                planning = .planning(recipe, store: store, enabledSlots: enabledSlots)
+                            }
+                            Button("Add to Groceries", systemImage: "basket") { groceryRecipe = recipe }
+                        }
+                        Section {
+                            Button(recipe.isFavorite ? "Remove from Favorites" : "Add to Favorites", systemImage: recipe.isFavorite ? "star.slash" : "star") {
+                                store.toggleFavorite(recipe)
+                            }
+                        }
+                        if store.canEdit(recipe) {
+                            Section {
+                                Button("Delete Recipe", systemImage: "trash", role: .destructive) {
+                                    recipeToDelete = recipe
+                                    confirmDelete = true
+                                }
+                            }
+                        }
+                    } preview: {
+                        RecipePreview(recipe: recipe)
                     }
             }
         }
@@ -171,6 +197,29 @@ struct RecipeBookView: View {
             case .importing(let start): RecipeImportView(start: start, drafts: $importDrafts)
             }
         }
+        .sheet(item: $planning) { MealPickerView(selection: $0) }
+        .sheet(item: $groceryRecipe) { recipe in
+            GroceryImportReviewView(candidates: [GroceryImportCandidate(recipe: recipe, servings: recipe.servings)])
+        }
+    }
+}
+
+/// A recipe's photo and details, shown when pressing and holding it in the recipe book.
+private struct RecipePreview: View {
+    let recipe: Recipe
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            RecipeArtwork(recipe: recipe).aspectRatio(4 / 3, contentMode: .fit)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(recipe.title).font(.title3.weight(.semibold))
+                if !recipe.summary.isEmpty {
+                    Text(recipe.summary).font(.subheadline).foregroundStyle(.secondary).lineLimit(3)
+                }
+            }
+            .padding(.horizontal, 4)
+        }
+        .padding(12)
+        .frame(width: 320)
     }
 }
 
@@ -301,10 +350,7 @@ struct RecipeDetailView: View {
                                 planning = MealSelection(date: plannedMeal.date, slot: plannedMeal.slot, meal: plannedMeal)
                                 return
                             }
-                            let date = store.planningDate
-                            let slots = MealSlot.enabled(in: enabledSlots)
-                            let slot = slots.first { store.meal(on: date, slot: $0) == nil } ?? slots.last!
-                            planning = MealSelection(date: date, slot: slot, recipeID: recipe.id)
+                            planning = .planning(recipe, store: store, enabledSlots: enabledSlots)
                         }
                         Button("Add to Groceries", systemImage: "basket") { showImportOutline = true }
                         if let link = recipe.recipeLink, let url = RecipeLinkImporter.validatedURL(link) {

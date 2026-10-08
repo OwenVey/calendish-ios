@@ -7,6 +7,14 @@ struct MealSelection: Identifiable {
     var meal: PlannedMeal?
     /// A recipe to preselect when planning from a recipe page.
     var recipeID: UUID?
+
+    /// Plans a recipe for the next open slot on the planning day, or its last slot when all are taken.
+    static func planning(_ recipe: Recipe, store: HouseholdStore, enabledSlots: String) -> MealSelection {
+        let date = store.planningDate
+        let slots = MealSlot.enabled(in: enabledSlots)
+        let slot = slots.first { store.meal(on: date, slot: $0) == nil } ?? slots.last!
+        return MealSelection(date: date, slot: slot, recipeID: recipe.id)
+    }
 }
 
 enum GroceryReviewPeriod: String, Identifiable {
@@ -62,7 +70,7 @@ struct MealPlanView: View {
                         if let meal = store.meal(on: store.planningDate, slot: slot) {
                             let recipe = meal.recipe
                             NavigationLink { RecipeDetailView(recipe: recipe, plannedMeal: meal) } label: { RecipeRow(recipe: recipe, servings: meal.servings) }
-                                .contextMenu {
+                                .calendishContextMenu {
                                     Button("Edit \(slot.title)", systemImage: "pencil") { selection = MealSelection(date: store.planningDate, slot: slot, meal: meal) }
                                 }
                                 .accessibilityAction(named: "Edit \(slot.title)") { selection = MealSelection(date: store.planningDate, slot: slot, meal: meal) }

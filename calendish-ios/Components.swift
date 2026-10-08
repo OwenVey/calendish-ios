@@ -105,36 +105,30 @@ struct RecipeRow: View {
     let recipe: Recipe
     /// Servings to show instead of the recipe's own, such as a planned meal's.
     var servings: Int?
+    /// Whose recipe it is. Your own recipes don't name an owner.
+    private var owner: String? { store.isMine(recipe) ? nil : store.ownerName(of: recipe) }
     var body: some View {
         HStack(spacing: 14) {
             RecipeArtwork(recipe: recipe, compact: true).frame(width: 64, height: 64)
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
-                    Text(recipe.title).font(.headline).foregroundStyle(.primary)
+                    Text(recipe.title).font(.headline).foregroundStyle(.primary).lineLimit(2)
+                    if store.isMine(recipe) && recipe.owner?.isShared == false {
+                        Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary).accessibilityLabel("Only me")
+                    }
                     if recipe.isFavorite {
                         Image(systemName: "star.fill").font(.caption).foregroundStyle(.yellow).accessibilityLabel("Favorite")
                     }
                 }
-                FlowLayout(spacing: 6) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock")
-                            .font(.caption)
-                            .accessibilityHidden(true)
-                        Text("\(recipe.minutes) min")
-                    }
-                    HStack(spacing: 4) {
-                        Image(systemName: "person.2")
-                            .font(.caption)
-                            .accessibilityHidden(true)
-                        Text("\(servings ?? recipe.servings) servings")
-                    }
+                HStack(spacing: 10) {
+                    Label("\(recipe.minutes) min", systemImage: "clock")
+                    Label("\(servings ?? recipe.servings) servings", systemImage: "person.2")
+                    if let owner { Text(owner) }
                 }
+                .labelStyle(RecipeDetailLabelStyle())
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                if let owner = store.ownerName(of: recipe) {
-                    Text(owner + (store.isMine(recipe) && recipe.owner?.isShared == false ? " · Only me" : ""))
-                        .font(.caption).foregroundStyle(.secondary)
-                }
+                .lineLimit(1)
                 if !recipe.tags.isEmpty {
                     FlowLayout(spacing: 4) {
                         ForEach(recipe.tags.prefix(2), id: \.self) { TagPill(tag: $0, compact: true) }
@@ -144,6 +138,16 @@ struct RecipeRow: View {
                     }
                 }
             }.padding(.vertical, 4)
+        }
+    }
+}
+
+/// A recipe detail with a small icon tucked close to its text.
+private struct RecipeDetailLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) {
+            configuration.icon.font(.caption).accessibilityHidden(true)
+            configuration.title
         }
     }
 }
@@ -301,6 +305,19 @@ extension View {
     /// glass button or a sheet's confirmation) carries the accent. Menus get the same through `CalendishMenuStyle`.
     func toolbarGlyph() -> some View {
         tint(nil)
+    }
+
+    /// Context menus take their item color from the tint where they're attached, which is basil app-wide,
+    /// so the menu gets the same neutral rendering as `CalendishMenuStyle` while the row keeps basil.
+    /// Destructive roles keep their red.
+    func calendishContextMenu<MenuItems: View>(@ViewBuilder menuItems: () -> MenuItems) -> some View {
+        tint(CalendishStyle.accent).contextMenu(menuItems: menuItems).tint(nil)
+    }
+
+    func calendishContextMenu<MenuItems: View, Preview: View>(
+        @ViewBuilder menuItems: () -> MenuItems, @ViewBuilder preview: () -> Preview
+    ) -> some View {
+        tint(CalendishStyle.accent).contextMenu(menuItems: menuItems, preview: preview).tint(nil)
     }
 }
 
