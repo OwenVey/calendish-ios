@@ -102,7 +102,7 @@ struct MealPlanView: View {
         .tabRootStyle()
         // Kept out of the List so paging between weeks doesn't compete with the list's scrolling.
         .safeAreaBar(edge: .top) {
-            if !typeSize.isAccessibilitySize { WeekStrip().padding(.horizontal).padding(.bottom, 6) }
+            if !typeSize.isAccessibilitySize { WeekStrip().padding(.bottom, 6) }
         }
         .navigationSubtitle(store.planningDate.formatted(.dateTime.month(.wide).year()))
         .toolbar {
@@ -178,6 +178,8 @@ struct WeekStrip: View {
                             dayButton(day, meals: mealCounts[day, default: 0])
                         }
                     }
+                    // Inset inside each page, so neighboring weeks are separated by a clear gap mid-swipe.
+                    .padding(.horizontal, 20)
                     .containerRelativeFrame(.horizontal)
                 }
             }
