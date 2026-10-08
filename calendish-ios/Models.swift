@@ -263,6 +263,8 @@ struct GroceryItem: Identifiable {
     var source: String
     var isComplete = false
     var position: Double = 0
+    /// A `GroceryAisle` raw value, or nil until the item has been sorted.
+    var aisle: String?
 }
 
 struct Household: Identifiable {

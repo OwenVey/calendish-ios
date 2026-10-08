@@ -102,8 +102,9 @@ nonisolated struct GroceryItemRecord: Codable, Sendable {
     var source: String
     var isComplete: Bool
     var position: Double
+    var aisle: String?
     enum CodingKeys: String, CodingKey {
-        case id, householdID = "household_id", name, amount, source, isComplete = "is_complete", position
+        case id, householdID = "household_id", name, amount, source, isComplete = "is_complete", position, aisle
     }
 }
 
@@ -135,11 +136,11 @@ extension PlannedMeal {
 
 extension GroceryItem {
     init(_ row: GroceryItemRecord) {
-        self.init(id: row.id, name: row.name, amount: row.amount, source: row.source, isComplete: row.isComplete, position: row.position)
+        self.init(id: row.id, name: row.name, amount: row.amount, source: row.source, isComplete: row.isComplete, position: row.position, aisle: row.aisle)
     }
     func record(household: UUID) -> GroceryItemRecord {
         GroceryItemRecord(id: id, householdID: household, name: name, amount: amount, source: source,
-                       isComplete: isComplete, position: position)
+                       isComplete: isComplete, position: position, aisle: aisle)
     }
 }
 

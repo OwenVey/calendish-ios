@@ -6,6 +6,7 @@ struct GrocerySyncState {
         case insert(GroceryItem)
         case edit(UUID, name: String?, amount: String?, source: String?, isComplete: Bool?, position: Double?)
         case delete(UUID)
+        case sort(UUID, aisle: String)
 
         func apply(to items: inout [GroceryItem]) {
             switch self {
@@ -14,12 +15,15 @@ struct GrocerySyncState {
                 else { items.append(item) }
             case let .edit(id, name, amount, source, isComplete, position):
                 guard let index = items.firstIndex(where: { $0.id == id }) else { return }
-                if let name { items[index].name = name }
+                // The server clears a renamed item's aisle so it can be sorted again.
+                if let name { items[index].name = name; items[index].aisle = nil }
                 if let amount { items[index].amount = amount }
                 if let source { items[index].source = source }
                 if let isComplete { items[index].isComplete = isComplete }
                 if let position { items[index].position = position }
             case .delete(let id): items.removeAll { $0.id == id }
+            case let .sort(id, aisle):
+                if let index = items.firstIndex(where: { $0.id == id }) { items[index].aisle = aisle }
             }
         }
     }

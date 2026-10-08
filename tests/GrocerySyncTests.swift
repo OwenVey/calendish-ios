@@ -44,6 +44,16 @@ struct GrocerySyncTests {
         let revision = sync.revision
         sync.finish(edit)
         precondition(sync.revision != revision, "Write completion must invalidate snapshots started before acknowledgment")
+
+        var sortedBread = remoteBread
+        sortedBread.aisle = "bakery"
+        let sort = sync.begin([.sort(milk.id, aisle: "dairy")])
+        result = sync.merging([milk, sortedBread])
+        precondition(result[0].aisle == "dairy" && result[1].aisle == "bakery", "A pending aisle must show before the server echoes it")
+        sync.finish(sort)
+        let rename = sync.begin([.edit(bread.id, name: "Rye", amount: nil, source: nil, isComplete: nil, position: nil)])
+        precondition(sync.merging([sortedBread])[0].aisle == nil, "A pending rename must clear the old aisle")
+        sync.finish(rename)
         print("Grocery sync tests passed")
     }
 }

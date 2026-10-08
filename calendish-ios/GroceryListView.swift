@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum GroceryGrouping: String, CaseIterable, Identifiable {
-    case none = "None", recipe = "Recipe"
+    case none = "None", recipe = "Recipe", aisle = "Aisle"
     var id: Self { self }
 }
 
@@ -36,7 +36,27 @@ struct GroceryListView: View {
     private var canAddSearch: Bool {
         isSearching && activeScope != .completed && !store.groceries.contains { $0.name.localizedCaseInsensitiveCompare(query) == .orderedSame }
     }
-    private var groups: [String] { Array(Set(activeItems.map(\.source))).sorted() }
+    /// Sections for the chosen grouping. Items not yet sorted into an aisle wait in an untitled section at the top.
+    private var groups: [(title: String?, items: [GroceryItem])] {
+        switch grouping {
+        case .none: [(title: String?.none, items: activeItems)]
+        case .recipe:
+            Dictionary(grouping: activeItems, by: \.source).sorted { $0.key < $1.key }.map { ($0.key, $0.value) }
+        case .aisle:
+            Dictionary(grouping: activeItems) { $0.aisle.map { GroceryAisle(rawValue: $0) ?? .other } }
+                .sorted { order($0.key) < order($1.key) }
+                .map { ($0.key?.title, $0.value) }
+        }
+    }
+    /// Reorders some of the items, such as one section's, while every other item keeps its place in the full list.
+    private func move(_ items: [GroceryItem], from source: IndexSet, to destination: Int) {
+        var reordered = items
+        reordered.move(fromOffsets: source, toOffset: destination)
+        var iterator = reordered.makeIterator()
+        let ids = Set(items.map(\.id))
+        store.reorderGroceries(store.groceries.map { ids.contains($0.id) ? iterator.next()! : $0 })
+    }
+    private func order(_ aisle: GroceryAisle?) -> Int { aisle.flatMap { GroceryAisle.allCases.firstIndex(of: $0) } ?? -1 }
     private var subtitle: String {
         switch store.remainingGroceries {
         case 0: "All done"
@@ -66,23 +86,20 @@ struct GroceryListView: View {
                 if grouping == .none {
                     Section {
                         ForEach(activeItems) { item in GroceryRow(item: item) }
-                            .onMove { source, destination in
-                                // Map the active order back into the full list without moving completed items.
-                                var reordered = activeItems
-                                reordered.move(fromOffsets: source, toOffset: destination)
-                                var iterator = reordered.makeIterator()
-                                store.reorderGroceries(store.groceries.map { $0.isComplete ? $0 : iterator.next()! })
-                            }
+                            .onMove { move(activeItems, from: $0, to: $1) }
                             .onDelete { offsets in store.removeGroceries(offsets.map { activeItems[$0] }) }
                             .moveDisabled(searchPresented)
                         if !searchPresented && !addingItem { newItemRow }
                     }
                 } else {
-                    ForEach(groups, id: \.self) { group in
-                        Section(group) {
-                            let items = activeItems.filter { $0.source == group }
-                            ForEach(items) { item in GroceryRow(item: item) }
-                                .onDelete { offsets in store.removeGroceries(offsets.map { items[$0] }) }
+                    ForEach(groups, id: \.title) { group in
+                        Section {
+                            ForEach(group.items) { item in GroceryRow(item: item) }
+                                .onMove { move(group.items, from: $0, to: $1) }
+                                .onDelete { offsets in store.removeGroceries(offsets.map { group.items[$0] }) }
+                                .moveDisabled(searchPresented)
+                        } header: {
+                            if let title = group.title { Text(title) }
                         }
                     }
                     if !searchPresented && !addingItem { Section { newItemRow } }
@@ -147,7 +164,7 @@ struct GroceryListView: View {
                 ForEach(GroceryScope.allCases) { Text($0.rawValue).tag($0) }
             }
             .toolbar {
-                ToolbarItem(id: "grocery-edit", placement: .topBarLeading) { EditButton().disabled(grouping != .none).toolbarGlyph() }
+                ToolbarItem(id: "grocery-edit", placement: .topBarLeading) { EditButton().toolbarGlyph() }
                 ToolbarItem(id: "grocery-options", placement: .topBarTrailing) {
                     Menu {
                         Picker(selection: $grouping) {

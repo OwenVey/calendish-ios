@@ -572,8 +572,8 @@
 		C00CA11E0000000000000009 /* Debug configuration for PBXNativeTarget "CookingActivityExtension" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = CookingActivityExtension/CookingActivityExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Q97ES87SKW;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -600,8 +600,8 @@
 		C00CA11E000000000000000A /* Release configuration for PBXNativeTarget "CookingActivityExtension" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = CookingActivityExtension/CookingActivityExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Q97ES87SKW;
 				GENERATE_INFOPLIST_FILE = YES;
