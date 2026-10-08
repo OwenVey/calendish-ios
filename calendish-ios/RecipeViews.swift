@@ -68,11 +68,10 @@ struct RecipeBookView: View {
                 }
             }
         }
-        .refreshable { await store.refresh() }
         .navigationTitle("Recipes")
         .tabRootStyle()
         .navigationSubtitle(subtitle)
-        .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Recipes, ingredients, and more")
+        .searchable(text: $search, prompt: "Recipes, ingredients, and more")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {

@@ -154,11 +154,10 @@ struct GroceryListView: View {
                         .allowsHitTesting(false)
                 }
             }
-            .refreshable { await store.refresh() }
             .navigationTitle("Groceries")
             .tabRootStyle()
             .navigationSubtitle(subtitle)
-            .searchable(text: $search, isPresented: $searchPresented, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search or add an item")
+            .searchable(text: $search, isPresented: $searchPresented, prompt: "Search or add an item")
             .searchScopes($scope, activation: .onSearchPresentation) {
                 ForEach(GroceryScope.allCases) { Text($0.rawValue).tag($0) }
             }
