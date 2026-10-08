@@ -24,7 +24,7 @@ struct RecipeLinkImporterTests {
         precondition(recipe.summary == "Warm & tasty")
         precondition(recipe.prepMinutes == 15 && recipe.cookMinutes == 65)
         precondition(recipe.servings == 6)
-        precondition(recipe.tags == ["Dinner", "French", "Soup"])
+        precondition(recipe.category == "Dinner" && recipe.tags == ["French", "Soup"])
         precondition(recipe.ingredients.map(\.text) == ["2 cups stock", "1 onion"])
         precondition(recipe.steps == ["Chop the onion.", "Simmer & serve."])
         let fallback = RecipeLinkImporter.parse(html: """

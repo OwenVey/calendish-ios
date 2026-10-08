@@ -10,6 +10,7 @@ struct RecipeBookView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var search = ""
     @State private var selectedTag = "All recipes"
+    @State private var scope = RecipeScope.all
     @AppStorage(PreferenceKey.recipeSort) private var sort = RecipeSort.recent
     @State private var favoritesOnly = false
     @State private var sheet: RecipeSheet?
@@ -29,6 +30,7 @@ struct RecipeBookView: View {
     }
     private var filteredRecipes: [Recipe] {
         let recipes = store.recipes.filter { recipe in
+            scope.includes(recipe, person: store.userID) &&
             (selectedTag == "All recipes" || recipe.tags.contains { $0.caseInsensitiveCompare(selectedTag) == .orderedSame }) &&
             (!favoritesOnly || recipe.isFavorite) &&
             (search.isEmpty || ([recipe.title, recipe.summary, recipe.category ?? ""] + recipe.tags + recipe.ingredients.map(\.text)).contains { $0.localizedCaseInsensitiveContains(search) })
@@ -44,16 +46,23 @@ struct RecipeBookView: View {
 
     var body: some View {
         List {
+            Picker("Recipe collection", selection: $scope) {
+                ForEach(RecipeScope.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .listRowSeparator(.hidden)
             ForEach(filteredRecipes) { recipe in
                 NavigationLink(value: recipe) { RecipeRow(recipe: recipe) }
                     .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         // A destructive swipe button removes the row before confirmation.
-                        Button("Delete", systemImage: "trash") {
-                            recipeToDelete = recipe
-                            confirmDelete = true
+                        if store.canEdit(recipe) {
+                            Button("Delete", systemImage: "trash") {
+                                recipeToDelete = recipe
+                                confirmDelete = true
+                            }
+                            .tint(.red)
                         }
-                        .tint(.red)
                     }
             }
         }
@@ -115,8 +124,8 @@ struct RecipeBookView: View {
                 recipeToDelete = nil
             }
             Button("Cancel", role: .cancel) { recipeToDelete = nil }
-        } message: { _ in
-            Text("This deletes the recipe and any meals planned with it for your household. Grocery items will stay on your list. This can’t be undone.")
+        } message: { recipe in
+            Text(store.deletionExplanation(for: recipe))
         }
         // Drop a link, text, images, or a PDF from another app, as on iPad.
         .dropDestination(for: RecipeImport.self) { items, _ in
@@ -170,6 +179,7 @@ struct RecipeDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let initialRecipe: Recipe
+    let plannedMeal: PlannedMeal?
     @State private var checked: Set<UUID> = []
     /// Servings the cook scaled to, or nil to use the recipe as written.
     @State private var scaledServings: Int?
@@ -178,6 +188,9 @@ struct RecipeDetailView: View {
     @State private var showImportOutline = false
     @State private var showEditor = false
     @State private var confirmDelete = false
+    @State private var confirmSharing = false
+    @State private var savingCopy = false
+    @State private var savedCopy: Recipe?
     @State private var isCooking = false
     @State private var planning: MealSelection?
     @State private var sourceToVisit: RecipeSource?
@@ -188,10 +201,10 @@ struct RecipeDetailView: View {
     /// Bottom edge of the large title within the scroll content; the nav bar title appears once it scrolls under the bar.
     @State private var titleBottom: CGFloat = .infinity
     @State private var showsNavTitle = false
-    init(recipe: Recipe) { initialRecipe = recipe }
+    init(recipe: Recipe, plannedMeal: PlannedMeal? = nil) { initialRecipe = recipe; self.plannedMeal = plannedMeal }
     /// Reads the latest copy from the store so edits show up immediately.
-    private var recipe: Recipe { store.recipes.first { $0.id == initialRecipe.id } ?? initialRecipe }
-    private var servings: Int { scaledServings ?? recipe.servings }
+    private var recipe: Recipe { plannedMeal?.recipe ?? store.recipes.first { $0.id == initialRecipe.id } ?? initialRecipe }
+    private var servings: Int { scaledServings ?? plannedMeal?.servings ?? recipe.servings }
     private var isScaled: Bool { servings != recipe.servings && recipe.servings > 0 }
     private var scale: Double { isScaled ? Double(servings) / Double(recipe.servings) : 1 }
     var body: some View {
@@ -200,7 +213,7 @@ struct RecipeDetailView: View {
                 RecipeArtwork(recipe: recipe)
                     .frame(height: recipe.imagePath == nil ? 190 : 260)
                     .overlay(alignment: .bottomTrailing) {
-                        if recipe.imagePath == nil {
+                        if recipe.imagePath == nil && plannedMeal == nil && store.canEdit(recipe) {
                             PhotoSourceMenu(hasPhoto: false, onPick: { store.saveRecipe(recipe, photo: .replace($0)) }, onRemove: {}) {
                                 Label("Add Photo", systemImage: "camera")
                                     .font(.subheadline.weight(.semibold))
@@ -217,6 +230,11 @@ struct RecipeDetailView: View {
                     }
                     Text(recipe.title).font(.largeTitle.bold())
                         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named("recipeContent")).maxY } action: { titleBottom = $0 }
+                    if let owner = store.ownerName(of: recipe) {
+                        Text(owner + (store.isMine(recipe) ? (recipe.owner?.isShared == true ? " · Shared with household" : " · Only me") : ""))
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    if plannedMeal != nil { Text("Saved version for this planned meal").font(.subheadline).foregroundStyle(.secondary) }
                     Text(recipe.summary).foregroundStyle(.secondary)
                     FlowLayout(spacing: 16) {
                         Label("Prep: \(recipe.prepMinutes) min", systemImage: "clock")
@@ -278,7 +296,11 @@ struct RecipeDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Section {
-                        Button("Plan Meal", systemImage: "calendar.badge.plus") {
+                        Button(plannedMeal == nil ? "Plan Meal" : "Edit Planned Meal", systemImage: "calendar.badge.plus") {
+                            if let plannedMeal {
+                                planning = MealSelection(date: plannedMeal.date, slot: plannedMeal.slot, meal: plannedMeal)
+                                return
+                            }
                             let date = store.planningDate
                             let slots = MealSlot.enabled(in: enabledSlots)
                             let slot = slots.first { store.meal(on: date, slot: $0) == nil } ?? slots.last!
@@ -290,12 +312,35 @@ struct RecipeDetailView: View {
                         }
                     }
                     Section {
+                        if plannedMeal == nil {
                         Button(recipe.isFavorite ? "Remove from Favorites" : "Add to Favorites", systemImage: recipe.isFavorite ? "star.slash" : "star") {
                             store.toggleFavorite(recipe)
                         }
+                        }
+                        if plannedMeal == nil && !store.isMine(recipe) {
+                            Button("Save to My Collection", systemImage: "square.and.arrow.down") {
+                                savingCopy = true
+                                Task {
+                                    defer { savingCopy = false }
+                                    do { savedCopy = try await store.saveCopy(of: recipe) }
+                                    catch { store.errorMessage = error.localizedDescription }
+                                }
+                            }.disabled(savingCopy)
+                        }
+                        if let plannedMeal, store.latestRecipe(for: plannedMeal) != nil {
+                            Button("Update to Latest Recipe", systemImage: "arrow.clockwise") {
+                                store.updateMealToLatest(plannedMeal)
+                                dismiss()
+                            }.disabled(!store.hasNewerVersion(plannedMeal))
+                        }
+                        if plannedMeal == nil && store.isMine(recipe) {
+                            Button(recipe.owner?.isShared == true ? "Make Only Me" : "Share with Household", systemImage: "person.2") { confirmSharing = true }
+                        }
                     }
-                    Section {
-                        Button("Delete Recipe", systemImage: "trash", role: .destructive) { confirmDelete = true }
+                    if plannedMeal == nil && store.canEdit(recipe) {
+                        Section {
+                            Button("Delete Recipe", systemImage: "trash", role: .destructive) { confirmDelete = true }
+                        }
                     }
                 } label: {
                     Label("More recipe actions", systemImage: "ellipsis")
@@ -308,13 +353,14 @@ struct RecipeDetailView: View {
                     }
                     Button("Cancel", role: .cancel) {}
                 } message: {
-                    Text("This deletes the recipe and any meals planned with it for your household. Grocery items will stay on your list. This can’t be undone.")
+                    Text(store.deletionExplanation(for: recipe))
                 }
             }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Edit Recipe", systemImage: "pencil") { showEditor = true }
-                    .labelStyle(.iconOnly)
-                    .toolbarGlyph()
+            if plannedMeal == nil && store.canEdit(recipe) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Edit Recipe", systemImage: "pencil") { showEditor = true }
+                        .labelStyle(.iconOnly).toolbarGlyph()
+                }
             }
             ToolbarSpacer(.fixed, placement: .topBarTrailing)
             ToolbarItem(placement: .topBarTrailing) {
@@ -326,6 +372,17 @@ struct RecipeDetailView: View {
             }
 
         }
+        .confirmationDialog(recipe.owner?.isShared == true ? "Make Only Me?" : "Share with Household?", isPresented: $confirmSharing, titleVisibility: .visible) {
+            Button(recipe.owner?.isShared == true ? "Make Only Me" : "Share with Household") {
+                store.setSharing(recipe, shared: recipe.owner?.isShared != true)
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text(recipe.owner?.isShared == true
+                 ? "Your household keeps an independent copy of what you shared. Only me stops access to your original and future edits; it doesn’t retract prior sharing."
+                 : "Your household can use your original. If you stop sharing, delete it, or leave, the household keeps an independent copy. Only you can edit your original.")
+        }
+        .sheet(item: $savedCopy) { copy in NavigationStack { RecipeDetailView(recipe: copy) } }
         .sheet(isPresented: $showEditor) { RecipeEditorView(recipe: recipe) }
         .sheet(item: $planning) { MealPickerView(selection: $0) }
         .sheet(item: $sourceToVisit) { source in
@@ -416,6 +473,7 @@ struct RecipeEditorView: View {
     @State private var newPhoto: UIImage?
     @State private var draftPhoto: Data?
     @State private var saving = false
+    @State private var shareNewRecipe = true
     @State private var removesPhoto = false
     @State private var discardChanges = false
     @State private var initialDraft: Data?
@@ -425,7 +483,7 @@ struct RecipeEditorView: View {
         RecipeDraft(id: draftID, title: title, summary: summary, recipeLink: sourceLink, category: category, servings: servings,
                     yieldText: yieldText, prepMinutes: prepMinutes,
                     cookMinutes: cookMinutes, tags: tags, newTag: newTag, ingredients: ingredients,
-                    steps: steps.map(\.text), photo: draftPhoto, removesPhoto: removesPhoto)
+                    steps: steps.map(\.text), photo: draftPhoto, removesPhoto: removesPhoto, isShared: shareNewRecipe)
     }
     private var draftData: Data? {
         let encoder = JSONEncoder()
@@ -441,6 +499,7 @@ struct RecipeEditorView: View {
         if let data = UserDefaults.standard.data(forKey: draftKey),
            let saved = try? JSONDecoder().decode(RecipeDraft.self, from: data) {
             draftID = saved.id
+            shareNewRecipe = saved.isShared ?? true
             title = saved.title; summary = saved.summary; sourceLink = saved.recipeLink ?? ""; servings = saved.servings
             category = saved.category ?? ""; yieldText = saved.yieldText ?? ""
             prepMinutes = saved.prepMinutes; cookMinutes = saved.cookMinutes
@@ -483,6 +542,13 @@ struct RecipeEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if original == nil {
+                    Section {
+                        Toggle("Share with Household", isOn: $shareNewRecipe)
+                    } footer: {
+                        Text(shareNewRecipe ? "Only you edit your original. If you stop sharing, delete it, or leave, your household keeps an independent copy." : "Only me: this recipe is private to your collection.")
+                    }
+                }
                 Section {
                     PhotoSourceMenu(hasPhoto: hasPhoto, onPick: { newPhoto = $0; draftPhoto = RecipePhotos.uploadData(for: $0) }, onRemove: { newPhoto = nil; draftPhoto = nil; removesPhoto = true }) {
                         VStack(spacing: 12) {
@@ -633,6 +699,7 @@ struct RecipeEditorView: View {
                         }
                         let savedSteps = steps.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
                         var recipe = original ?? Recipe(id: draftID, title: "", summary: "", prepMinutes: 0, cookMinutes: 0, servings: 0, tags: [], symbol: "fork.knife", ingredients: [], steps: [])
+                        if original == nil, let userID = store.userID { recipe.owner = .person(userID, shared: shareNewRecipe) }
                         recipe.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
                         recipe.summary = summary
                         let link = sourceLink.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -780,4 +847,5 @@ private struct RecipeDraft: Codable {
     var steps: [String]
     var photo: Data?
     var removesPhoto: Bool
+    var isShared: Bool?
 }

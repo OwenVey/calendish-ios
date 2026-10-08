@@ -101,6 +101,7 @@ struct RecipeArtwork: View {
 }
 
 struct RecipeRow: View {
+    @Environment(HouseholdStore.self) private var store
     let recipe: Recipe
     /// Servings to show instead of the recipe's own, such as a planned meal's.
     var servings: Int?
@@ -130,6 +131,10 @@ struct RecipeRow: View {
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                if let owner = store.ownerName(of: recipe) {
+                    Text(owner + (store.isMine(recipe) && recipe.owner?.isShared == false ? " · Only me" : ""))
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 if !recipe.tags.isEmpty {
                     FlowLayout(spacing: 4) {
                         ForEach(recipe.tags.prefix(2), id: \.self) { TagPill(tag: $0, compact: true) }

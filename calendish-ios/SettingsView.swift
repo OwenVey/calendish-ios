@@ -188,6 +188,9 @@ struct HouseholdSettingsView: View {
     @State private var deleting = false
     @State private var deleteError: String?
     @State private var memberToRemove: HouseholdMember?
+    @State private var showJoin = false
+    @State private var showLeave = false
+    @State private var memberToOwn: HouseholdMember?
     @State private var copiedCode = false
     @State private var copiedReset: Task<Void, Never>?
     var body: some View {
@@ -207,6 +210,7 @@ struct HouseholdSettingsView: View {
                     }
                     .swipeActions {
                         if store.isOwner && member.role != "owner" {
+                            Button("Make Owner") { memberToOwn = member }.tint(.orange)
                             Button("Remove") { memberToRemove = member }
                                 .tint(.red)
                         }
@@ -241,12 +245,18 @@ struct HouseholdSettingsView: View {
                     }
                     .accessibilityHint("Copies the invite code")
                     .sensoryFeedback(.success, trigger: copiedCode) { _, new in new }
-                    ShareLink(item: "Join my household on Calendish with invite code \(code)") {
+                    ShareLink(item: "Join my household on Calendish: \(HouseholdInvite.link(for: code).absoluteString)\nInvite code: \(code)") {
                         Label("Invite Members", systemImage: "person.badge.plus")
                     }
                 } footer: {
                     Text("Someone joins by creating an account and entering this code.")
                 }
+            }
+            Section {
+                Button("Join Household") { showJoin = true }
+                Button("Leave Household", role: .destructive) { showLeave = true }
+            } footer: {
+                Text("Your personal recipes follow you. Review what stays behind before making a change.")
             }
             if store.isOwner {
                 Section {
@@ -256,7 +266,7 @@ struct HouseholdSettingsView: View {
                     .frame(maxWidth: .infinity)
                     .disabled(deleting)
                 } footer: {
-                    Text("Deletes every recipe, meal plan, and grocery item for everyone in your household. Members and the invite code stay.")
+                    Text("Deletes household-owned recipes, meal plans, and groceries. Personal recipes, members, and the invite code stay.")
                 }
             }
         }
@@ -268,13 +278,21 @@ struct HouseholdSettingsView: View {
             Button("Delete All Data", role: .destructive) { deleteAllData() }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("This permanently removes all recipes, meal plans, and grocery items for everyone in your household. This can’t be undone.")
+            Text("This permanently removes household-owned recipes, meal plans, and groceries. Everyone’s personal recipes stay. This can’t be undone.")
         }
         .alert("Remove \(memberToRemove?.displayName ?? "Member")?", isPresented: Binding(get: { memberToRemove != nil }, set: { if !$0 { memberToRemove = nil } }), presenting: memberToRemove) { member in
             Button("Remove", role: .destructive) { store.removeMember(member) }
             Button("Cancel", role: .cancel) { }
         } message: { _ in
-            Text("They’ll lose access to your household’s recipes, meal plans, and grocery list. Your invite code will change, so anyone you invited who hasn’t joined yet will need the new one.")
+            Text("They keep their personal recipes and receive a fresh solo household. Their shared recipes remain here as independent household copies. Your invite code will change.")
+        }
+        .sheet(isPresented: $showJoin) { HouseholdMoveView() }
+        .sheet(isPresented: $showLeave) { HouseholdMoveView(leaving: true) }
+        .alert("Transfer Ownership?", isPresented: Binding(get: { memberToOwn != nil }, set: { if !$0 { memberToOwn = nil } }), presenting: memberToOwn) { member in
+            Button("Make Owner") { store.transferOwnership(to: member); memberToOwn = nil }
+            Button("Cancel", role: .cancel) { memberToOwn = nil }
+        } message: { member in
+            Text("\(member.displayName) will manage membership. You’ll remain a member and can still edit household recipes, groceries, and meals.")
         }
         .alert("Couldn’t Delete Data", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
             Button("OK") { }

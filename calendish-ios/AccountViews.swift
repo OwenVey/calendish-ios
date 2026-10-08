@@ -327,69 +327,47 @@ private struct FeatureRow: View {
     }
 }
 
-/// Shown after sign-in until the account belongs to a household.
+/// Collects a name, then provisions the person's household without a create-or-join choice.
 struct HouseholdSetupView: View {
     @Environment(HouseholdStore.self) private var store
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var memberName = ""
-    @State private var householdName = "Our household"
-    @State private var inviteCode = ""
     @State private var working = false
     @State private var message: String?
-    private var trimmedName: String { memberName.trimmingCharacters(in: .whitespaces) }
+    private var trimmedName: String { memberName.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
                     TextField("Your name", text: $memberName).textContentType(.givenName)
-                } footer: {
-                    Text("This is how you’ll appear to your household.")
-                }
-                Section {
-                    TextField("Household name", text: $householdName)
-                    Button("Create Household") {
-                        run { try await store.createHousehold(name: householdName.trimmingCharacters(in: .whitespaces), memberName: trimmedName) }
+                } footer: { Text("This is how you’ll appear to your household.") }
+                if store.pendingInvite != nil {
+                    Section {
+                        Label("Your invitation is ready", systemImage: "person.2")
+                        Text("Continue to join the household you were invited to.")
+                        Button("Start on My Own") { store.discardPendingInvite(); message = nil }
                     }
-                    .disabled(trimmedName.isEmpty || householdName.trimmingCharacters(in: .whitespaces).isEmpty)
-                } header: {
-                    Text("Start a new household")
-                } footer: {
-                    Text("You’ll get an invite code to share with the people you cook with.")
                 }
                 Section {
-                    TextField("Invite code", text: $inviteCode)
-                        .textInputAutocapitalization(.characters).autocorrectionDisabled()
-                        .font(.body.monospaced())
-                    Button("Join Household") {
-                        run { try await store.joinHousehold(code: inviteCode, memberName: trimmedName) }
+                    Button {
+                        working = true
+                        message = nil
+                        Task {
+                            defer { working = false }
+                            do { try await store.startHousehold(memberName: trimmedName) }
+                            catch { message = error.localizedDescription }
+                        }
+                    } label: {
+                        if working { ProgressView() } else { Text("Continue") }
                     }
-                    .disabled(trimmedName.isEmpty || inviteCode.trimmingCharacters(in: .whitespaces).count < 8)
-                } header: {
-                    Text("Join an existing household")
-                } footer: {
-                    Text("Find the code under Household on a member’s phone.")
-                }
-                if working { Section { ProgressView("Setting Up Household…") } }
-                if let message {
-                    Section { Text(message).foregroundStyle(.red) }
-                }
-                Section {
-                    Button("Sign Out", role: .destructive) { Task { await store.signOut() } }
-                }
+                    .disabled(trimmedName.isEmpty || trimmedName.count > 80)
+                } footer: { Text("Your recipes stay yours. Invite someone or join another household later in Settings.") }
+                if let message { Section { Text(message).foregroundStyle(.red) } }
+                Section { Button("Sign Out", role: .destructive) { Task { await store.signOut() } } }
             }
             .navigationTitle("Welcome")
             .disabled(working)
             .onAppear { if memberName.isEmpty { memberName = store.suggestedDisplayName } }
-        }
-    }
-
-    private func run(_ action: @escaping () async throws -> Void) {
-        working = true
-        message = nil
-        Task {
-            defer { working = false }
-            do { try await action() } catch { message = error.localizedDescription }
         }
     }
 }

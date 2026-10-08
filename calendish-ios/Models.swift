@@ -230,9 +230,53 @@ struct Recipe: Identifiable, Hashable, Codable {
     var category: String?
     /// What the recipe makes when that isn't just servings, such as "24 cookies".
     var yieldText: String?
+    /// Who the recipe belongs to. Nil for a planned meal's saved version.
+    var owner: RecipeOwner?
 
     // Keep synthesized value equality: Observation compares recipe arrays before
     // notifying views. ID-only equality hides edits to an existing recipe.
+
+    /// Whether two recipes have the same cooking content, ignoring who owns or favorited them.
+    func hasSameVersion(as other: Recipe) -> Bool {
+        var mine = self, theirs = other
+        mine.owner = nil; theirs.owner = nil
+        mine.isFavorite = false; theirs.isFavorite = false
+        mine.id = theirs.id
+        return mine == theirs
+    }
+}
+
+/// A personal recipe belongs to a person and follows them between households; sharing lets their
+/// household use the same original. A household recipe belongs to the household, and every member edits it.
+enum RecipeOwner: Hashable, Codable {
+    case person(UUID, shared: Bool)
+    case household
+
+    var person: UUID? { if case .person(let id, _) = self { id } else { nil } }
+    var isShared: Bool { if case .person(_, let shared) = self { shared } else { false } }
+}
+
+/// The Recipes browser's ownership filters. Mine and Household overlap for a recipe the person shares.
+enum RecipeScope: String, CaseIterable, Identifiable {
+    case all, mine, household
+    var id: Self { self }
+    var title: String {
+        switch self {
+        case .all: "All"
+        case .mine: "Mine"
+        case .household: "Household"
+        }
+    }
+
+    func includes(_ recipe: Recipe, person: UUID?) -> Bool {
+        switch (self, recipe.owner) {
+        case (.all, _): true
+        case (.mine, .person(let owner, _)?): owner == person
+        case (.household, .household?): true
+        case (.household, .person(_, let shared)?): shared
+        default: false
+        }
+    }
 }
 
 enum MealSlot: String, CaseIterable, Identifiable {
@@ -248,12 +292,27 @@ enum MealSlot: String, CaseIterable, Identifiable {
     }
 }
 
-struct PlannedMeal: Identifiable {
+struct PlannedMeal: Identifiable, Hashable {
     var id = UUID()
     var date: Date
     var slot: MealSlot
-    var recipeID: UUID
+    /// The recipe as it was when planned. Later edits or deletion of the source don't change it.
+    var recipe: Recipe
+    /// The source recipe, while it still exists, for an explicit update to its latest version.
+    var recipeID: UUID?
     var servings: Int
+
+    init(id: UUID = UUID(), date: Date, slot: MealSlot, recipe: Recipe, recipeID: UUID?, servings: Int) {
+        self.id = id
+        self.date = date
+        self.slot = slot
+        var saved = recipe
+        saved.owner = nil
+        saved.isFavorite = false
+        self.recipe = saved
+        self.recipeID = recipeID
+        self.servings = servings
+    }
 }
 
 struct GroceryItem: Identifiable {
@@ -271,6 +330,25 @@ struct Household: Identifiable {
     var id: UUID
     var name: String
     var inviteCode: String
+    /// A link that opens Calendish and offers to join this household.
+    var inviteLink: URL { HouseholdInvite.link(for: inviteCode) }
+}
+
+/// Household invitations travel as `calendish://join/<code>` links or as the bare code.
+nonisolated enum HouseholdInvite {
+    static func link(for code: String) -> URL { URL(string: "calendish://join/\(code)")! }
+
+    /// The invite code in a join link, or nil for any other URL.
+    static func code(from url: URL) -> String? {
+        guard url.scheme == "calendish", url.host == "join" else { return nil }
+        let code = url.pathComponents.dropFirst().first
+            ?? URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "code" }?.value
+        return code.map(normalized).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    static func normalized(_ code: String) -> String {
+        code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+    }
 }
 
 struct HouseholdMember: Identifiable {

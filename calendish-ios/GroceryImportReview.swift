@@ -4,6 +4,26 @@ struct GroceryImportCandidate: Identifiable {
     var recipe: Recipe
     var servings: Int
     var id: UUID { recipe.id }
+
+    /// Identical planned versions appear once at their largest serving count. Different saved
+    /// versions get independent identities, so review choices cannot overwrite each other.
+    static func planned(_ meals: [PlannedMeal]) -> [Self] {
+        var candidates: [Self] = []
+        var versions: [Recipe] = []
+        for meal in meals {
+            if let index = versions.firstIndex(where: { $0.id == meal.recipe.id && $0.hasSameVersion(as: meal.recipe) }) {
+                candidates[index].servings = max(candidates[index].servings, meal.servings)
+            } else {
+                versions.append(meal.recipe)
+                var recipe = meal.recipe
+                recipe.id = meal.id
+                recipe.ingredients = recipe.ingredients.map { Ingredient(text: $0.text) }
+                candidates.append(Self(recipe: recipe, servings: meal.servings))
+            }
+        }
+        return candidates
+    }
+
 }
 
 /// Owns review choices independently of presentation and grocery persistence.

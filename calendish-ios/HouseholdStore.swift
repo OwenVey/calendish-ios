@@ -4,18 +4,25 @@ import Supabase
 import GoogleSignIn
 import CryptoKit
 
-/// The signed-in user's household and its shared recipes, meal plan, and grocery list.
+/// The signed-in person's household, the recipes available to them, and the household's meal plan and grocery list.
 /// Edits apply locally right away, then save to Supabase; changes from other members arrive over Realtime.
 @Observable
 final class HouseholdStore {
     enum Phase: Equatable {
-        case loading, signedOut, needsHousehold, ready
+        case loading, signedOut, onboarding, ready
+    }
+
+    /// An invitation opened while signed in, waiting for the person to review the move.
+    struct InviteReview: Identifiable {
+        let code: String
+        var id: String { code }
     }
 
     private(set) var phase: Phase = .loading
     private(set) var household: Household?
     private(set) var members: [HouseholdMember] = []
     private(set) var userID: UUID?
+    /// The person's own recipes, household recipes, and recipes other members share.
     var recipes: [Recipe] = []
     var meals: [PlannedMeal] = []
     var groceries: [GroceryItem] { grocerySync.items }
@@ -23,42 +30,55 @@ final class HouseholdStore {
     /// The latest failed save or load, shown as an alert.
     var errorMessage: String?
     var needsPasswordReset = false
+    /// An invite code opened before onboarding finished. It survives sign-up and relaunching.
+    private(set) var pendingInvite = UserDefaults.standard.string(forKey: HouseholdStore.pendingInviteKey)
+    var inviteToReview: InviteReview?
 
+    private static let pendingInviteKey = "pendingHouseholdInvite"
+    private let client: SupabaseClient
     private let isPreview: Bool
     private var channel: RealtimeChannelV2?
-    private var realtimeTask: Task<Void, Never>?
+    private var personalChannel: RealtimeChannelV2?
+    private var realtimeTasks: [Task<Void, Never>] = []
     private var reloadTask: Task<Void, Never>?
-    private var realtimeConnectionTask: Task<Void, Never>?
+    private var membershipTask: Task<Void, Never>?
     private var realtimeStarting = false
     private var writeTask: Task<Void, Never>?
     private var savingTasks: [UUID: Task<Void, Never>] = [:]
     private var pendingWrites = 0
     private var writeRevision: UInt64 = 0
-    private var realtimeStatusTask: Task<Void, Never>?
     @ObservationIgnored private lazy var grocerySync = GrocerySync(
-        transport: isPreview ? nil : SupabaseGroceryTransport(),
+        transport: isPreview ? nil : SupabaseGroceryTransport(client: client),
         onChange: { [weak self] in self?.sortGroceriesIntoAisles() },
         onError: { [weak self] error in self?.report(error) })
     private var aisleTask: Task<Void, Never>?
     /// The name each item was last sorted under, so a failed save isn't retried on every refetch.
     private var sortedNames: [UUID: String] = [:]
+    /// Replaced whenever the account or household changes, so older work can't publish into the new one.
     private var syncSession = UUID()
 
-    init() { isPreview = false }
+    init(client: SupabaseClient = supabase) { self.client = client; isPreview = false }
 
     /// Sample content with no account or network, for SwiftUI previews.
     static func preview() -> HouseholdStore {
         let store = HouseholdStore(previewing: true)
         let today = Calendar.current.startOfDay(for: .now)
-        let recipes = SampleRecipes.all
+        let me = UUID(), partner = UUID()
+        var recipes = SampleRecipes.all
+        recipes[0].owner = .person(me, shared: true)
+        recipes[1].owner = .person(partner, shared: true)
+        recipes[2].owner = .household
+        recipes[3].owner = .person(me, shared: false)
         store.phase = .ready
+        store.userID = me
         store.household = Household(id: UUID(), name: "Our household", inviteCode: "PREVIEW1")
-        store.members = [HouseholdMember(userID: UUID(), displayName: "Owen", role: "owner")]
+        store.members = [HouseholdMember(userID: me, displayName: "Owen", role: "owner"),
+                         HouseholdMember(userID: partner, displayName: "Sam", role: "member")]
         store.recipes = recipes
         store.meals = [
-            PlannedMeal(date: today, slot: .breakfast, recipeID: recipes[2].id, servings: 2),
-            PlannedMeal(date: today, slot: .dinner, recipeID: recipes[0].id, servings: 4),
-            PlannedMeal(date: Calendar.current.date(byAdding: .day, value: 1, to: today)!, slot: .dinner, recipeID: recipes[1].id, servings: 4)
+            PlannedMeal(date: today, slot: .breakfast, recipe: recipes[2], recipeID: recipes[2].id, servings: 2),
+            PlannedMeal(date: today, slot: .dinner, recipe: recipes[0], recipeID: recipes[0].id, servings: 4),
+            PlannedMeal(date: Calendar.current.date(byAdding: .day, value: 1, to: today)!, slot: .dinner, recipe: recipes[1], recipeID: recipes[1].id, servings: 4)
         ]
         store.grocerySync.setHousehold(store.household?.id, items: [
             GroceryItem(name: "Cherry tomatoes", amount: "2 cups", source: "Lemon & herb orzo", position: 0),
@@ -69,11 +89,10 @@ final class HouseholdStore {
         return store
     }
 
-    private init(previewing: Bool) { isPreview = previewing }
+    private init(previewing: Bool) { client = supabase; isPreview = previewing }
 
     var remainingGroceries: Int { groceries.filter { !$0.isComplete }.count }
     var currentMember: HouseholdMember? { members.first { $0.userID == userID } }
-    func recipe(for meal: PlannedMeal) -> Recipe? { recipes.first { $0.id == meal.recipeID } }
     /// Every tag in the recipe book, sorted, with tags that differ only by case folded together.
     var recipeTags: [String] {
         var seen = Set<String>()
@@ -89,7 +108,7 @@ final class HouseholdStore {
     /// Follows sign-in state for the life of the app.
     func start() async {
         guard !isPreview else { return }
-        for await (event, session) in supabase.auth.authStateChanges {
+        for await (event, session) in client.auth.authStateChanges {
             if let session {
                 // A stored session can start out expired; the client refreshes it and emits again.
                 if session.isExpired { continue }
@@ -110,10 +129,12 @@ final class HouseholdStore {
         }
     }
 
-    /// Invalidates in-flight reads/writes before awaiting channel teardown.
-    private func resetAccountData() async {
+    /// Invalidates in-flight reads and writes before awaiting channel teardown.
+    @discardableResult
+    private func resetHouseholdData() async -> UUID {
         phase = .loading
-        syncSession = UUID()
+        let session = UUID()
+        syncSession = session
         for task in savingTasks.values { task.cancel() }
         savingTasks.removeAll()
         writeTask?.cancel(); writeTask = nil
@@ -122,11 +143,18 @@ final class HouseholdStore {
         pendingWrites = 0
         writeRevision &+= 1
         grocerySync.setHousehold(nil)
-        needsPasswordReset = false
         household = nil
         members = []; recipes = []; meals = []
-        RecipePhotos.shared.clearCache()
         await stopRealtime()
+        return session
+    }
+
+    private func resetAccountData() async {
+        await resetHouseholdData()
+        needsPasswordReset = false
+        inviteToReview = nil
+        // Private recipe photos must not survive an account change on this device.
+        RecipePhotos.shared.clearCache()
     }
 
     /// Signs in with Google's native sheet and hands the ID token to Supabase. Does nothing if the person cancels.
@@ -142,7 +170,7 @@ final class HouseholdStore {
             return
         }
         guard let idToken = result.user.idToken?.tokenString else { throw URLError(.userAuthenticationRequired) }
-        try await supabase.auth.signInWithIdToken(credentials: .init(
+        try await client.auth.signInWithIdToken(credentials: .init(
             provider: .google, idToken: idToken, accessToken: result.user.accessToken.tokenString, nonce: nonce))
     }
 
@@ -157,52 +185,65 @@ final class HouseholdStore {
     }
 
     func signIn(email: String, password: String) async throws {
-        try await supabase.auth.signIn(email: email, password: password)
+        try await client.auth.signIn(email: email, password: password)
     }
 
     /// Returns false when Supabase wants the email confirmed before the first sign-in.
     func signUp(email: String, password: String) async throws -> Bool {
-        let response = try await supabase.auth.signUp(email: email, password: password)
+        let response = try await client.auth.signUp(email: email, password: password)
         return response.session != nil
     }
 
     func signOut() async {
-        do { try await supabase.auth.signOut() } catch { report(error) }
+        do { try await client.auth.signOut() } catch { report(error) }
     }
 
-    func createHousehold(name: String, memberName: String) async throws {
-        let row: HouseholdRecord = try await supabase
-            .rpc("create_household", params: ["household_name": name, "member_name": memberName])
+    /// Finishes onboarding: joins the pending invitation's household, or starts a solo household.
+    /// Safe to repeat; the database returns the household the person already has.
+    func startHousehold(memberName: String) async throws {
+        let session = syncSession
+        let row: HouseholdRecord = try await client
+            .rpc("start_household", params: StartHouseholdParameters(member_name: memberName, code: pendingInvite))
             .execute().value
+        guard session == syncSession else { throw CancellationError() }
+        setPendingInvite(nil)
         try await enter(row)
     }
 
-    func joinHousehold(code: String, memberName: String) async throws {
-        let row: HouseholdRecord = try await supabase
-            .rpc("join_household", params: ["code": code, "member_name": memberName])
-            .execute().value
-        try await enter(row)
+    func discardPendingInvite() { setPendingInvite(nil) }
+
+    private func setPendingInvite(_ code: String?) {
+        pendingInvite = code
+        UserDefaults.standard.set(code, forKey: Self.pendingInviteKey)
+    }
+
+    /// Handles a `calendish://join/<code>` link. Before onboarding finishes, the invitation waits
+    /// until the person has an account; afterward, it opens the move review.
+    func openInvite(_ url: URL) -> Bool {
+        guard let code = HouseholdInvite.code(from: url) else { return false }
+        if phase == .ready { inviteToReview = InviteReview(code: code) } else { setPendingInvite(code) }
+        return true
     }
 
     func renameHousehold(to name: String) {
         guard let id = household?.id, !name.isEmpty, name != household?.name else { return }
         household?.name = name
-        save { try await supabase.from("households").update(["name": name]).eq("id", value: id).execute() }
+        save { [client] in try await client.from("households").update(["name": name]).eq("id", value: id).execute() }
     }
 
     func renameMember(to name: String) {
         guard let householdID = household?.id, let userID, !name.isEmpty, name != currentMember?.displayName,
               let index = members.firstIndex(where: { $0.userID == userID }) else { return }
         members[index].displayName = name
-        save {
-            try await supabase.from("household_members").update(["display_name": name])
+        save { [client] in
+            try await client.from("household_members").update(["display_name": name])
                 .eq("household_id", value: householdID).eq("user_id", value: userID).execute()
         }
     }
 
     /// The name given at sign-up, or the first name from Google.
     var suggestedDisplayName: String {
-        guard !isPreview, let metadata = supabase.auth.currentUser?.userMetadata else { return "" }
+        guard !isPreview, let metadata = client.auth.currentUser?.userMetadata else { return "" }
         if case let .string(name)? = metadata["display_name"], !name.isEmpty { return name }
         if case let .string(name)? = metadata["full_name"] ?? metadata["name"] {
             return name.components(separatedBy: " ").first ?? name
@@ -213,56 +254,188 @@ final class HouseholdStore {
     /// The email on the signed-in account, if it has one.
     var accountEmail: String? {
         guard !isPreview else { return "owen@example.com" }
-        return supabase.auth.currentUser?.email
+        return client.auth.currentUser?.email
     }
 
     private func loadHousehold() async {
+        let session = syncSession
         phase = .loading
         do {
-            // Membership rows only include households this user belongs to.
-            let memberships: [MemberRecord] = try await supabase.from("household_members")
-                .select().eq("user_id", value: userID!).order("joined_at").limit(1).execute().value
-            guard let householdID = memberships.first?.householdID else {
-                phase = .needsHousehold
+            let fetched = try await fetchCurrentHousehold()
+            guard session == syncSession else { return }
+            guard let row = fetched else {
+                phase = .onboarding
                 return
             }
-            let row: HouseholdRecord = try await supabase.from("households")
-                .select().eq("id", value: householdID).single().execute().value
             try await enter(row)
         } catch {
+            guard session == syncSession, !(error is CancellationError) else { return }
             report(error)
-            phase = .needsHousehold
+            // Onboarding is repeatable, so it finds an existing household rather than creating another.
+            phase = .onboarding
         }
     }
 
+    /// The person's one household, according to the server.
+    private func fetchCurrentHousehold() async throws -> HouseholdRecord? {
+        guard let userID else { return nil }
+        let memberships: [MemberRecord] = try await client.from("household_members")
+            .select().eq("user_id", value: userID).execute().value
+        guard let householdID = memberships.first?.householdID else { return nil }
+        return try await client.from("households").select().eq("id", value: householdID).single().execute().value
+    }
+
     func updatePassword(_ password: String) async throws {
-        try await supabase.auth.update(user: UserAttributes(password: password))
+        try await client.auth.update(user: UserAttributes(password: password))
         needsPasswordReset = false
     }
 
     func resetPassword(email: String) async throws {
-        try await supabase.auth.resetPasswordForEmail(email, redirectTo: URL(string: "calendish://login-callback"))
+        try await client.auth.resetPasswordForEmail(email, redirectTo: URL(string: "calendish://login-callback"))
     }
 
     private func enter(_ row: HouseholdRecord) async throws {
+        let session = syncSession
         household = Household(id: row.id, name: row.name, inviteCode: row.inviteCode)
         grocerySync.setHousehold(row.id)
         try await reload()
+        guard session == syncSession else { throw CancellationError() }
         phase = .ready
         syncAvatar()
+        // An invitation opened before signing in to an account that already had a household.
+        if let pendingInvite {
+            inviteToReview = InviteReview(code: pendingInvite)
+            setPendingInvite(nil)
+        }
         await startRealtime()
+    }
+
+    /// Leaves the current household's data and subscriptions behind and opens another household.
+    private func switchHousehold(to row: HouseholdRecord) async {
+        guard row.id != household?.id else {
+            await refresh()
+            return
+        }
+        let person = userID
+        let session = await resetHouseholdData()
+        guard person == userID, session == syncSession else { return }
+        do { try await enter(row) } catch {
+            guard session == syncSession, !(error is CancellationError) else { return }
+            report(error)
+            await loadHousehold()
+        }
     }
 
     /// Copies the Google profile photo onto this member's row so the rest of the household can see it.
     private func syncAvatar() {
         guard let householdID = household?.id, let userID,
-              case let .string(avatar)? = supabase.auth.currentUser?.userMetadata["avatar_url"] ?? supabase.auth.currentUser?.userMetadata["picture"],
+              case let .string(avatar)? = client.auth.currentUser?.userMetadata["avatar_url"] ?? client.auth.currentUser?.userMetadata["picture"],
               let url = URL(string: avatar), currentMember?.avatarURL != url,
               let index = members.firstIndex(where: { $0.userID == userID }) else { return }
         members[index].avatarURL = url
-        save {
-            try await supabase.from("household_members").update(["avatar_url": avatar])
+        save { [client] in
+            try await client.from("household_members").update(["avatar_url": avatar])
                 .eq("household_id", value: householdID).eq("user_id", value: userID).execute()
+        }
+    }
+
+    // MARK: Household moves
+
+    var isOwner: Bool { currentMember?.role == "owner" }
+
+    /// What joining with `code`, or leaving when `code` is nil, would do. Changes nothing.
+    func previewMove(code: String?) async throws -> HouseholdMovePreview {
+        if isPreview {
+            return HouseholdMovePreview(destination: code == nil ? nil : .init(id: UUID(), name: "Sam’s household", members: ["Sam"]),
+                currentHouseholdID: household?.id, currentHouseholdName: household?.name, isCurrent: false,
+                otherMembers: members.count - 1,
+                successor: isOwner ? members.first(where: { $0.userID != userID }).map { .init(userID: $0.userID, displayName: $0.displayName) } : nil,
+                deletesHousehold: members.count == 1, personalRecipes: recipes.filter(isMine).count,
+                sharedRecipes: recipes.filter { isMine($0) && $0.owner?.isShared == true }.count,
+                householdRecipes: recipes.filter { $0.owner == .household }.count, plannedMeals: meals.count, groceries: groceries.count)
+        }
+        return         try await client.rpc("preview_household_move", params: PreviewMoveParameters(code: code.map(HouseholdInvite.normalized)))
+            .execute().value
+    }
+
+    /// Joins the invited household in place of the current one, as confirmed in `preview`.
+    func joinHousehold(code: String, confirmed preview: HouseholdMovePreview, saveHouseholdRecipes: Bool) async throws {
+        let parameters = JoinHouseholdParameters(code: HouseholdInvite.normalized(code), save_household_recipes: saveHouseholdRecipes,
+                                                 expected_household: preview.currentHouseholdID)
+        try await move(from: preview) { try await client.rpc("join_household", params: parameters).execute().value }
+    }
+
+    /// Leaves for a fresh solo household, as confirmed in `preview`.
+    func leaveHousehold(confirmed preview: HouseholdMovePreview, saveHouseholdRecipes: Bool) async throws {
+        let parameters = LeaveHouseholdParameters(save_household_recipes: saveHouseholdRecipes, expected_household: preview.currentHouseholdID)
+        try await move(from: preview) { try await client.rpc("leave_household", params: parameters).execute().value }
+    }
+
+    /// Runs a membership change on the server, then opens the resulting household. If the response is lost,
+    /// the server's membership decides whether the move happened rather than assuming either way.
+    private func move(from preview: HouseholdMovePreview, _ operation: () async throws -> HouseholdMoveResult) async throws {
+        guard !isPreview else { return }
+        // Let earlier edits land in the household they were made for.
+        let session = syncSession
+        await writeTask?.value
+        guard session == syncSession else { throw CancellationError() }
+        let result: HouseholdMoveResult
+        do {
+            result = try await operation()
+        } catch {
+            guard session == syncSession else { throw CancellationError() }
+            guard !(error is PostgrestError), let row = try? await fetchCurrentHousehold(),
+                  row.id != preview.currentHouseholdID else { throw error }
+            guard session == syncSession else { throw CancellationError() }
+            await switchHousehold(to: row)
+            return
+        }
+        guard session == syncSession else { throw CancellationError() }
+        await switchHousehold(to: result.household)
+        await removePhotos(result.unusedPhotos)
+    }
+
+    /// Owner only. The new owner manages membership; the previous owner stays as a member.
+    func transferOwnership(to member: HouseholdMember) {
+        guard isOwner, member.userID != userID, let householdID = household?.id else { return }
+        for index in members.indices {
+            members[index].role = members[index].userID == member.userID ? "owner" : "member"
+        }
+        save { [client] in
+            try await client.rpc("transfer_household_ownership",
+                                   params: TransferOwnershipParameters(target_household: householdID, new_owner: member.userID)).execute()
+        }
+    }
+
+    /// Owner only. Removes another member, who keeps their personal recipes and gets a solo household.
+    /// Their shared recipes stay as household copies, and the invite code changes so they can't rejoin with it.
+    func removeMember(_ member: HouseholdMember) {
+        guard isOwner, member.role != "owner", let householdID = household?.id else { return }
+        members.removeAll { $0.userID == member.userID }
+        save { [client] in
+            try await client.rpc("remove_household_member",
+                                   params: ["target_household": householdID, "target_user": member.userID]).execute()
+        }
+    }
+
+    /// Follows a membership change made elsewhere, such as removal or a move on another device.
+    private func checkMembership() {
+        guard membershipTask == nil, !isPreview else { return }
+        // Not tied to Realtime tasks, which a household switch cancels.
+        membershipTask = Task { [weak self] in
+            guard let self else { return }
+            defer { membershipTask = nil }
+            let session = syncSession
+            let row: HouseholdRecord?
+            do { row = try await fetchCurrentHousehold() } catch { return }
+            guard session == syncSession, phase == .ready else { return }
+            if let row {
+                if row.id != household?.id { await switchHousehold(to: row) }
+            } else {
+                let resetSession = await resetHouseholdData()
+                guard resetSession == syncSession else { return }
+                phase = .onboarding
+            }
         }
     }
 
@@ -273,16 +446,18 @@ final class HouseholdStore {
         guard !isPreview, let id = household?.id else { return }
         let session = syncSession
         let revision = writeRevision
-        async let householdRows: [HouseholdRecord] = supabase.from("households").select().eq("id", value: id).execute().value
+        async let householdRows: [HouseholdRecord] = client.from("households").select().eq("id", value: id).execute().value
         async let memberRows: [MemberRecord] = fetchRows("household_members", householdID: id, idColumn: "user_id", key: \.userID)
-        async let recipeRows: [RecipeRecord] = fetchRows("recipes", householdID: id, key: \.id)
+        // Row Level Security limits this to the person's recipes, household recipes, and members' shared recipes.
+        async let recipeRows: [RecipeRecord] = fetchRows("recipes", key: \.id)
+        async let favoriteRows: [FavoriteRecord] = fetchRows("recipe_favorites", idColumn: "recipe_id", key: \.recipeID)
         async let mealRows: [PlannedMealRecord] = fetchRows("planned_meals", householdID: id, key: \.id)
         async let groceryRefresh: Void = grocerySync.refresh()
-        let (hs, m, r, p, _) = try await (householdRows, memberRows, recipeRows, mealRows, groceryRefresh)
+        let (hs, m, r, f, p, _) = try await (householdRows, memberRows, recipeRows, favoriteRows, mealRows, groceryRefresh)
         guard !Task.isCancelled, session == syncSession, household?.id == id else { return }
-        // Row Level Security hides the household once the owner removes this user.
+        // Row Level Security hides the household once this person is removed or moves elsewhere.
         guard let h = hs.first, m.contains(where: { $0.userID == userID }) else {
-            await leaveRemovedHousehold()
+            checkMembership()
             return
         }
         if pendingWrites == 0, revision == writeRevision {
@@ -290,21 +465,23 @@ final class HouseholdStore {
             // The owner first, then everyone else in the order they joined.
             members = m.sorted { ($0.role == "owner" ? 0 : 1, $0.joinedAt ?? .distantPast) < ($1.role == "owner" ? 0 : 1, $1.joinedAt ?? .distantPast) }
                 .map { HouseholdMember(userID: $0.userID, displayName: $0.displayName, role: $0.role, avatarURL: $0.avatarURL.flatMap(URL.init)) }
-            recipes = r.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }.map(Recipe.init)
+            let favorites = Set(f.map(\.recipeID))
+            recipes = r.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }.map { Recipe($0, favorites: favorites) }
             meals = p.compactMap(PlannedMeal.init)
         }
     }
 
     /// Keyset pagination avoids the Data API's default row cap without increasingly
     /// expensive offsets. Sorting for display happens after all pages are loaded.
-    private func fetchRows<Row: Decodable>(_ table: String, householdID: UUID,
+    private func fetchRows<Row: Decodable>(_ table: String, householdID: UUID? = nil,
                                            idColumn: String = "id", key: KeyPath<Row, UUID>) async throws -> [Row] {
         var rows: [Row] = []
         var cursor: UUID?
         let pageSize = 500
         while true {
             try Task.checkCancellation()
-            var query = supabase.from(table).select().eq("household_id", value: householdID)
+            var query = client.from(table).select()
+            if let householdID { query = query.eq("household_id", value: householdID) }
             if let cursor { query = query.gt(idColumn, value: cursor) }
             let page: [Row] = try await query.order(idColumn).limit(pageSize).execute().value
             rows.append(contentsOf: page)
@@ -319,56 +496,61 @@ final class HouseholdStore {
 
     func resumeSync() async {
         guard phase == .ready, !isPreview else { return }
-        if channel?.status != .subscribed {
+        if channel?.status != .subscribed || personalChannel?.status != .subscribed {
             await startRealtime()
         }
         await refresh()
     }
 
+    /// Listens on the household's topic for shared changes and on the person's own topic
+    /// for their membership, favorites, and personal recipes.
     private func startRealtime() async {
         guard !realtimeStarting else { return }
         realtimeStarting = true
         defer { realtimeStarting = false }
         let session = syncSession
         await stopRealtime()
-        guard session == syncSession, let householdID = household?.id else { return }
-        await supabase.realtimeV2.setAuth()
+        guard session == syncSession, let householdID = household?.id, let userID else { return }
+        await client.realtimeV2.setAuth()
         guard session == syncSession else { return }
-        let channel = supabase.channel("household:\(householdID.uuidString.lowercased())") {
-            $0.isPrivate = true
-        }
-        let changes = channel.broadcastStream(event: "CHANGE")
-        let statuses = channel.statusChange
+        let channel = client.channel("household:\(householdID.uuidString.lowercased())") { $0.isPrivate = true }
+        let personalChannel = client.channel("user:\(userID.uuidString.lowercased())") { $0.isPrivate = true }
         self.channel = channel
-        realtimeTask = Task { [weak self] in
-            for await payload in changes {
-                guard !Task.isCancelled, let self, session == self.syncSession else { return }
-                // Broadcast contains only a table name. All data is fetched through
-                // RLS; private channel authorization also prevents cross-household events.
-                // supabase-swift delivers the Broadcast envelope, with our data
-                // nested under "payload", rather than the inner object alone.
-                guard let table = payload["payload"]?.objectValue?["table"]?.stringValue else { continue }
-                if table == "grocery_items" {
-                    self.grocerySync.requestReload()
-                } else {
-                    self.scheduleReload()
+        self.personalChannel = personalChannel
+        for subscribed in [channel, personalChannel] {
+            let changes = subscribed.broadcastStream(event: "CHANGE")
+            let statuses = subscribed.statusChange
+            realtimeTasks.append(Task { [weak self] in
+                for await payload in changes {
+                    guard !Task.isCancelled, let self, session == self.syncSession else { return }
+                    // Broadcast contains only a table name. All data is fetched through
+                    // RLS; private channel authorization also prevents cross-household events.
+                    // supabase-swift delivers the Broadcast envelope, with our data
+                    // nested under "payload", rather than the inner object alone.
+                    guard let table = payload["payload"]?.objectValue?["table"]?.stringValue else { continue }
+                    switch table {
+                    case "grocery_items": self.grocerySync.requestReload()
+                    case "household_members" where subscribed === personalChannel: self.checkMembership()
+                    default: self.scheduleReload()
+                    }
                 }
-            }
+            })
+            realtimeTasks.append(Task { [weak self] in
+                for await status in statuses {
+                    guard !Task.isCancelled else { return }
+                    // Subscribe before fetching: closes the initial-load gap and catches
+                    // changes missed during a network outage on every successful rejoin.
+                    guard status == .subscribed else { continue }
+                    if subscribed === personalChannel { self?.checkMembership() } else { await self?.refresh() }
+                }
+            })
         }
-        realtimeStatusTask = Task { [weak self] in
-            for await status in statuses {
-                guard !Task.isCancelled else { return }
-                // Subscribe before fetching: closes the initial-load gap and catches
-                // changes missed during a network outage on every successful rejoin.
-                if status == .subscribed { await self?.refresh() }
-            }
-        }
-        realtimeConnectionTask = Task { [weak self] in
+        realtimeTasks.append(Task { [weak self] in
             var reportedFailure = false
             while !Task.isCancelled {
-                if channel.status != .subscribed {
+                for subscribed in [channel, personalChannel] where subscribed.status != .subscribed {
                     do {
-                        try await channel.subscribeWithError()
+                        try await subscribed.subscribeWithError()
                         reportedFailure = false
                     } catch {
                         guard !Task.isCancelled else { return }
@@ -379,21 +561,21 @@ final class HouseholdStore {
                 // finite retry budget is exhausted while the tab remains open.
                 do { try await Task.sleep(for: .seconds(5)) } catch { return }
             }
-        }
+        })
     }
 
     private func stopRealtime() async {
-        realtimeTask?.cancel()
-        realtimeTask = nil
-        realtimeConnectionTask?.cancel()
-        realtimeConnectionTask = nil
-        realtimeStatusTask?.cancel()
-        realtimeStatusTask = nil
+        for task in realtimeTasks { task.cancel() }
+        realtimeTasks = []
         reloadTask?.cancel()
         reloadTask = nil
         grocerySync.cancelReload()
-        if let channel { await supabase.removeChannel(channel) }
+        let previousChannel = channel
+        let previousPersonalChannel = personalChannel
         channel = nil
+        personalChannel = nil
+        if let previousChannel { await client.removeChannel(previousChannel) }
+        if let previousPersonalChannel { await client.removeChannel(previousPersonalChannel) }
     }
 
     /// Coalesces a burst of change events into one refetch.
@@ -412,16 +594,45 @@ final class HouseholdStore {
         case keep, replace(UIImage), remove
     }
 
+    var hasOtherMembers: Bool { members.count > 1 }
+
+    /// Owners edit their personal originals; every member edits household recipes.
+    func canEdit(_ recipe: Recipe) -> Bool {
+        switch recipe.owner {
+        case .person(let owner, _)?: owner == userID
+        case .household?: true
+        case nil: false
+        }
+    }
+
+    func isMine(_ recipe: Recipe) -> Bool { recipe.owner?.person == userID && userID != nil }
+
+    /// "You", the owning member's name, or "Household".
+    func ownerName(of recipe: Recipe) -> String? {
+        switch recipe.owner {
+        case .person(let owner, _)?:
+            owner == userID ? "You" : members.first { $0.userID == owner }?.displayName ?? "Another member"
+        case .household?: "Household"
+        case nil: nil
+        }
+    }
+
     /// Saves a recipe, uploading a new photo first when there is one. The new photo shows right away from the cache.
+    /// A new recipe is the person's own; set its owner to `.person(_, shared: false)` to keep it Only Me.
     func saveRecipe(_ recipe: Recipe, photo: PhotoChange = .keep, onSaved: (() -> Void)? = nil) {
+        guard let userID else { return }
         var recipe = recipe
-        let previousPath = recipes.first { $0.id == recipe.id }?.imagePath
+        let existing = recipes.first { $0.id == recipe.id }
+        if existing == nil { recipe.owner = .person(userID, shared: recipe.owner?.isShared ?? true) }
+        let previousPath = existing?.imagePath
         var upload: (path: String, data: Data)?
         switch photo {
         case .keep: break
         case .replace(let image):
-            guard let householdID = household?.id, let data = RecipePhotos.uploadData(for: image) else { break }
-            let path = "\(householdID.uuidString.lowercased())/\(UUID().uuidString.lowercased()).jpg"
+            // Household recipe photos live with the household; personal ones with their owner.
+            guard let folder = recipe.owner == .household ? household?.id : userID,
+                  let data = RecipePhotos.uploadData(for: image) else { break }
+            let path = "\(folder.uuidString.lowercased())/\(UUID().uuidString.lowercased()).jpg"
             RecipePhotos.shared.insert(data, for: path)
             recipe.imagePath = path
             upload = (path, data)
@@ -433,67 +644,135 @@ final class HouseholdStore {
         } else {
             recipes.insert(recipe, at: 0)
         }
-        guard let id = household?.id else { return }
         if isPreview { onSaved?(); return }
-        let record = recipe.record(household: id)
+        let saved = recipe
         let stalePath = previousPath != recipe.imagePath ? previousPath : nil
-        save(onSuccess: onSaved) {
+        save(onSuccess: onSaved) { [client, weak self] in
             if let upload {
-                try await supabase.storage.from(RecipePhotos.bucket)
+                try await client.storage.from(RecipePhotos.bucket)
                     .upload(upload.path, data: upload.data, options: FileOptions(cacheControl: "31536000", contentType: "image/jpeg"))
             }
             try Task.checkCancellation()
-            try await supabase.from("recipes").upsert(record).execute()
+            if existing == nil {
+                try await client.from("recipes")
+                    .insert(NewRecipeRecord(id: saved.id, ownerID: userID, isShared: saved.owner?.isShared ?? true, content: saved.content))
+                    .execute()
+            } else {
+                try await client.from("recipes").update(saved.content).eq("id", value: saved.id).execute()
+            }
             try Task.checkCancellation()
-            if let stalePath {
-                _ = try? await supabase.storage.from(RecipePhotos.bucket).remove(paths: [stalePath])
-            }
+            // Storage keeps a photo that a copy or planned meal still uses.
+            if let stalePath { await self?.removePhotos([stalePath]) }
         }
     }
 
-    /// Deleting a recipe also deletes its planned meals through the database's cascading foreign key.
-    /// Grocery items are independent and remain on the shopping list.
+    func deletionExplanation(for recipe: Recipe) -> String {
+        let retained = isMine(recipe) && recipe.owner?.isShared == true ? " Your household keeps an independent copy of your shared recipe." : ""
+        return "This permanently deletes this recipe. Planned meals keep their saved versions and groceries stay unchanged." + retained
+    }
+
+    /// Owners delete their originals, and members delete household recipes. Deleting a shared original
+    /// leaves the household a copy. Planned meals keep their saved versions, and groceries stay.
     func deleteRecipe(_ recipe: Recipe) {
-        guard let householdID = household?.id else { return }
         recipes.removeAll { $0.id == recipe.id }
-        meals.removeAll { $0.recipeID == recipe.id }
-        save {
-            try await supabase.from("recipes").delete()
-                .eq("id", value: recipe.id)
-                .eq("household_id", value: householdID)
-                .execute()
-            if let path = recipe.imagePath {
-                _ = try? await supabase.storage.from(RecipePhotos.bucket).remove(paths: [path])
-            }
+        for index in meals.indices where meals[index].recipeID == recipe.id { meals[index].recipeID = nil }
+        save { [client, weak self] in
+            let unused: [String] = try await client.rpc("delete_recipe", params: ["target_recipe": recipe.id]).execute().value
+            await self?.removePhotos(unused)
         }
     }
 
+    /// Owner only. Ending sharing leaves the household its own copy; it doesn't retract what was shared.
+    func setSharing(_ recipe: Recipe, shared: Bool) {
+        guard isMine(recipe), let userID, let index = recipes.firstIndex(where: { $0.id == recipe.id }) else { return }
+        recipes[index].owner = .person(userID, shared: shared)
+        save { [client] in
+            try await client.rpc("set_recipe_sharing", params: RecipeSharingParameters(target_recipe: recipe.id, shared: shared)).execute()
+        }
+    }
+
+    /// Saves a private copy of another member's or the household's recipe into the person's collection.
+    @discardableResult
+    func saveCopy(of recipe: Recipe) async throws -> Recipe {
+        guard !isPreview, userID != nil else {
+            var copy = recipe
+            copy.id = UUID()
+            copy.owner = .person(userID ?? UUID(), shared: false)
+            recipes.insert(copy, at: 0)
+            return copy
+        }
+        let session = syncSession
+        let person = userID
+        let row: RecipeRecord = try await client.rpc("save_recipe_copy", params: ["source_recipe": recipe.id]).execute().value
+        guard session == syncSession, person == userID else { throw CancellationError() }
+        let copy = Recipe(row)
+        if !recipes.contains(where: { $0.id == copy.id }) { recipes.insert(copy, at: 0) }
+        return copy
+    }
+
+    /// Favorites are personal, so starring a recipe doesn't change anyone else's list.
     func toggleFavorite(_ recipe: Recipe) {
-        guard let index = recipes.firstIndex(where: { $0.id == recipe.id }) else { return }
+        guard let index = recipes.firstIndex(where: { $0.id == recipe.id }), let userID else { return }
         recipes[index].isFavorite.toggle()
         let favorite = recipes[index].isFavorite
-        save {
-            try await supabase.from("recipes").update(["is_favorite": favorite]).eq("id", value: recipe.id).execute()
+        save { [client] in
+            if favorite {
+                try await client.from("recipe_favorites")
+                    .upsert(FavoriteRecord(recipeID: recipe.id), onConflict: "user_id,recipe_id", returning: .minimal, ignoreDuplicates: true)
+                    .execute()
+            } else {
+                try await client.from("recipe_favorites").delete()
+                    .eq("user_id", value: userID).eq("recipe_id", value: recipe.id).execute()
+            }
+        }
+    }
+
+    /// Storage can't be cleaned up from SQL; the database reports photos nothing uses anymore.
+    private func removePhotos(_ paths: [String]) async {
+        for start in stride(from: 0, to: paths.count, by: 100) {
+            let batch = Array(paths[start..<min(start + 100, paths.count)])
+            _ = try? await client.storage.from(RecipePhotos.bucket).remove(paths: batch)
         }
     }
 
     // MARK: Meal plan
 
-    /// Plans a recipe in a day's slot, replacing whatever was there. Pass `moving` to relocate an existing meal.
-    func saveMeal(date: Date, slot: MealSlot, recipe: Recipe, servings: Int, moving: PlannedMeal? = nil) {
+    /// The source recipe as it is now, while it still exists and is available.
+    func latestRecipe(for meal: PlannedMeal) -> Recipe? {
+        meal.recipeID.flatMap { id in recipes.first { $0.id == id } }
+    }
+
+    func hasNewerVersion(_ meal: PlannedMeal) -> Bool {
+        latestRecipe(for: meal).map { !$0.hasSameVersion(as: meal.recipe) } ?? false
+    }
+
+    /// Plans a recipe in a day's slot, replacing whatever was there, and saves its current version.
+    /// Pass `moving` to relocate an existing meal; with `keepVersion`, it keeps its saved recipe version.
+    func saveMeal(date: Date, slot: MealSlot, recipe: Recipe, servings: Int, moving: PlannedMeal? = nil, keepVersion: Bool = false) {
         let day = Calendar.current.startOfDay(for: date)
         let replaced = meal(on: day, slot: slot)
-        let meal = PlannedMeal(date: day, slot: slot, recipeID: recipe.id, servings: servings)
+        let kept = keepVersion ? moving : nil
+        let meal = PlannedMeal(date: day, slot: slot, recipe: kept?.recipe ?? recipe,
+                               recipeID: kept != nil ? kept?.recipeID : recipe.id, servings: servings)
         meals.removeAll { $0.id == moving?.id || $0.id == replaced?.id }
         meals.append(meal)
         guard let id = household?.id else { return }
-        let parameters = SaveMealParameters(meal: meal.record(household: id), movingID: moving?.id)
-        save { try await supabase.rpc("save_planned_meal", params: parameters).execute() }
+        let parameters = SaveMealParameters(target_household: id, meal_id: meal.id, meal_date: DayFormat.string(from: day),
+                                            meal_slot: slot.rawValue, meal_recipe: kept == nil ? recipe.id : nil,
+                                            meal_servings: servings, moving_id: moving?.id, keep_version: kept != nil)
+        save { [client] in try await client.rpc("save_planned_meal", params: parameters).execute() }
+    }
+
+    /// Replaces a planned meal's saved version with its recipe's latest. Groceries already added stay as they are.
+    func updateMealToLatest(_ meal: PlannedMeal) {
+        guard let latest = latestRecipe(for: meal), let index = meals.firstIndex(where: { $0.id == meal.id }) else { return }
+        meals[index] = PlannedMeal(id: meal.id, date: meal.date, slot: meal.slot, recipe: latest, recipeID: latest.id, servings: meal.servings)
+        save { [client] in try await client.rpc("update_planned_meal_to_latest", params: ["target_meal": meal.id]).execute() }
     }
 
     func removeMeal(_ meal: PlannedMeal) {
         meals.removeAll { $0.id == meal.id }
-        save { try await supabase.from("planned_meals").delete().eq("id", value: meal.id).execute() }
+        save { [client] in try await client.from("planned_meals").delete().eq("id", value: meal.id).execute() }
     }
 
     // MARK: Groceries
@@ -514,41 +793,19 @@ final class HouseholdStore {
 
     // MARK: Household data
 
-    var isOwner: Bool { currentMember?.role == "owner" }
-
-    /// Owner only. Deletes every recipe, planned meal, and grocery item in one transaction, then their photos.
-    /// Members, the household, and its invite code remain.
+    /// Owner only. Deletes household recipes, planned meals, and grocery items in one transaction, then
+    /// photos nothing uses anymore. Members, their personal recipes, the household, and its invite code remain.
     func deleteAllHouseholdData() async throws {
         guard !isPreview, let id = household?.id else { return }
         // Let earlier edits land first so none of them recreate data afterward.
         await writeTask?.value
-        let photoPaths: [String] = try await supabase
+        let photoPaths: [String] = try await client
             .rpc("delete_household_data", params: ["target_household": id]).execute().value
         guard household?.id == id else { return }
-        recipes = []
+        recipes.removeAll { $0.owner == .household }
         meals = []
-        for start in stride(from: 0, to: photoPaths.count, by: 100) {
-            let batch = Array(photoPaths[start..<min(start + 100, photoPaths.count)])
-            _ = try? await supabase.storage.from(RecipePhotos.bucket).remove(paths: batch)
-        }
+        await removePhotos(photoPaths)
         await refresh()
-    }
-
-    /// Owner only. Removes another member, who loses access to the household right away, and replaces
-    /// the invite code so they can't rejoin with it. The refetch after the save picks up the new code.
-    func removeMember(_ member: HouseholdMember) {
-        guard isOwner, member.role != "owner", let householdID = household?.id else { return }
-        members.removeAll { $0.userID == member.userID }
-        save {
-            try await supabase.rpc("remove_household_member",
-                                   params: ["target_household": householdID, "target_user": member.userID]).execute()
-        }
-    }
-
-    /// Drops the household's data after this user was removed from it, and returns to the join or create screen.
-    private func leaveRemovedHousehold() async {
-        await resetAccountData()
-        phase = .needsHousehold
     }
 
     // MARK: Saving

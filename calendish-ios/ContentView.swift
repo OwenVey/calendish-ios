@@ -31,7 +31,7 @@ struct ContentView: View {
             switch store.phase {
             case .loading: LoadingView()
             case .signedOut: SignInView()
-            case .needsHousehold: HouseholdSetupView()
+            case .onboarding: HouseholdSetupView()
             case .ready: tabs
             }
         }
@@ -70,8 +70,12 @@ struct ContentView: View {
                     resumedCooking = session
                 }
             }
+            else if store.openInvite(url) { selectedTab = .settings }
             else if url.scheme == "calendish" { supabase.auth.handle(url) }
             else { GIDSignIn.sharedInstance.handle(url) }
+        }
+        .sheet(item: Binding(get: { store.inviteToReview }, set: { store.inviteToReview = $0 })) { invite in
+            HouseholdMoveView(code: invite.code).environment(store)
         }
         .sheet(isPresented: Binding(get: { store.needsPasswordReset }, set: { store.needsPasswordReset = $0 })) { PasswordResetView().environment(store) }
         .onChange(of: scenePhase) { _, phase in

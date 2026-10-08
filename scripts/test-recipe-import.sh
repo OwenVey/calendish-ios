@@ -11,5 +11,5 @@ swiftc -parse-as-library calendish-ios/Models.swift tests/UnitConversionTests.sw
 "$TEST_DIR/unit-conversion-tests"
 swiftc -parse-as-library calendish-ios/IngredientParser.swift tests/IngredientParserTests.swift -o "$TEST_DIR/ingredient-parser-tests"
 "$TEST_DIR/ingredient-parser-tests"
-swiftc -enable-bare-slash-regex calendish-ios/Models.swift calendish-ios/RecipeLinkImporter.swift tests/RecipeLinkImporterTests.swift -o "$TEST_DIR/recipe-import-tests"
+swiftc -enable-bare-slash-regex calendish-ios/Models.swift calendish-ios/Preferences.swift calendish-ios/RecipeLinkImporter.swift tests/RecipeLinkImporterTests.swift -o "$TEST_DIR/recipe-import-tests"
 "$TEST_DIR/recipe-import-tests" "$@"

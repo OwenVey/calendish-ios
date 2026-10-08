@@ -91,7 +91,8 @@ async function denied(operation, statuses = [401, 403, 404, 400, 409]) {
   await assert.rejects(operation, error => statuses.includes(error.status));
 }
 async function createHousehold(token, member) {
-  const row = await request('/rest/v1/rpc/create_household', token, 'POST', { household_name: 'Temporary realtime verification', member_name: member });
+  const row = await request('/rest/v1/rpc/start_household', token, 'POST', { member_name: member });
+  await request(`/rest/v1/households?id=eq.${row.id}`, token, 'PATCH', { name: 'Temporary realtime verification' });
   households.push(row.id);
   return row;
 }
@@ -111,11 +112,11 @@ try {
   household = await createHousehold(a.access_token, 'Test A');
   const outsider = await user();
   const otherHousehold = await createHousehold(outsider.access_token, 'Outsider');
-  await denied(() => request('/rest/v1/rpc/create_household', undefined, 'POST', { household_name: 'Denied', member_name: 'Denied' }));
+  await denied(() => request('/rest/v1/rpc/start_household', undefined, 'POST', { member_name: 'Denied' }));
   await connect(outsider.access_token, household.id, true);
   await denied(() => request('/rest/v1/rpc/is_household_member', a.access_token, 'POST', { hid: household.id }));
   console.log('PASS: private channels and internal helpers reject unauthorized access');
-  await request('/rest/v1/rpc/join_household', b.access_token, 'POST', { code: household.invite_code, member_name: 'Test B' });
+  await request('/rest/v1/rpc/start_household', b.access_token, 'POST', { code: household.invite_code, member_name: 'Test B' });
   const first = await connect(a.access_token);
   const second = await connect(b.access_token);
   const recovery = await request('/auth/v1/admin/generate_link', admin, 'POST', {
@@ -151,7 +152,7 @@ try {
 
   const ownRecipe = randomUUID();
   const foreignRecipe = randomUUID();
-  await request('/rest/v1/recipes', a.access_token, 'POST', { id: ownRecipe, household_id: household.id, title: 'Test recipe' });
+  await request('/rest/v1/recipes', a.access_token, 'POST', { id: ownRecipe, owner_id: a.user.id, is_shared: true, title: 'Test recipe' });
   await Promise.all([change(reconnected, 'recipes'), change(second, 'recipes')]);
   await request(`/rest/v1/recipes?id=eq.${ownRecipe}`, a.access_token, 'PATCH', { servings: 6, prep_minutes: 17 });
   await Promise.all([change(reconnected, 'recipes'), change(second, 'recipes')]);
@@ -159,15 +160,16 @@ try {
   assert.equal(editedRecipe.servings, 6);
   assert.equal(editedRecipe.prep_minutes, 17);
   console.log('PASS: recipe servings and time edits broadcast and refetch on the other connection');
-  await request('/rest/v1/recipes', outsider.access_token, 'POST', { id: foreignRecipe, household_id: otherHousehold.id, title: 'Private recipe' });
-  await request(`/rest/v1/recipes?id=eq.${ownRecipe}`, b.access_token, 'PATCH', { title: 'Edited by spouse' });
-  await request(`/rest/v1/recipes?id=eq.${ownRecipe}`, a.access_token, 'PATCH', { is_favorite: true });
-  assert.equal((await request(`/rest/v1/recipes?id=eq.${ownRecipe}`, b.access_token))[0].title, 'Edited by spouse');
+  await request('/rest/v1/recipes', outsider.access_token, 'POST', { id: foreignRecipe, owner_id: outsider.user.id, is_shared: false, title: 'Private recipe' });
+  const otherEdit = await request(`/rest/v1/recipes?id=eq.${ownRecipe}`, b.access_token, 'PATCH', { title: 'Edited by spouse' });
+  assert.equal(otherEdit.length, 0, 'Only the personal owner edits the original');
+  await request('/rest/v1/recipe_favorites', a.access_token, 'POST', { recipe_id: ownRecipe });
+  assert.equal((await request(`/rest/v1/recipes?id=eq.${ownRecipe}`, b.access_token))[0].title, 'Test recipe');
 
   const meal = { target_household: household.id, meal_id: randomUUID(), meal_date: '2099-01-01', meal_slot: 'dinner', meal_recipe: ownRecipe, meal_servings: 2 };
   const saved = await request('/rest/v1/rpc/save_planned_meal', a.access_token, 'POST', meal);
   await denied(() => request('/rest/v1/rpc/save_planned_meal', outsider.access_token, 'POST', meal), [403]);
-  await denied(() => request('/rest/v1/rpc/save_planned_meal', a.access_token, 'POST', { ...meal, meal_id: randomUUID(), moving_id: saved.id, meal_date: '2099-01-02', meal_recipe: foreignRecipe }), [409]);
+  await denied(() => request('/rest/v1/rpc/save_planned_meal', a.access_token, 'POST', { ...meal, meal_id: randomUUID(), moving_id: saved.id, meal_date: '2099-01-02', meal_recipe: foreignRecipe }), [403, 404, 409]);
   assert.equal((await request(`/rest/v1/planned_meals?id=eq.${saved.id}`, a.access_token)).length, 1, 'A failed move must retain the original meal');
   await Promise.all([2, 4].map(meal_servings => request('/rest/v1/rpc/save_planned_meal', a.access_token, 'POST', { ...meal, meal_id: randomUUID(), meal_servings })));
   assert.equal((await request(`/rest/v1/planned_meals?household_id=eq.${household.id}`, a.access_token)).length, 1, 'Concurrent slot saves must resolve atomically');
@@ -200,6 +202,7 @@ try {
 
   const path = `${household.id}/${randomUUID()}.jpg`;
   await uploadPhoto(a.access_token, path);
+  await request(`/rest/v1/recipes?id=eq.${ownRecipe}`, a.access_token, 'PATCH', { image_path: path });
   const download = await fetch(`${base}/storage/v1/object/authenticated/recipe-images/${path}`, { headers: { apikey: publicKey, Authorization: `Bearer ${b.access_token}` }, signal: AbortSignal.timeout(15000) });
   assert.equal(download.status, 200);
   const forbiddenDownload = await fetch(`${base}/storage/v1/object/authenticated/recipe-images/${path}`, { headers: { apikey: publicKey, Authorization: `Bearer ${outsider.access_token}` }, signal: AbortSignal.timeout(15000) });
@@ -210,10 +213,6 @@ try {
   for (const client of clients) client.ws.close();
   // Attempt every cleanup even if one request fails.
   const cleanup = [];
-  for (const photo of photos) {
-    try { await request('/storage/v1/object/recipe-images', photo.token, 'DELETE', { prefixes: [photo.path] }); }
-    catch { cleanup.push(Promise.reject(new Error('Test photo cleanup failed'))); }
-  }
   for (const id of households) {
     // service_role intentionally lacks household DELETE; use the linked CLI
     // for exact disposable fixtures instead of expanding production grants.
@@ -226,6 +225,10 @@ try {
   const results = await Promise.allSettled(cleanup);
   results.push(...await Promise.allSettled(sessions.map(token => request('/auth/v1/logout?scope=global', token, 'POST'))));
   results.push(...await Promise.allSettled(users.map(id => request(`/auth/v1/admin/users/${id}`, admin, 'DELETE', undefined, true))));
+  if (photos.length) {
+    try { await request('/storage/v1/object/recipe-images', admin, 'DELETE', { prefixes: photos.map(photo => photo.path) }, true); }
+    catch { results.push({ status: 'rejected' }); }
+  }
   if (results.some(result => result.status === 'rejected')) throw new Error('Temporary fixture cleanup failed; inspect test users/household');
   console.log('Temporary test household and accounts removed');
 }

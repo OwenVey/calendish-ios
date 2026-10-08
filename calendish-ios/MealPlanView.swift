@@ -60,8 +60,9 @@ struct MealPlanView: View {
                 ForEach(visibleSlots) { slot in
                     VStack(alignment: .leading, spacing: 16) {
                         Label(slot.title, systemImage: slot.symbol).font(.subheadline).foregroundStyle(.secondary)
-                        if let meal = store.meal(on: store.planningDate, slot: slot), let recipe = store.recipe(for: meal) {
-                            NavigationLink(value: recipe) { RecipeRow(recipe: recipe, servings: meal.servings) }
+                        if let meal = store.meal(on: store.planningDate, slot: slot) {
+                            let recipe = meal.recipe
+                            NavigationLink { RecipeDetailView(recipe: recipe, plannedMeal: meal) } label: { RecipeRow(recipe: recipe, servings: meal.servings) }
                                 .contextMenu {
                                     Button("Edit \(slot.title)", systemImage: "pencil") { selection = MealSelection(date: store.planningDate, slot: slot, meal: meal) }
                                 }
@@ -197,10 +198,8 @@ struct MealPlanView: View {
             if period == .month { return calendar.isDate(meal.date, equalTo: store.planningDate, toGranularity: .month) }
             return days.contains { calendar.isDate($0, inSameDayAs: meal.date) }
         }
-        return store.recipes.compactMap { recipe in
-            guard let servings = meals.filter({ $0.recipeID == recipe.id }).map(\.servings).max() else { return nil }
-            return GroceryImportCandidate(recipe: recipe, servings: servings)
-        }
+        return GroceryImportCandidate.planned(meals)
+
     }
 }
 
@@ -211,6 +210,7 @@ struct MealPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var search = ""
     @State private var recipeID: UUID?
+    @State private var keepsSavedVersion = true
     @State private var servings = 4
     @State private var date = Date.now
     @State private var slot = MealSlot.dinner
@@ -222,14 +222,37 @@ struct MealPickerView: View {
         let enabled = MealSlot.enabled(in: enabledSlots)
         return MealSlot.allCases.filter { enabled.contains($0) || $0 == selection.slot || $0 == slot }
     }
-    private var values: String { "\(recipeID?.uuidString ?? "")|\(servings)|\(date.timeIntervalSince1970)|\(slot.rawValue)" }
+    private var values: String { "\(keepsSavedVersion)|\(recipeID?.uuidString ?? "")|\(servings)|\(date.timeIntervalSince1970)|\(slot.rawValue)" }
     private var isDirty: Bool { initialValues != nil && values != initialValues }
     /// Another meal already in the chosen day and slot, which saving will replace.
     private var replacing: Recipe? {
         guard let existing = store.meal(on: date, slot: slot), existing.id != selection.meal?.id else { return nil }
-        return store.recipe(for: existing)
+        return existing.recipe
     }
     private var recipes: [Recipe] { store.recipes.filter { search.isEmpty || $0.title.localizedCaseInsensitiveContains(search) } }
+
+    private var recipeChoices: some View {
+                Section("Choose a recipe") {
+                    ForEach(recipes) { recipe in
+                        Button {
+                            keepsSavedVersion = false
+                            recipeID = recipe.id
+                            servings = recipe.servings
+                        } label: {
+                            HStack {
+                                RecipeRow(recipe: recipe)
+                                Spacer()
+                                if recipeID == recipe.id { Image(systemName: "checkmark.circle.fill").foregroundStyle(CalendishStyle.accent).accessibilityHidden(true) }
+                            }
+                        }.buttonStyle(.plain)
+                            .accessibilityValue(recipeID == recipe.id ? "Selected" : "Not selected")
+                            .accessibilityAddTraits(recipeID == recipe.id ? .isSelected : [])
+                    }
+                    if recipes.isEmpty {
+                        ContentUnavailableView(store.recipes.isEmpty ? "Add a Recipe First" : "No Matching Recipes", systemImage: "book.closed", description: Text(store.recipes.isEmpty ? "Open Recipes and tap Add Recipe to write your first dish." : "Try another search."))
+                    }
+                }
+    }
 
     var body: some View {
         NavigationStack {
@@ -250,25 +273,13 @@ struct MealPickerView: View {
                 } footer: {
                     if let replacing { Text("This replaces \(replacing.title).") }
                 }
-                Section("Choose a recipe") {
-                    ForEach(recipes) { recipe in
-                        Button {
-                            recipeID = recipe.id
-                            servings = recipe.servings
-                        } label: {
-                            HStack {
-                                RecipeRow(recipe: recipe)
-                                Spacer()
-                                if recipeID == recipe.id { Image(systemName: "checkmark.circle.fill").foregroundStyle(CalendishStyle.accent).accessibilityHidden(true) }
-                            }
-                        }.buttonStyle(.plain)
-                            .accessibilityValue(recipeID == recipe.id ? "Selected" : "Not selected")
-                            .accessibilityAddTraits(recipeID == recipe.id ? .isSelected : [])
-                    }
-                    if recipes.isEmpty {
-                        ContentUnavailableView(store.recipes.isEmpty ? "Add a Recipe First" : "No Matching Recipes", systemImage: "book.closed", description: Text(store.recipes.isEmpty ? "Open Recipes and tap Add Recipe to write your first dish." : "Try another search."))
-                    }
+                if let meal = selection.meal {
+                    Section {
+                        RecipeRow(recipe: meal.recipe, servings: meal.servings)
+                        Toggle("Keep saved version", isOn: $keepsSavedVersion)
+                    } header: { Text("Saved recipe version") } footer: { Text("Keep the planned ingredients and instructions when changing the day or servings. Turn this off to choose a current recipe.") }
                 }
+                recipeChoices
             }
             .searchable(text: $search, prompt: "Find a recipe")
             .navigationTitle(selection.meal == nil ? "Plan a meal" : "Edit meal").navigationBarTitleDisplayMode(.inline)
@@ -282,11 +293,14 @@ struct MealPickerView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
-                        if let recipe = store.recipes.first(where: { $0.id == recipeID }) {
+                        if keepsSavedVersion, let meal = selection.meal {
+                            store.saveMeal(date: date, slot: slot, recipe: meal.recipe, servings: servings, moving: meal, keepVersion: true)
+                            dismiss()
+                        } else if let recipe = store.recipes.first(where: { $0.id == recipeID }) {
                             store.saveMeal(date: date, slot: slot, recipe: recipe, servings: servings, moving: selection.meal)
                             dismiss()
                         }
-                    } label: { OnAccentLabel(title: "Save") }.disabled(recipeID == nil)
+                    } label: { OnAccentLabel(title: "Save") }.disabled(!(keepsSavedVersion && selection.meal != nil) && recipeID == nil)
                     .modifier(GlassActionStyle(prominent: true))
                 }
             }

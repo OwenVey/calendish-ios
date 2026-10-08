@@ -62,7 +62,11 @@ scripts/
 
 ## Backend
 
-Every row belongs to a household, and Row Level Security limits access to that household's members. Recipe photos live in a private Storage bucket (`recipe-images`) under a folder for each household, with the same members-only rule. `HouseholdStore` applies edits on screen right away and saves them in the background. Other members' changes arrive over a private household Realtime Broadcast channel, and the app catches up after reconnecting or returning to the foreground. Meal moves and grocery reordering use atomic database RPCs. Household collections use keyset pagination to avoid Data API row limits.
+Every person has one current household, provisioned automatically after sign-up or joined from an invitation. Groceries, planned meals, and household-owned recipes belong to that household. Personal recipes belong to their creator and follow them between households; sharing gives the current household access to the original. Only its owner edits a personal original, while all members can edit household recipes. Ending sharing or deleting a shared original retains an independent household copy. Saved personal copies start private.
+
+Row Level Security enforces these ownership boundaries for database rows and recipe photos. Copies and planned meals keep access to photos they still use. Planned meals capture a recipe version and serving count; later recipe edits do not change them or groceries already added. Household moves, ownership transfer, recipe retention, and optional private bulk saves use authenticated atomic RPCs.
+
+`HouseholdStore` applies edits on screen immediately and saves them in the background. Private household and personal Realtime channels notify other devices; authoritative reads catch up after reconnecting. Session guards prevent late responses from publishing data into another household or account. Collections use keyset pagination to avoid Data API row limits.
 
 SwiftUI previews use `HouseholdStore.preview()`, which has sample data and makes no network calls.
 
@@ -77,6 +81,12 @@ The Supabase project is connected to this repo through the Supabase GitHub integ
 Local Auth settings such as redirect URLs live in `supabase/config.toml`; hosted Auth settings must be reviewed and applied separately. Database migrations do not update hosted Auth configuration.
 
 See [the Supabase review](docs/supabase-review.md) for the access model and verified behavior. Run `./scripts/test-grocery-sync.sh` for local grocery merge tests. With the Supabase CLI authenticated to this project, `node scripts/test-grocery-realtime.mjs` tests live syncing, household isolation, atomic RPCs, pagination, and private Storage using disposable fixtures. Use a scoped CLI token for automated runs. Administrative test keys stay in memory and are never shipped in the app.
+
+### Household regression checks
+
+- `node scripts/test-household-moves.mjs`: authenticated multi-user ownership, membership, photos, saved meals, and concurrency checks using disposable hosted fixtures.
+- `./scripts/test-household-workflow.sh`: builds a separate simulator app from production sources and runs the store through a controlled HTTP client, including lost responses, delayed reads, sign-out races, and invitation continuation.
+- `./scripts/test-household-ui.sh`: runs the household UI suite against that simulator fixture app. Run the workflow script first to build and install it. The fixture does not alter your signed-in app’s data.
 
 ## Roadmap
 
