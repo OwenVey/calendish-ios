@@ -90,7 +90,6 @@ struct GroceryListView: View {
                             .onMove { move(activeItems, from: $0, to: $1) }
                             .onDelete { offsets in store.removeGroceries(offsets.map { activeItems[$0] }) }
                             .moveDisabled(searchPresented)
-                        if !searchPresented && !addingItem { newItemRow }
                     }
                 } else {
                     ForEach(groups, id: \.title) { group in
@@ -103,7 +102,6 @@ struct GroceryListView: View {
                             if let title = group.title { Text(title) }
                         }
                     }
-                    if !searchPresented && !addingItem { Section { newItemRow } }
                 }
                 if !completedItems.isEmpty {
                     Section {
@@ -152,7 +150,7 @@ struct GroceryListView: View {
                         ContentUnavailableView(scope == .completed ? "No Completed Items" : "Nothing Left to Buy", systemImage: scope == .completed ? "checkmark.circle" : "basket")
                     }
                 } else if store.groceries.isEmpty && !addingItem {
-                    ContentUnavailableView("All set for now", systemImage: "basket", description: Text("Tap New Item to start your household list."))
+                    ContentUnavailableView("All set for now", systemImage: "basket", description: Text("Tap + to start your household list."))
                         .allowsHitTesting(false)
                 }
             }
@@ -193,15 +191,6 @@ struct GroceryListView: View {
                 Text("This removes every item, including ones not yet bought, for everyone in your household.")
             }
         }
-    }
-
-    private var newItemRow: some View {
-        Button(action: beginAddingItem) {
-            Label("New Item", systemImage: "plus.circle.fill")
-                .labelStyle(GroceryAddLabelStyle())
-                .frame(minHeight: 44)
-        }
-        .buttonStyle(.plain)
     }
 
     private var newItemComposer: some View {
