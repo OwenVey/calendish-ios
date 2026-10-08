@@ -860,6 +860,26 @@ final class HouseholdStore {
         await refresh()
     }
 
+    // MARK: Account
+
+    /// Deletes the account and personal recipes. The household keeps copies of shared recipes and passes
+    /// ownership on, or is deleted when nobody else remains. Then signs out on this device.
+    func deleteAccount() async throws {
+        guard !isPreview, let userID else { return }
+        let session = syncSession
+        await writeTask?.value
+        guard session == syncSession else { throw CancellationError() }
+        let photoPaths: [String] = try await client.rpc("delete_account").execute().value
+        // The session's token stays valid until it expires, which is long enough to clean up Storage.
+        await removePhotos(photoPaths)
+        let folder = userID.uuidString.lowercased()
+        if let avatars = try? await client.storage.from(ProfilePhotos.bucket).list(path: folder), !avatars.isEmpty {
+            _ = try? await client.storage.from(ProfilePhotos.bucket).remove(paths: avatars.map { "\(folder)/\($0.name)" })
+        }
+        // The server session no longer exists, so only clear this device's.
+        try? await client.auth.signOut(scope: .local)
+    }
+
     // MARK: Saving
 
     /// Runs a write in the background. On failure, shows the error and refetches so the screen matches the server.

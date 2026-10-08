@@ -142,6 +142,9 @@ struct ProfileSettingsView: View {
     @Environment(HouseholdStore.self) private var store
     @State private var memberName = ""
     @State private var confirmSignOut = false
+    @State private var confirmDeleteAccount = false
+    @State private var deletingAccount = false
+    @State private var deleteAccountError: String?
     var body: some View {
         Form {
             Section {
@@ -172,13 +175,43 @@ struct ProfileSettingsView: View {
                         Button("Sign Out", role: .destructive) { Task { await store.signOut() } }
                     }
             }
+            Section {
+                Button(role: .destructive) { confirmDeleteAccount = true } label: {
+                    if deletingAccount { ProgressView("Deleting Account…") }
+                    else { Text("Delete Account") }
+                }
+                .frame(maxWidth: .infinity)
+                .disabled(deletingAccount)
+            } footer: {
+                Text("Permanently deletes your account and personal recipes. Your household keeps the recipes you shared with it.")
+            }
         }
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { memberName = store.currentMember?.displayName ?? "" }
         .onDisappear { saveName() }
+        .calendishAlert("Delete Account?", isPresented: $confirmDeleteAccount) {
+            Button("Delete Account", role: .destructive) { deleteAccount() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text(store.members.count > 1
+                ? "This permanently deletes your account and personal recipes. Your household keeps the recipes you shared with it. This can’t be undone."
+                : "This permanently deletes your account, your household, and all of its recipes, meal plans, and groceries. This can’t be undone.")
+        }
+        .calendishAlert("Couldn’t Delete Account", isPresented: Binding(get: { deleteAccountError != nil }, set: { if !$0 { deleteAccountError = nil } })) {
+            Button("OK") { }
+        } message: {
+            Text("Your account wasn’t deleted. \(deleteAccountError ?? "")")
+        }
     }
     private func saveName() { store.renameMember(to: memberName.trimmingCharacters(in: .whitespaces)) }
+    private func deleteAccount() {
+        deletingAccount = true
+        Task {
+            defer { deletingAccount = false }
+            do { try await store.deleteAccount() } catch { deleteAccountError = error.localizedDescription }
+        }
+    }
 }
 
 struct HouseholdSettingsView: View {
