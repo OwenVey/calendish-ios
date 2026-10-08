@@ -188,6 +188,8 @@ struct HouseholdSettingsView: View {
     @State private var deleting = false
     @State private var deleteError: String?
     @State private var memberToRemove: HouseholdMember?
+    @State private var copiedCode = false
+    @State private var copiedReset: Task<Void, Never>?
     var body: some View {
         Form {
             Section("Name") {
@@ -218,9 +220,26 @@ struct HouseholdSettingsView: View {
             }
             if let code = store.household?.inviteCode {
                 Section {
-                    LabeledContent("Invite code") {
-                        Text(code).font(.body.monospaced()).textSelection(.enabled)
+                    Button { copyInviteCode(code) } label: {
+                        LabeledContent("Invite code") {
+                            HStack(spacing: 8) {
+                                Text(code).font(.body.monospaced())
+                                // Hidden copy icon reserves a fixed size so the shorter checkmark can't shift the row.
+                                Image(systemName: "doc.on.doc").hidden()
+                                    .overlay {
+                                        Image(systemName: copiedCode ? "checkmark" : "doc.on.doc")
+                                            .foregroundStyle(copiedCode ? Color.accentColor : .secondary)
+                                            .contentTransition(.symbolEffect(.replace))
+                                    }
+                            }
+                        }
                     }
+                    .tint(.primary)
+                    .contextMenu {
+                        Button("Copy", systemImage: "doc.on.doc") { copyInviteCode(code) }
+                    }
+                    .accessibilityHint("Copies the invite code")
+                    .sensoryFeedback(.success, trigger: copiedCode) { _, new in new }
                     ShareLink(item: "Join my household on Calendish with invite code \(code)") {
                         Label("Invite Members", systemImage: "person.badge.plus")
                     }
@@ -263,6 +282,17 @@ struct HouseholdSettingsView: View {
         }
     }
     private func saveName() { store.renameHousehold(to: householdName.trimmingCharacters(in: .whitespaces)) }
+    /// Copies the code and briefly swaps the copy icon for a checkmark.
+    private func copyInviteCode(_ code: String) {
+        UIPasteboard.general.string = code
+        copiedCode = true
+        copiedReset?.cancel()
+        copiedReset = Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
+            copiedCode = false
+        }
+    }
     private func deleteAllData() {
         deleting = true
         Task {
