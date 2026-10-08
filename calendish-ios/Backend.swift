@@ -157,13 +157,6 @@ enum DayFormat {
     }
 }
 
-/// Omitted fields remain unchanged when another shopper edits the same item.
-nonisolated struct GroceryEdit: Encodable, Sendable {
-    var name: String?
-    var amount: String?
-    var source: String?
-}
-
 nonisolated struct SaveMealParameters: Encodable, Sendable {
     var target_household: UUID
     var meal_id: UUID

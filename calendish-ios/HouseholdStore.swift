@@ -18,7 +18,7 @@ final class HouseholdStore {
     private(set) var userID: UUID?
     var recipes: [Recipe] = []
     var meals: [PlannedMeal] = []
-    var groceries: [GroceryItem] = []
+    var groceries: [GroceryItem] { grocerySync.items }
     var planningDate = Calendar.current.startOfDay(for: Date.now)
     /// The latest failed save or load, shown as an alert.
     var errorMessage: String?
@@ -35,10 +35,10 @@ final class HouseholdStore {
     private var pendingWrites = 0
     private var writeRevision: UInt64 = 0
     private var realtimeStatusTask: Task<Void, Never>?
-    private var groceryReloadTask: Task<Void, Never>?
-    private var groceryReloadID = UUID()
-    private var groceryWriteTask: Task<Void, Never>?
-    private var grocerySync = GrocerySyncState()
+    @ObservationIgnored private lazy var grocerySync = GrocerySync(
+        transport: isPreview ? nil : SupabaseGroceryTransport(),
+        onChange: { [weak self] in self?.sortGroceriesIntoAisles() },
+        onError: { [weak self] error in self?.report(error) })
     private var aisleTask: Task<Void, Never>?
     /// The name each item was last sorted under, so a failed save isn't retried on every refetch.
     private var sortedNames: [UUID: String] = [:]
@@ -60,12 +60,12 @@ final class HouseholdStore {
             PlannedMeal(date: today, slot: .dinner, recipeID: recipes[0].id, servings: 4),
             PlannedMeal(date: Calendar.current.date(byAdding: .day, value: 1, to: today)!, slot: .dinner, recipeID: recipes[1].id, servings: 4)
         ]
-        store.groceries = [
+        store.grocerySync.setHousehold(store.household?.id, items: [
             GroceryItem(name: "Cherry tomatoes", amount: "2 cups", source: "Lemon & herb orzo", position: 0),
             GroceryItem(name: "Orzo", amount: "1½ cups", source: "Lemon & herb orzo", position: 1),
             GroceryItem(name: "Greek yogurt", amount: "1 tub", source: "General", position: 2),
             GroceryItem(name: "Olive oil", amount: "2 tbsp", source: "Lemon & herb orzo", isComplete: true, position: 3)
-        ]
+        ])
         return store
     }
 
@@ -117,15 +117,14 @@ final class HouseholdStore {
         for task in savingTasks.values { task.cancel() }
         savingTasks.removeAll()
         writeTask?.cancel(); writeTask = nil
-        groceryWriteTask?.cancel(); groceryWriteTask = nil
         aisleTask?.cancel(); aisleTask = nil
         sortedNames = [:]
         pendingWrites = 0
         writeRevision &+= 1
-        grocerySync = GrocerySyncState()
+        grocerySync.setHousehold(nil)
         needsPasswordReset = false
         household = nil
-        members = []; recipes = []; meals = []; groceries = []
+        members = []; recipes = []; meals = []
         RecipePhotos.shared.clearCache()
         await stopRealtime()
     }
@@ -247,6 +246,7 @@ final class HouseholdStore {
 
     private func enter(_ row: HouseholdRecord) async throws {
         household = Household(id: row.id, name: row.name, inviteCode: row.inviteCode)
+        grocerySync.setHousehold(row.id)
         try await reload()
         phase = .ready
         syncAvatar()
@@ -272,27 +272,19 @@ final class HouseholdStore {
     func reload() async throws {
         guard !isPreview, let id = household?.id else { return }
         let session = syncSession
-        grocerySync.invalidate()
-        let groceryRevision = grocerySync.revision
         let revision = writeRevision
         async let householdRow: HouseholdRecord = supabase.from("households").select().eq("id", value: id).single().execute().value
         async let memberRows: [MemberRecord] = fetchRows("household_members", householdID: id, idColumn: "user_id", key: \.userID)
         async let recipeRows: [RecipeRecord] = fetchRows("recipes", householdID: id, key: \.id)
         async let mealRows: [PlannedMealRecord] = fetchRows("planned_meals", householdID: id, key: \.id)
-        async let groceryRows: [GroceryItemRecord] = fetchRows("grocery_items", householdID: id, key: \.id)
-        let (h, m, r, p, g) = try await (householdRow, memberRows, recipeRows, mealRows, groceryRows)
+        async let groceryRefresh: Void = grocerySync.refresh()
+        let (h, m, r, p, _) = try await (householdRow, memberRows, recipeRows, mealRows, groceryRefresh)
         guard !Task.isCancelled, session == syncSession, household?.id == id else { return }
         if pendingWrites == 0, revision == writeRevision {
             household = Household(id: h.id, name: h.name, inviteCode: h.inviteCode)
             members = m.map { HouseholdMember(userID: $0.userID, displayName: $0.displayName, role: $0.role, avatarURL: $0.avatarURL.flatMap(URL.init)) }
             recipes = r.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }.map(Recipe.init)
             meals = p.compactMap(PlannedMeal.init)
-        }
-        if groceryRevision == grocerySync.revision {
-            groceries = grocerySync.merging(g.map(GroceryItem.init))
-            sortGroceriesIntoAisles()
-        } else {
-            scheduleGroceryReload()
         }
     }
 
@@ -350,7 +342,7 @@ final class HouseholdStore {
                 // nested under "payload", rather than the inner object alone.
                 guard let table = payload["payload"]?.objectValue?["table"]?.stringValue else { continue }
                 if table == "grocery_items" {
-                    self.scheduleGroceryReload()
+                    self.grocerySync.requestReload()
                 } else {
                     self.scheduleReload()
                 }
@@ -392,62 +384,9 @@ final class HouseholdStore {
         realtimeStatusTask = nil
         reloadTask?.cancel()
         reloadTask = nil
-        groceryReloadID = UUID()
-        groceryReloadTask?.cancel()
-        groceryReloadTask = nil
+        grocerySync.cancelReload()
         if let channel { await supabase.removeChannel(channel) }
         channel = nil
-    }
-
-    /// One fetch at a time. Changes during a fetch invalidate its snapshot and
-    /// request another pass, rather than cancelling or publishing stale results.
-    private func scheduleGroceryReload() {
-        grocerySync.invalidate()
-        guard groceryReloadTask == nil, !isPreview, let id = household?.id else { return }
-        let session = syncSession
-        let reloadID = UUID()
-        groceryReloadID = reloadID
-        groceryReloadTask = Task { [weak self] in
-            guard let self else { return }
-            defer { if reloadID == groceryReloadID { groceryReloadTask = nil } }
-            var reportedFailure = false
-            while !Task.isCancelled, session == syncSession, household?.id == id {
-                let revision = grocerySync.revision
-                do {
-                    let rows: [GroceryItemRecord] = try await fetchRows("grocery_items", householdID: id, key: \.id)
-                    guard !Task.isCancelled, session == syncSession, household?.id == id else { return }
-                    if revision != grocerySync.revision { continue }
-                    groceries = grocerySync.merging(rows.map(GroceryItem.init))
-                    sortGroceriesIntoAisles()
-                    return
-                } catch {
-                    guard !Task.isCancelled, session == syncSession else { return }
-                    if !reportedFailure { report(error); reportedFailure = true }
-                    // A failed fetch must not leave the tab stale when the socket
-                    // remains connected and no further database events arrive.
-                    do { try await Task.sleep(for: .seconds(3)) } catch { return }
-                }
-            }
-        }
-    }
-
-    /// Serialize local writes so rapid check/uncheck taps reach the server in order.
-    private func saveGroceries(_ changes: [GrocerySyncState.Change], operation: @escaping () async throws -> Void) {
-        guard !isPreview else { return }
-        let token = grocerySync.begin(changes)
-        let session = syncSession
-        let previous = groceryWriteTask
-        groceryWriteTask = Task { [weak self] in
-            await previous?.value
-            guard let self, !Task.isCancelled, session == syncSession else { return }
-            defer { savingTasks[token] = nil }
-            do { try await operation() }
-            catch { if session == syncSession { report(error) } }
-            guard session == syncSession else { return }
-            grocerySync.finish(token)
-            scheduleGroceryReload()
-        }
-        savingTasks[token] = groceryWriteTask
     }
 
     /// Coalesces a burst of change events into one refetch.
@@ -553,52 +492,18 @@ final class HouseholdStore {
     // MARK: Groceries
 
     func addGrocery(name: String, amount: String = "", source: String = "General") {
-        let item = GroceryItem(name: name, amount: amount, source: source, position: (groceries.map(\.position).max() ?? 0) + 1)
-        groceries.append(item)
-        guard let id = household?.id else { return }
-        saveGroceries([.insert(item)]) { try await supabase.from("grocery_items").insert(item.record(household: id)).execute() }
-        sortGroceriesIntoAisles()
+        grocerySync.add(name: name, amount: amount, source: source)
     }
 
-    func toggleGrocery(_ item: GroceryItem) {
-        guard let index = groceries.firstIndex(where: { $0.id == item.id }) else { return }
-        groceries[index].isComplete.toggle()
-        let isComplete = groceries[index].isComplete
-        saveGroceries([.edit(item.id, name: nil, amount: nil, source: nil, isComplete: isComplete, position: nil)]) {
-            try await supabase.from("grocery_items").update(["is_complete": isComplete]).eq("id", value: item.id).execute()
-        }
-    }
+    func toggleGrocery(_ item: GroceryItem) { grocerySync.toggle(item.id) }
 
-    /// Saves a new order for the whole list by renumbering every item's position.
-    func reorderGroceries(_ ordered: [GroceryItem]) {
-        groceries = ordered.enumerated().map { index, item in
-            var item = item
-            item.position = Double(index)
-            return item
-        }
-        guard let id = household?.id else { return }
-        let positions = groceries.map { ($0.id, $0.position) }
-        let changes = positions.map { GrocerySyncState.Change.edit($0.0, name: nil, amount: nil, source: nil, isComplete: nil, position: $0.1) }
-        let parameters = GroceryOrderParameters(target_household: id, item_ids: positions.map(\.0), item_positions: positions.map(\.1))
-        saveGroceries(changes) { try await supabase.rpc("reorder_groceries", params: parameters).execute() }
-    }
+    func reorderGroceries(_ ordered: [GroceryItem]) { grocerySync.reorder(ordered) }
 
-    func removeGroceries(_ items: [GroceryItem]) {
-        let ids = Set(items.map(\.id))
-        groceries.removeAll { ids.contains($0.id) }
-        guard !ids.isEmpty else { return }
-        saveGroceries(ids.map { .delete($0) }) {
-            try await supabase.from("grocery_items").delete().in("id", values: Array(ids)).execute()
-        }
-    }
+    func removeGroceries(_ items: [GroceryItem]) { grocerySync.remove(items.map(\.id)) }
 
-    func clearCompletedGroceries() {
-        removeGroceries(groceries.filter(\.isComplete))
-    }
+    func clearCompletedGroceries() { removeGroceries(groceries.filter(\.isComplete)) }
 
-    func clearAllGroceries() {
-        removeGroceries(groceries)
-    }
+    func clearAllGroceries() { removeGroceries(groceries) }
 
     // MARK: Saving
 
@@ -627,32 +532,12 @@ final class HouseholdStore {
     }
 
     func updateGrocery(_ item: GroceryItem, original: GroceryItem) {
-        guard let index = groceries.firstIndex(where: { $0.id == item.id }), let id = household?.id else { return }
-        let previous = original
-        let patch = GroceryEdit(
-            name: previous.name == item.name ? nil : item.name,
-            amount: previous.amount == item.amount ? nil : item.amount,
-            source: previous.source == item.source ? nil : item.source)
-        // The editor owns text fields only; preserve live checkmarks and ordering.
-        guard patch.name != nil || patch.amount != nil || patch.source != nil else { return }
-        if let name = patch.name { groceries[index].name = name; groceries[index].aisle = nil }
-        if let amount = patch.amount { groceries[index].amount = amount }
-        if let source = patch.source { groceries[index].source = source }
-        saveGroceries([.edit(item.id, name: patch.name, amount: patch.amount, source: patch.source, isComplete: nil, position: nil)]) {
-            try await supabase.from("grocery_items").update(patch)
-                .eq("household_id", value: id).eq("id", value: item.id).execute()
-        }
-        sortGroceriesIntoAisles()
+        grocerySync.update(item, original: original)
     }
 
     func importGroceries(_ items: [GroceryItem]) {
-        guard let id = household?.id else { return }
-        groceries.append(contentsOf: items)
-        groceries.sort { $0.position < $1.position }
-        saveGroceries(items.map { .insert($0) }) {
-            try await supabase.from("grocery_items").insert(items.map { $0.record(household: id) }).execute()
-        }
-        sortGroceriesIntoAisles()
+        guard household != nil else { return }
+        grocerySync.insert(items)
     }
 
     /// Fills in the aisle of every unsorted item, including ones another member added.
@@ -665,28 +550,13 @@ final class HouseholdStore {
             defer { if session == syncSession { aisleTask = nil } }
             // Repeats for items added or renamed while the previous batch was being sorted.
             while !Task.isCancelled, session == syncSession, household?.id == id {
-                let unsorted = groceries.filter { $0.aisle == nil && sortedNames[$0.id] != $0.name }
+                let unsorted = groceries.filter { $0.aisle == nil && self.sortedNames[$0.id] != $0.name }
                 guard !unsorted.isEmpty else { return }
                 let names = Array(Set(unsorted.map(\.name)))
                 let aisles = await GroceryAisleClassifier.aisles(for: names)
                 guard !Task.isCancelled, session == syncSession, household?.id == id else { return }
-                var changes: [GrocerySyncState.Change] = []
-                for index in groceries.indices where groceries[index].aisle == nil {
-                    // Missing when the item was renamed meanwhile; the next pass sorts its new name.
-                    guard let aisle = aisles[groceries[index].name] else { continue }
-                    groceries[index].aisle = aisle.rawValue
-                    sortedNames[groceries[index].id] = groceries[index].name
-                    changes.append(.sort(groceries[index].id, aisle: aisle.rawValue))
-                }
-                guard !changes.isEmpty else { continue }
-                let namesByAisle = Dictionary(grouping: names) { aisles[$0]?.rawValue ?? "" }.filter { !$0.key.isEmpty }
-                saveGroceries(changes) {
-                    // Matching on name and an empty aisle leaves alone items renamed or sorted elsewhere in the meantime.
-                    for (aisle, names) in namesByAisle {
-                        try await supabase.from("grocery_items").update(["aisle": aisle])
-                            .eq("household_id", value: id).is("aisle", value: nil).in("name", values: names).execute()
-                    }
-                }
+                let assigned = grocerySync.assignAisles(aisles.mapValues(\.rawValue))
+                for item in assigned { sortedNames[item.id] = item.name }
             }
         }
     }
