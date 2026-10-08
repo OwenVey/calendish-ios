@@ -18,7 +18,7 @@ struct CookModeView: View {
     private var stepSelection: Binding<Int> {
         Binding(get: { stepIndex }, set: { stepIndex = $0 })
     }
-    @State private var showIngredients = true
+    @State private var showIngredients = UserDefaults.standard.bool(forKey: PreferenceKey.showCookIngredients)
     @Environment(CookingTimers.self) private var timerStore
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion

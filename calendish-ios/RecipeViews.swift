@@ -109,7 +109,7 @@ struct RecipeBookView: View {
             }
         }
         .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }
-        .confirmationDialog("Delete “\(recipeToDelete?.title ?? "recipe")”?", isPresented: $confirmDelete, titleVisibility: .visible, presenting: recipeToDelete) { recipe in
+        .alert("Delete “\(recipeToDelete?.title ?? "recipe")”?", isPresented: $confirmDelete, presenting: recipeToDelete) { recipe in
             Button("Delete Recipe", role: .destructive) {
                 store.deleteRecipe(recipe)
                 recipeToDelete = nil
@@ -301,6 +301,15 @@ struct RecipeDetailView: View {
                     Label("More recipe actions", systemImage: "ellipsis")
                 }
                 .sensoryFeedback(.selection, trigger: recipe.isFavorite)
+                .confirmationDialog("Delete “\(recipe.title)”?", isPresented: $confirmDelete, titleVisibility: .visible) {
+                    Button("Delete Recipe", role: .destructive) {
+                        store.deleteRecipe(recipe)
+                        dismiss()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("This deletes the recipe and any meals planned with it for your household. Grocery items will stay on your list. This can’t be undone.")
+                }
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Edit Recipe", systemImage: "pencil") { showEditor = true }
@@ -316,15 +325,6 @@ struct RecipeDetailView: View {
                     .accessibilityHint("Opens step-by-step cooking instructions")
             }
 
-        }
-        .confirmationDialog("Delete “\(recipe.title)”?", isPresented: $confirmDelete, titleVisibility: .visible) {
-            Button("Delete Recipe", role: .destructive) {
-                store.deleteRecipe(recipe)
-                dismiss()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This deletes the recipe and any meals planned with it for your household. Grocery items will stay on your list. This can’t be undone.")
         }
         .sheet(isPresented: $showEditor) { RecipeEditorView(recipe: recipe) }
         .sheet(item: $planning) { MealPickerView(selection: $0) }
@@ -467,7 +467,7 @@ struct RecipeEditorView: View {
         _summary = State(initialValue: recipe?.summary ?? "")
         _sourceLink = State(initialValue: recipe?.recipeLink ?? "")
         _category = State(initialValue: recipe?.category ?? "")
-        _servings = State(initialValue: recipe?.servings ?? 4)
+        _servings = State(initialValue: recipe?.servings ?? PreferenceKey.servingsForNewRecipes)
         _yieldText = State(initialValue: recipe?.yieldText ?? "")
         _prepMinutes = State(initialValue: recipe?.prepMinutes ?? 10)
         _cookMinutes = State(initialValue: recipe?.cookMinutes ?? 20)
@@ -617,7 +617,13 @@ struct RecipeEditorView: View {
             .environment(\.editMode, .constant(.active))
             .navigationTitle(original == nil ? "New recipe" : "Edit recipe").navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } }.toolbarGlyph() }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } }.toolbarGlyph()
+                        .confirmationDialog("Discard Recipe Changes?", isPresented: $discardChanges, titleVisibility: .visible) {
+                            Button("Discard Changes", role: .destructive) { saving = true; clearDraft(); dismiss() }
+                            Button("Keep Editing") { }
+                        } message: { Text("Your draft stays on this device until you save or discard it.") }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
                         let savedIngredients = ingredients.compactMap { ingredient -> Ingredient? in
@@ -666,10 +672,6 @@ struct RecipeEditorView: View {
             if isDirty { UserDefaults.standard.set(data, forKey: draftKey) }
             else { clearDraft() }
         }
-        .confirmationDialog("Discard Recipe Changes?", isPresented: $discardChanges, titleVisibility: .visible) {
-            Button("Discard Changes", role: .destructive) { saving = true; clearDraft(); dismiss() }
-            Button("Keep Editing") { }
-        } message: { Text("Your draft stays on this device until you save or discard it.") }
     }
     /// Tags from the rest of the recipe book that this recipe doesn't have yet, narrowed by what's typed.
     private var tagSuggestions: [String] {

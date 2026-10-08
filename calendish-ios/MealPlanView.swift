@@ -128,11 +128,12 @@ struct MealPlanView: View {
         .sheet(item: $reviewPeriod) { period in
             GroceryImportReviewView(candidates: groceryCandidates(for: period))
         }
-        .confirmationDialog("Remove this planned meal?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible) {
-            Button("Remove meal", role: .destructive) {
+        .alert("Remove This Planned Meal?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } })) {
+            Button("Remove Meal", role: .destructive) {
                 if let removing { store.removeMeal(removing) }
                 removing = nil
             }
+            Button("Cancel", role: .cancel) { removing = nil }
         } message: { Text("The recipe stays in your recipe book.") }
     }
 
@@ -272,7 +273,13 @@ struct MealPickerView: View {
             .searchable(text: $search, prompt: "Find a recipe")
             .navigationTitle(selection.meal == nil ? "Plan a meal" : "Edit meal").navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } }.toolbarGlyph() }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } }.toolbarGlyph()
+                        .confirmationDialog("Discard Meal Changes?", isPresented: $discardChanges, titleVisibility: .visible) {
+                            Button("Discard Changes", role: .destructive) { dismiss() }
+                            Button("Keep Editing") { }
+                        }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
                         if let recipe = store.recipes.first(where: { $0.id == recipeID }) {
@@ -286,16 +293,12 @@ struct MealPickerView: View {
             .onAppear {
                 guard initialValues == nil else { return }
                 recipeID = selection.meal?.recipeID ?? selection.recipeID
-                servings = selection.meal?.servings ?? store.recipes.first { $0.id == recipeID }?.servings ?? 4
+                servings = selection.meal?.servings ?? store.recipes.first { $0.id == recipeID }?.servings ?? PreferenceKey.servingsForNewRecipes
                 date = selection.date
                 slot = selection.slot
                 initialValues = values
             }
         }
         .background { DraftDismissalGuard(isDirty: isDirty) { discardChanges = true } }
-        .confirmationDialog("Discard Meal Changes?", isPresented: $discardChanges, titleVisibility: .visible) {
-            Button("Discard Changes", role: .destructive) { dismiss() }
-            Button("Keep Editing") { }
-        }
     }
 }

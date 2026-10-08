@@ -68,7 +68,7 @@ enum RecipeTextImporter {
         return Recipe(title: parsed.title.trimmingCharacters(in: .whitespacesAndNewlines),
                       summary: parsed.summary.trimmingCharacters(in: .whitespacesAndNewlines),
                       prepMinutes: max(0, parsed.prepMinutes), cookMinutes: max(0, parsed.cookMinutes),
-                      servings: parsed.servings > 0 ? parsed.servings : 4,
+                      servings: parsed.servings > 0 ? parsed.servings : PreferenceKey.servingsForNewRecipes,
                       tags: [], symbol: "fork.knife",
                       ingredients: ingredients.map { Ingredient(text: $0) }, steps: steps,
                       yieldText: yield.isEmpty ? nil : yield)
@@ -129,7 +129,7 @@ enum RecipeTextImporter {
         let total = minutes(labeled: #/(?i)total time/#, in: lines)
         let servings = text.firstMatch(of: #/(?i)(serves|servings|yield)\s*:?\s*(\d+)/#).flatMap { Int($0.output.2) }
         return Recipe(title: title, summary: "", prepMinutes: prep, cookMinutes: cook > 0 ? cook : max(0, total - prep),
-                      servings: servings ?? 4, tags: [], symbol: "fork.knife",
+                      servings: servings ?? PreferenceKey.servingsForNewRecipes, tags: [], symbol: "fork.knife",
                       ingredients: ingredients.filter { !$0.isEmpty }.map { Ingredient(text: $0) },
                       steps: steps.filter { !$0.isEmpty })
     }

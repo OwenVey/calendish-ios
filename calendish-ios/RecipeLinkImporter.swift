@@ -48,7 +48,7 @@ enum RecipeLinkImporter {
         let recipe = Recipe(title: title,
                             summary: clean(strings(object["description"]).first ?? meta("description", html: html) ?? meta("og:description", html: html) ?? ""),
                             prepMinutes: prep, cookMinutes: cook > 0 ? cook : max(0, total - prep),
-                            servings: servings(object["recipeYield"]) ?? 4,
+                            servings: servings(object["recipeYield"]) ?? PreferenceKey.servingsForNewRecipes,
                             tags: tags.reduce(into: []) { if !$0.contains($1) && !categories.contains($1) { $0.append($1) } },
                             symbol: "fork.knife",
                             ingredients: strings(object["recipeIngredient"]).map { clean($0) }.filter { !$0.isEmpty }.map { Ingredient(text: $0) },

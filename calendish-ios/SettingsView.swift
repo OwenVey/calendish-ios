@@ -1,3 +1,4 @@
+import ActivityKit
 import SwiftUI
 import UserNotifications
 
@@ -8,7 +9,9 @@ struct SettingsView: View {
     @AppStorage(WeekStart.storageKey) private var weekStart = WeekStart.system
     @AppStorage(MealSlot.enabledStorageKey) private var enabledSlots = MealSlot.allEnabled
     @AppStorage(PreferenceKey.recipeSort) private var recipeSort = RecipeSort.recent
+    @AppStorage(PreferenceKey.defaultServings) private var defaultServings = 4
     @AppStorage(PreferenceKey.groceryGrouping) private var groceryGrouping = GroceryGrouping.none
+    @AppStorage(PreferenceKey.showCompletedGroceries) private var showCompletedGroceries = false
     @AppStorage(MeasurementPreference.storageKey) private var units = MeasurementPreference.original
     private var mealsSummary: String {
         let slots = MealSlot.enabled(in: enabledSlots)
@@ -46,11 +49,40 @@ struct SettingsView: View {
                 }
             }
             Section {
+                Picker(selection: $recipeSort) {
+                    ForEach(RecipeSort.allCases) { Text($0.title).tag($0) }
+                } label: {
+                    SettingsLabel("Sort By", systemImage: "arrow.up.arrow.down", color: .brown)
+                }
+                .tint(.secondary)
+                HStack {
+                    SettingsLabel("Default Servings", systemImage: "person.2.fill", color: .pink)
+                    Spacer()
+                    Text(defaultServings, format: .number).foregroundStyle(.secondary)
+                    Stepper("Default Servings", value: $defaultServings, in: 1...20)
+                        .labelsHidden()
+                        .fixedSize()
+                }
+                .accessibilityElement(children: .combine)
+                Picker(selection: $units) {
+                    ForEach(MeasurementPreference.allCases) { Text($0.title).tag($0) }
+                } label: {
+                    SettingsLabel("Units", systemImage: "ruler.fill", color: .indigo)
+                }
+                .tint(.secondary)
+                NavigationLink { CookingSettingsView() } label: {
+                    SettingsLabel("Cooking", systemImage: "frying.pan.fill", color: .purple)
+                }
+            } header: {
+                Text("Recipes")
+            }
+            Section("Meal Plan") {
                 Picker(selection: $weekStart) {
                     ForEach(WeekStart.allCases) { Text($0.title).tag($0) }
                 } label: {
                     SettingsLabel("Week Starts On", systemImage: "calendar", color: .red)
                 }
+                .tint(.secondary)
                 NavigationLink { MealSlotSettingsView() } label: {
                     LabeledContent {
                         Text(mealsSummary)
@@ -59,29 +91,16 @@ struct SettingsView: View {
                     }
                 }
             }
-            Section {
-                Picker(selection: $recipeSort) {
-                    ForEach(RecipeSort.allCases) { Text($0.title).tag($0) }
-                } label: {
-                    SettingsLabel("Sort Recipes By", systemImage: "book.closed.fill", color: .brown)
-                }
+            Section("Groceries") {
                 Picker(selection: $groceryGrouping) {
                     ForEach(GroceryGrouping.allCases) { Text($0.rawValue).tag($0) }
                 } label: {
-                    SettingsLabel("Group Groceries By", systemImage: "basket.fill", color: .green)
+                    SettingsLabel("Group By", systemImage: "basket.fill", color: .green)
                 }
-            }
-            Section {
-                NavigationLink { CookingSettingsView() } label: {
-                    SettingsLabel("Cooking", systemImage: "frying.pan.fill", color: .purple)
+                .tint(.secondary)
+                Toggle(isOn: $showCompletedGroceries) {
+                    SettingsLabel("Show Completed", systemImage: "checkmark.circle.fill", color: .mint)
                 }
-                Picker(selection: $units) {
-                    ForEach(MeasurementPreference.allCases) { Text($0.title).tag($0) }
-                } label: {
-                    SettingsLabel("Units", systemImage: "ruler.fill", color: .indigo)
-                }
-            } footer: {
-                Text("Units converts cups, ounces, pounds, and oven temperatures in recipes and cook mode. Saved recipes keep their original measurements.")
             }
             Section {
                 LabeledContent {
@@ -149,15 +168,15 @@ struct ProfileSettingsView: View {
             Section {
                 Button("Sign Out", role: .destructive) { confirmSignOut = true }
                     .frame(maxWidth: .infinity)
+                    .confirmationDialog("Sign out of Calendish?", isPresented: $confirmSignOut, titleVisibility: .visible) {
+                        Button("Sign Out", role: .destructive) { Task { await store.signOut() } }
+                    }
             }
         }
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { memberName = store.currentMember?.displayName ?? "" }
         .onDisappear { saveName() }
-        .confirmationDialog("Sign out of Calendish?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-            Button("Sign Out", role: .destructive) { Task { await store.signOut() } }
-        }
     }
     private func saveName() { store.renameMember(to: memberName.trimmingCharacters(in: .whitespaces)) }
 }
@@ -165,6 +184,9 @@ struct ProfileSettingsView: View {
 struct HouseholdSettingsView: View {
     @Environment(HouseholdStore.self) private var store
     @State private var householdName = ""
+    @State private var confirmDelete = false
+    @State private var deleting = false
+    @State private var deleteError: String?
     var body: some View {
         Form {
             Section("Name") {
@@ -194,13 +216,42 @@ struct HouseholdSettingsView: View {
                     Text("Someone joins by creating an account and entering this code.")
                 }
             }
+            if store.isOwner {
+                Section {
+                    Button(role: .destructive) { confirmDelete = true } label: {
+                        if deleting { ProgressView() } else { Text("Delete All Data") }
+                    }
+                    .frame(maxWidth: .infinity)
+                    .disabled(deleting)
+                } footer: {
+                    Text("Deletes every recipe, meal plan, and grocery item for everyone in your household. Members and the invite code stay.")
+                }
+            }
         }
         .navigationTitle("Household")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { householdName = store.household?.name ?? "" }
         .onDisappear { saveName() }
+        .alert("Delete All Household Data?", isPresented: $confirmDelete) {
+            Button("Delete All Data", role: .destructive) { deleteAllData() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This permanently removes all recipes, meal plans, and grocery items for everyone in your household. This can’t be undone.")
+        }
+        .alert("Couldn’t Delete Data", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+            Button("OK") { }
+        } message: {
+            Text("Nothing was deleted. \(deleteError ?? "")")
+        }
     }
     private func saveName() { store.renameHousehold(to: householdName.trimmingCharacters(in: .whitespaces)) }
+    private func deleteAllData() {
+        deleting = true
+        Task {
+            defer { deleting = false }
+            do { try await store.deleteAllHouseholdData() } catch { deleteError = error.localizedDescription }
+        }
+    }
 }
 
 struct AppearanceSettingsView: View {
@@ -245,11 +296,14 @@ struct MealSlotSettingsView: View {
 
 struct CookingSettingsView: View {
     @AppStorage(PreferenceKey.keepScreenAwake) private var keepScreenAwake = true
+    @AppStorage(PreferenceKey.showCookIngredients) private var showIngredients = true
     @AppStorage(PreferenceKey.cookingHaptics) private var haptics = true
+    @AppStorage(PreferenceKey.liveActivity) private var liveActivity = true
     @AppStorage(PreferenceKey.timerSound) private var timerSound = true
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
     @State private var notifications: UNAuthorizationStatus?
+    @State private var activitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
     private var notificationsAllowed: Bool { [.authorized, .provisional, .ephemeral].contains(notifications) }
     var body: some View {
         Form {
@@ -259,9 +313,26 @@ struct CookingSettingsView: View {
                 Text("Your screen stays on while cook mode is open.")
             }
             Section {
+                Toggle("Show Ingredients", isOn: $showIngredients)
+            } footer: {
+                Text("Open the ingredient list alongside the steps when you start cooking.")
+            }
+            Section {
                 Toggle("Haptics", isOn: $haptics)
             } footer: {
                 Text("Feel a tap when you change steps, check off ingredients, or finish a timer.")
+            }
+            Section {
+                Toggle("Live Activity", isOn: $liveActivity)
+                if liveActivity && !activitiesAllowed {
+                    Button("Open Calendish Settings") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                    }
+                }
+            } footer: {
+                Text(liveActivity && !activitiesAllowed
+                    ? "Live Activities are turned off for Calendish in the Settings app."
+                    : "Follow the current step and start timers from the Lock Screen and Dynamic Island.")
             }
             Section {
                 Toggle("Timer Sound", isOn: $timerSound)
@@ -290,7 +361,9 @@ struct CookingSettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadNotificationStatus() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await loadNotificationStatus() } }
+            guard phase == .active else { return }
+            activitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
+            Task { await loadNotificationStatus() }
         }
     }
     private func loadNotificationStatus() async {

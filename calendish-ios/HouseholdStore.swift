@@ -505,6 +505,28 @@ final class HouseholdStore {
 
     func clearAllGroceries() { removeGroceries(groceries) }
 
+    // MARK: Household data
+
+    var isOwner: Bool { currentMember?.role == "owner" }
+
+    /// Owner only. Deletes every recipe, planned meal, and grocery item in one transaction, then their photos.
+    /// Members, the household, and its invite code remain.
+    func deleteAllHouseholdData() async throws {
+        guard !isPreview, let id = household?.id else { return }
+        // Let earlier edits land first so none of them recreate data afterward.
+        await writeTask?.value
+        let photoPaths: [String] = try await supabase
+            .rpc("delete_household_data", params: ["target_household": id]).execute().value
+        guard household?.id == id else { return }
+        recipes = []
+        meals = []
+        for start in stride(from: 0, to: photoPaths.count, by: 100) {
+            let batch = Array(photoPaths[start..<min(start + 100, photoPaths.count)])
+            _ = try? await supabase.storage.from(RecipePhotos.bucket).remove(paths: batch)
+        }
+        await refresh()
+    }
+
     // MARK: Saving
 
     /// Runs a write in the background. On failure, shows the error and refetches so the screen matches the server.

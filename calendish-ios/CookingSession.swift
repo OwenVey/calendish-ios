@@ -51,6 +51,16 @@ final class CookingSession {
         snapshot?.servings = servings
         persist()
         activityWarning = nil
+        guard UserDefaults.standard.bool(forKey: PreferenceKey.liveActivity) else {
+            // A session restored from before the setting was turned off may still have one.
+            let id = snapshot?.id
+            enqueue {
+                for activity in Activity<CookingActivityAttributes>.activities where activity.attributes.sessionID == id {
+                    await activity.end(nil, dismissalPolicy: .immediate)
+                }
+            }
+            return
+        }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
             activityWarning = "Live Activities are off. You can enable them for Calendish in Settings."
             return

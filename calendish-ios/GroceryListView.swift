@@ -14,7 +14,7 @@ struct GroceryListView: View {
     @Environment(HouseholdStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(PreferenceKey.groceryGrouping) private var grouping = GroceryGrouping.none
-    @State private var showCompleted = false
+    @AppStorage(PreferenceKey.showCompletedGroceries) private var showCompleted = false
     @State private var clearCompleted = false
     @State private var clearAll = false
     @State private var newItem = ""
@@ -176,16 +176,17 @@ struct GroceryListView: View {
                         Button("Clear All", systemImage: "trash.slash", role: .destructive) { clearAll = true }
                             .disabled(store.groceries.isEmpty)
                     } label: { Label("List options", systemImage: "ellipsis") }
+                    .confirmationDialog("Clear all completed items?", isPresented: $clearCompleted, titleVisibility: .visible) {
+                        Button("Clear Completed", role: .destructive) { store.clearCompletedGroceries() }
+                    }
                 }
                 ToolbarItem(id: "grocery-add", placement: .topBarTrailing) {
                     Button("New Item", systemImage: "plus", action: beginAddingItem).toolbarGlyph()
                 }
             }
-            .confirmationDialog("Clear all completed items?", isPresented: $clearCompleted, titleVisibility: .visible) {
-                Button("Clear Completed", role: .destructive) { store.clearCompletedGroceries() }
-            }
-            .confirmationDialog("Clear the entire grocery list?", isPresented: $clearAll, titleVisibility: .visible) {
+            .alert("Clear the Entire Grocery List?", isPresented: $clearAll) {
                 Button("Clear All Items", role: .destructive) { store.clearAllGroceries() }
+                Button("Cancel", role: .cancel) { }
             } message: {
                 Text("This removes every item, including ones not yet bought, for everyone in your household.")
             }
