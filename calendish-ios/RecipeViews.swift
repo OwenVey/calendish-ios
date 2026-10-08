@@ -12,6 +12,7 @@ struct RecipeBookView: View {
     @State private var selectedTag = "All recipes"
     @State private var scope = RecipeScope.all
     @AppStorage(PreferenceKey.recipeSort) private var sort = RecipeSort.recent
+    @AppStorage(PreferenceKey.recipeLayout) private var layout = RecipeLayout.list
     @State private var favoritesOnly = false
     @State private var sheet: RecipeSheet?
     @State private var importDrafts = RecipeImportDrafts()
@@ -47,13 +48,16 @@ struct RecipeBookView: View {
     }
     private var isFiltered: Bool { favoritesOnly || selectedTag != "All recipes" }
 
-    var body: some View {
+    private var scopePicker: some View {
+        Picker("Recipe collection", selection: $scope) {
+            ForEach(RecipeScope.allCases) { Text($0.title).tag($0) }
+        }
+        .pickerStyle(.segmented)
+    }
+
+    private var recipeList: some View {
         List {
-            Picker("Recipe collection", selection: $scope) {
-                ForEach(RecipeScope.allCases) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .listRowSeparator(.hidden)
+            scopePicker.listRowSeparator(.hidden)
             ForEach(filteredRecipes) { recipe in
                 NavigationLink(value: recipe) { RecipeRow(recipe: recipe) }
                     .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
@@ -67,29 +71,57 @@ struct RecipeBookView: View {
                             .tint(.red)
                         }
                     }
-                    .calendishContextMenu {
-                        Section {
-                            Button("Plan Meal", systemImage: "calendar.badge.plus") {
-                                planning = .planning(recipe, store: store, enabledSlots: enabledSlots)
-                            }
-                            Button("Add to Groceries", systemImage: "basket") { groceryRecipe = recipe }
-                        }
-                        Section {
-                            Button(recipe.isFavorite ? "Remove from Favorites" : "Add to Favorites", systemImage: recipe.isFavorite ? "star.slash" : "star") {
-                                store.toggleFavorite(recipe)
-                            }
-                        }
-                        if store.canEdit(recipe) {
-                            Section {
-                                Button("Delete Recipe", systemImage: "trash", role: .destructive) {
-                                    recipeToDelete = recipe
-                                    confirmDelete = true
-                                }
-                            }
-                        }
-                    } preview: {
-                        RecipePreview(recipe: recipe)
+                    .calendishContextMenu { actions(for: recipe) } preview: { RecipePreview(recipe: recipe) }
+            }
+        }
+    }
+
+    private var recipeGrid: some View {
+        ScrollView {
+            VStack(spacing: 20) {
+                scopePicker
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16, alignment: .top), count: 2), spacing: 24) {
+                    ForEach(filteredRecipes) { recipe in
+                        NavigationLink(value: recipe) { RecipeCard(recipe: recipe) }
+                            .buttonStyle(.plain)
+                            .calendishContextMenu { actions(for: recipe) } preview: { RecipePreview(recipe: recipe) }
                     }
+                }
+            }
+            // Lines up with the search field above.
+            .padding(.horizontal, 20)
+            .padding(.bottom)
+        }
+        .background(CalendishStyle.background)
+    }
+
+    @ViewBuilder private func actions(for recipe: Recipe) -> some View {
+        Section {
+            Button("Plan Meal", systemImage: "calendar.badge.plus") {
+                planning = .planning(recipe, store: store, enabledSlots: enabledSlots)
+            }
+            Button("Add to Groceries", systemImage: "basket") { groceryRecipe = recipe }
+        }
+        Section {
+            Button(recipe.isFavorite ? "Remove from Favorites" : "Add to Favorites", systemImage: recipe.isFavorite ? "star.slash" : "star") {
+                store.toggleFavorite(recipe)
+            }
+        }
+        if store.canEdit(recipe) {
+            Section {
+                Button("Delete Recipe", systemImage: "trash", role: .destructive) {
+                    recipeToDelete = recipe
+                    confirmDelete = true
+                }
+            }
+        }
+    }
+
+    var body: some View {
+        Group {
+            switch layout {
+            case .list: recipeList
+            case .grid: recipeGrid
             }
         }
         .overlay {
@@ -110,6 +142,11 @@ struct RecipeBookView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Section("View As") {
+                        Picker("View As", selection: $layout) {
+                            ForEach(RecipeLayout.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) }
+                        }
+                    }
                     Section("Sort By") {
                         Picker("Sort By", selection: $sort) {
                             ForEach(RecipeSort.allCases) { Text($0.title).tag($0) }
@@ -123,7 +160,7 @@ struct RecipeBookView: View {
                         }
                     }
                 } label: {
-                    Label("Sort and filter", systemImage: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
+                    Label("View, sort, and filter", systemImage: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
@@ -201,6 +238,43 @@ struct RecipeBookView: View {
         .sheet(item: $groceryRecipe) { recipe in
             GroceryImportReviewView(candidates: [GroceryImportCandidate(recipe: recipe, servings: recipe.servings)])
         }
+    }
+}
+
+/// A recipe's photo with its title and time below, for the recipe book's grid.
+private struct RecipeCard: View {
+    @Environment(HouseholdStore.self) private var store
+    let recipe: Recipe
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            RecipeArtwork(recipe: recipe)
+                .aspectRatio(1, contentMode: .fit)
+                .overlay(alignment: .topTrailing) {
+                    if recipe.isFavorite {
+                        Image(systemName: "star.fill")
+                            .font(.caption)
+                            .foregroundStyle(.yellow)
+                            .padding(6)
+                            .background(.ultraThinMaterial, in: .circle)
+                            .padding(8)
+                            .accessibilityLabel("Favorite")
+                    }
+                }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(recipe.title).font(.headline).lineLimit(2)
+                HStack(spacing: 4) {
+                    Image(systemName: "clock").font(.caption2).accessibilityHidden(true)
+                    Text("\(recipe.minutes) min")
+                    if store.isMine(recipe) && recipe.owner?.isShared == false {
+                        Image(systemName: "lock.fill").font(.caption2).accessibilityLabel("Only me")
+                    }
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 2)
+        }
+        .contentShape(.rect)
     }
 }
 
