@@ -16,6 +16,7 @@ struct GroceryListView: View {
     @AppStorage(PreferenceKey.groceryGrouping) private var grouping = GroceryGrouping.none
     @State private var showCompleted = false
     @State private var clearCompleted = false
+    @State private var clearAll = false
     @State private var newItem = ""
     @State private var search = ""
     @State private var searchPresented = false
@@ -175,6 +176,8 @@ struct GroceryListView: View {
                         }.pickerStyle(.menu)
                         Button("Clear Completed", systemImage: "trash", role: .destructive) { clearCompleted = true }
                             .disabled(!store.groceries.contains(where: \.isComplete))
+                        Button("Clear All", systemImage: "trash.slash", role: .destructive) { clearAll = true }
+                            .disabled(store.groceries.isEmpty)
                     } label: { Label("List options", systemImage: "ellipsis") }
                 }
                 ToolbarItem(id: "grocery-add", placement: .topBarTrailing) {
@@ -183,6 +186,11 @@ struct GroceryListView: View {
             }
             .confirmationDialog("Clear all completed items?", isPresented: $clearCompleted, titleVisibility: .visible) {
                 Button("Clear Completed", role: .destructive) { store.clearCompletedGroceries() }
+            }
+            .confirmationDialog("Clear the entire grocery list?", isPresented: $clearAll, titleVisibility: .visible) {
+                Button("Clear All Items", role: .destructive) { store.clearAllGroceries() }
+            } message: {
+                Text("This removes every item, including ones not yet bought, for everyone in your household.")
             }
         }
     }

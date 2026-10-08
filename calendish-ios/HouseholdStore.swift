@@ -596,6 +596,10 @@ final class HouseholdStore {
         removeGroceries(groceries.filter(\.isComplete))
     }
 
+    func clearAllGroceries() {
+        removeGroceries(groceries)
+    }
+
     // MARK: Saving
 
     /// Runs a write in the background. On failure, shows the error and refetches so the screen matches the server.
