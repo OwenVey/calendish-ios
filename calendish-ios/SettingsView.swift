@@ -187,13 +187,14 @@ struct HouseholdSettingsView: View {
     @State private var confirmDelete = false
     @State private var deleting = false
     @State private var deleteError: String?
+    @State private var memberToRemove: HouseholdMember?
     var body: some View {
         Form {
             Section("Name") {
                 TextField("Household name", text: $householdName)
                     .onSubmit { saveName() }
             }
-            Section("Members") {
+            Section {
                 ForEach(store.members) { member in
                     HStack(spacing: 12) {
                         MemberAvatar(member: member, size: 32)
@@ -202,6 +203,17 @@ struct HouseholdSettingsView: View {
                         Spacer()
                         Text(member.role.capitalized).foregroundStyle(.secondary)
                     }
+                    .swipeActions {
+                        if store.isOwner && member.role != "owner" {
+                            Button("Remove", role: .destructive) { memberToRemove = member }
+                        }
+                    }
+                }
+            } header: {
+                Text("Members")
+            } footer: {
+                if store.isOwner && store.members.count > 1 {
+                    Text("Swipe left on a member to remove them from your household.")
                 }
             }
             if let code = store.household?.inviteCode {
@@ -237,6 +249,12 @@ struct HouseholdSettingsView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This permanently removes all recipes, meal plans, and grocery items for everyone in your household. This can’t be undone.")
+        }
+        .alert("Remove \(memberToRemove?.displayName ?? "Member")?", isPresented: Binding(get: { memberToRemove != nil }, set: { if !$0 { memberToRemove = nil } }), presenting: memberToRemove) { member in
+            Button("Remove", role: .destructive) { store.removeMember(member) }
+            Button("Cancel", role: .cancel) { }
+        } message: { _ in
+            Text("They’ll lose access to your household’s recipes, meal plans, and grocery list. They can rejoin with the invite code.")
         }
         .alert("Couldn’t Delete Data", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
             Button("OK") { }

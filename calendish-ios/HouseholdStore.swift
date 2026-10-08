@@ -273,16 +273,23 @@ final class HouseholdStore {
         guard !isPreview, let id = household?.id else { return }
         let session = syncSession
         let revision = writeRevision
-        async let householdRow: HouseholdRecord = supabase.from("households").select().eq("id", value: id).single().execute().value
+        async let householdRows: [HouseholdRecord] = supabase.from("households").select().eq("id", value: id).execute().value
         async let memberRows: [MemberRecord] = fetchRows("household_members", householdID: id, idColumn: "user_id", key: \.userID)
         async let recipeRows: [RecipeRecord] = fetchRows("recipes", householdID: id, key: \.id)
         async let mealRows: [PlannedMealRecord] = fetchRows("planned_meals", householdID: id, key: \.id)
         async let groceryRefresh: Void = grocerySync.refresh()
-        let (h, m, r, p, _) = try await (householdRow, memberRows, recipeRows, mealRows, groceryRefresh)
+        let (hs, m, r, p, _) = try await (householdRows, memberRows, recipeRows, mealRows, groceryRefresh)
         guard !Task.isCancelled, session == syncSession, household?.id == id else { return }
+        // Row Level Security hides the household once the owner removes this user.
+        guard let h = hs.first, m.contains(where: { $0.userID == userID }) else {
+            await leaveRemovedHousehold()
+            return
+        }
         if pendingWrites == 0, revision == writeRevision {
             household = Household(id: h.id, name: h.name, inviteCode: h.inviteCode)
-            members = m.map { HouseholdMember(userID: $0.userID, displayName: $0.displayName, role: $0.role, avatarURL: $0.avatarURL.flatMap(URL.init)) }
+            // The owner first, then everyone else in the order they joined.
+            members = m.sorted { ($0.role == "owner" ? 0 : 1, $0.joinedAt ?? .distantPast) < ($1.role == "owner" ? 0 : 1, $1.joinedAt ?? .distantPast) }
+                .map { HouseholdMember(userID: $0.userID, displayName: $0.displayName, role: $0.role, avatarURL: $0.avatarURL.flatMap(URL.init)) }
             recipes = r.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }.map(Recipe.init)
             meals = p.compactMap(PlannedMeal.init)
         }
@@ -525,6 +532,22 @@ final class HouseholdStore {
             _ = try? await supabase.storage.from(RecipePhotos.bucket).remove(paths: batch)
         }
         await refresh()
+    }
+
+    /// Owner only. Removes another member, who loses access to the household right away.
+    func removeMember(_ member: HouseholdMember) {
+        guard isOwner, member.role != "owner", let householdID = household?.id else { return }
+        members.removeAll { $0.userID == member.userID }
+        save {
+            try await supabase.from("household_members").delete()
+                .eq("household_id", value: householdID).eq("user_id", value: member.userID).execute()
+        }
+    }
+
+    /// Drops the household's data after this user was removed from it, and returns to the join or create screen.
+    private func leaveRemovedHousehold() async {
+        await resetAccountData()
+        phase = .needsHousehold
     }
 
     // MARK: Saving
