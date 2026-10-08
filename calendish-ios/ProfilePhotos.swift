@@ -61,12 +61,20 @@ struct ProfilePhotoControl: View {
                     }
                 }
             } label: {
-                VStack(spacing: 8) {
-                    MemberAvatar(member: store.currentMember, size: 88)
-                    Text(hasPhoto ? "Change Photo" : "Add Photo").font(.body)
-                }
-                .padding(.vertical, 6)
-                .contentShape(Rectangle())
+                MemberAvatar(member: store.currentMember, size: 88)
+                    .overlay(alignment: .bottomTrailing) {
+                        Image(systemName: hasPhoto ? "pencil" : "plus")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(CalendishStyle.onAccent)
+                            .frame(width: 26, height: 26)
+                            .background(CalendishStyle.accent, in: .circle)
+                            .overlay {
+                                Circle().strokeBorder(Color(uiColor: .systemGroupedBackground), lineWidth: 2)
+                            }
+                            .accessibilityHidden(true)
+                    }
+                    .padding(6)
+                    .contentShape(Rectangle())
             }
             .accessibilityLabel(hasPhoto ? "Change profile photo" : "Add profile photo")
             .accessibilityHint("Choose a photo or take one with the camera")
