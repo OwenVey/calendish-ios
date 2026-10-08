@@ -155,6 +155,7 @@ final class HouseholdStore {
         inviteToReview = nil
         // Private recipe photos must not survive an account change on this device.
         RecipePhotos.shared.clearCache()
+        ProfilePhotos.shared.clearCache()
     }
 
     /// Signs in with Google's native sheet and hands the ID token to Supabase. Does nothing if the person cancels.
@@ -330,12 +331,63 @@ final class HouseholdStore {
     private func syncAvatar() {
         guard let householdID = household?.id, let userID,
               case let .string(avatar)? = client.auth.currentUser?.userMetadata["avatar_url"] ?? client.auth.currentUser?.userMetadata["picture"],
-              let url = URL(string: avatar), currentMember?.avatarURL != url,
+              let url = URL(string: avatar), currentMember?.avatarURL == nil,
               let index = members.firstIndex(where: { $0.userID == userID }) else { return }
         members[index].avatarURL = url
         save { [client] in
             try await client.from("household_members").update(["avatar_url": avatar])
                 .eq("household_id", value: householdID).eq("user_id", value: userID).execute()
+        }
+    }
+
+    /// Commit the member row only after uploading. A sentinel reference records explicit removal,
+    /// so Google cannot restore a photo the person chose to remove. Household moves preserve it.
+    func setProfilePhoto(_ image: UIImage?) async throws {
+        guard let householdID = household?.id, let userID else { throw CancellationError() }
+        let session = syncSession
+        let oldURL = currentMember?.avatarURL
+        var newURL = ProfilePhotos.removedReference
+        var uploadedPath: String?
+        if let image {
+            guard let data = image.jpegData(compressionQuality: 0.85) else { throw CocoaError(.fileWriteUnknown) }
+            let path = "\(userID.uuidString.lowercased())/\(UUID().uuidString.lowercased()).jpg"
+            newURL = ProfilePhotos.reference(path: path)
+            if !isPreview {
+                try await client.storage.from(ProfilePhotos.bucket).upload(path, data: data, options: .init(cacheControl: "0", contentType: "image/jpeg"))
+                uploadedPath = path
+            }
+            ProfilePhotos.shared.insert(image, for: newURL)
+        }
+        var memberWriteStarted = false
+        do {
+            guard session == syncSession else { throw CancellationError() }
+            if !isPreview {
+                memberWriteStarted = true
+                let rows: [MemberRecord] = try await client.from("household_members")
+                    .update(["avatar_url": newURL.absoluteString])
+                    .eq("household_id", value: householdID).eq("user_id", value: userID)
+                    .select().execute().value
+                guard rows.count == 1 else { throw CocoaError(.fileWriteNoPermission) }
+            }
+        } catch {
+            // A lost response can follow a successful commit. Never delete a photo that the
+            // member row might now reference; confirm the result before rolling back Storage.
+            let rows: [MemberRecord]? = memberWriteStarted && session == syncSession
+                ? try? await client.from("household_members").select()
+                    .eq("household_id", value: householdID).eq("user_id", value: userID).execute().value
+                : nil
+            if rows?.first?.avatarURL != newURL.absoluteString {
+                if let uploadedPath, !memberWriteStarted || rows != nil {
+                    _ = try? await client.storage.from(ProfilePhotos.bucket).remove(paths: [uploadedPath])
+                }
+                throw error
+            }
+        }
+        if session == syncSession, let index = members.firstIndex(where: { $0.userID == userID }) {
+            members[index].avatarURL = newURL
+        }
+        if !isPreview, let oldPath = ProfilePhotos.path(for: oldURL) {
+            _ = try? await client.storage.from(ProfilePhotos.bucket).remove(paths: [oldPath])
         }
     }
 

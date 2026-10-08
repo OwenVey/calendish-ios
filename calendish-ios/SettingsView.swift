@@ -146,7 +146,7 @@ struct ProfileSettingsView: View {
         Form {
             Section {
                 VStack(spacing: 10) {
-                    MemberAvatar(member: store.currentMember, size: 88)
+                    ProfilePhotoControl()
                     Text(store.currentMember?.displayName ?? "You").font(.title2.weight(.semibold))
                 }
                 .frame(maxWidth: .infinity)

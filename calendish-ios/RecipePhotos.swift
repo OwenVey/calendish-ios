@@ -180,7 +180,7 @@ nonisolated struct PickedImage: Transferable {
 }
 
 /// The system camera. SwiftUI has no camera picker of its own.
-private struct CameraPicker: UIViewControllerRepresentable {
+struct CameraPicker: UIViewControllerRepresentable {
     var onCapture: (UIImage) -> Void
     @Environment(\.dismiss) private var dismiss
 

@@ -8,6 +8,48 @@ final class HouseholdUITests: XCTestCase {
         app.launch()
         return app
     }
+    func testProfilePhotoPickerCanCancelWithoutChangingProfile() {
+        let app = launch()
+        app.buttons["Settings"].tap()
+        app.cells.containing(.staticText, identifier: "Owen").firstMatch.tap()
+        let addPhoto = app.buttons["Add profile photo"]
+        XCTAssertTrue(addPhoto.waitForExistence(timeout: 5))
+        addPhoto.tap()
+        app.buttons["Choose from Library"].tap()
+        XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].tap()
+        XCTAssertTrue(addPhoto.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Change profile photo"].exists)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Native profile photo controls"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    func testProfilePhotoCanBeCroppedSavedAndRemoved() {
+        let app = launch()
+        app.buttons["Settings"].tap()
+        app.cells.containing(.staticText, identifier: "Owen").firstMatch.tap()
+        app.buttons["Add profile photo"].tap()
+        app.buttons["Choose from Library"].tap()
+        let photo = app.images.matching(NSPredicate(format: "label BEGINSWITH %@", "Photo,")).firstMatch
+        XCTAssertTrue(photo.waitForExistence(timeout: 5), app.debugDescription)
+        photo.tap()
+        let use = app.buttons["Use Photo"]
+        XCTAssertTrue(use.waitForExistence(timeout: 5))
+        app.sliders["Photo Zoom"].adjust(toNormalizedSliderPosition: 0.4)
+        let crop = XCTAttachment(screenshot: app.screenshot())
+        crop.name = "Circular profile photo crop"
+        crop.lifetime = .keepAlways
+        add(crop)
+        use.tap()
+        let change = app.buttons["Change profile photo"]
+        XCTAssertTrue(change.waitForExistence(timeout: 5))
+        change.tap()
+        app.buttons["Remove Photo"].tap()
+        XCTAssertTrue(app.buttons["Add profile photo"].waitForExistence(timeout: 5))
+    }
+
     func testOnboardingOnlyAsksForName() {
         let app = launch("--ui-setup")
         XCTAssertTrue(app.textFields["Your name"].waitForExistence(timeout: 5))
