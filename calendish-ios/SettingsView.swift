@@ -207,7 +207,8 @@ struct HouseholdSettingsView: View {
                     }
                     .swipeActions {
                         if store.isOwner && member.role != "owner" {
-                            Button("Remove", role: .destructive) { memberToRemove = member }
+                            Button("Remove") { memberToRemove = member }
+                                .tint(.red)
                         }
                     }
                 }
@@ -273,7 +274,7 @@ struct HouseholdSettingsView: View {
             Button("Remove", role: .destructive) { store.removeMember(member) }
             Button("Cancel", role: .cancel) { }
         } message: { _ in
-            Text("They’ll lose access to your household’s recipes, meal plans, and grocery list. They can rejoin with the invite code.")
+            Text("They’ll lose access to your household’s recipes, meal plans, and grocery list. Your invite code will change, so anyone you invited who hasn’t joined yet will need the new one.")
         }
         .alert("Couldn’t Delete Data", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
             Button("OK") { }

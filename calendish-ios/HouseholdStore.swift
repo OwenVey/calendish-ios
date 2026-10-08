@@ -534,13 +534,14 @@ final class HouseholdStore {
         await refresh()
     }
 
-    /// Owner only. Removes another member, who loses access to the household right away.
+    /// Owner only. Removes another member, who loses access to the household right away, and replaces
+    /// the invite code so they can't rejoin with it. The refetch after the save picks up the new code.
     func removeMember(_ member: HouseholdMember) {
         guard isOwner, member.role != "owner", let householdID = household?.id else { return }
         members.removeAll { $0.userID == member.userID }
         save {
-            try await supabase.from("household_members").delete()
-                .eq("household_id", value: householdID).eq("user_id", value: member.userID).execute()
+            try await supabase.rpc("remove_household_member",
+                                   params: ["target_household": householdID, "target_user": member.userID]).execute()
         }
     }
 
