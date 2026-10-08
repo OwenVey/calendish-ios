@@ -118,7 +118,7 @@ struct RecipeBookView: View {
             }
         }
         .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }
-        .alert("Delete “\(recipeToDelete?.title ?? "recipe")”?", isPresented: $confirmDelete, presenting: recipeToDelete) { recipe in
+        .calendishAlert("Delete “\(recipeToDelete?.title ?? "recipe")”?", isPresented: $confirmDelete, presenting: recipeToDelete) { recipe in
             Button("Delete Recipe", role: .destructive) {
                 store.deleteRecipe(recipe)
                 recipeToDelete = nil
@@ -160,7 +160,7 @@ struct RecipeBookView: View {
                 fileError = error.localizedDescription
             }
         }
-        .alert("Couldn’t Open File", isPresented: Binding(get: { fileError != nil }, set: { if !$0 { fileError = nil } })) {
+        .calendishAlert("Couldn’t Open File", isPresented: Binding(get: { fileError != nil }, set: { if !$0 { fileError = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(fileError ?? "")

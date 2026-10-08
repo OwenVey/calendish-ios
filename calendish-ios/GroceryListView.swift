@@ -184,7 +184,7 @@ struct GroceryListView: View {
                     Button("New Item", systemImage: "plus", action: beginAddingItem).toolbarGlyph()
                 }
             }
-            .alert("Clear the Entire Grocery List?", isPresented: $clearAll) {
+            .calendishAlert("Clear the Entire Grocery List?", isPresented: $clearAll) {
                 Button("Clear All Items", role: .destructive) { store.clearAllGroceries() }
                 Button("Cancel", role: .cancel) { }
             } message: {

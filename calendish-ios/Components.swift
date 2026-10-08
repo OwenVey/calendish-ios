@@ -257,6 +257,33 @@ struct SectionHeading: View {
 }
 
 extension View {
+    /// Native alerts use a neutral tint for secondary actions, including Cancel. The system's
+    /// default action retains the app's accent fill; destructive roles retain their red color.
+    /// An independent presenter keeps this tint from affecting the screen's ordinary controls.
+    func calendishAlert<Actions: View, Message: View>(
+        _ title: String, isPresented: Binding<Bool>,
+        @ViewBuilder actions: @escaping () -> Actions,
+        @ViewBuilder message: @escaping () -> Message
+    ) -> some View {
+        background {
+            Color.clear.frame(width: 0, height: 0)
+                .alert(Text(title), isPresented: isPresented, actions: actions, message: message)
+                .tint(Color.primary)
+        }
+    }
+
+    func calendishAlert<Data, Actions: View, Message: View>(
+        _ title: String, isPresented: Binding<Bool>, presenting data: Data?,
+        @ViewBuilder actions: @escaping (Data) -> Actions,
+        @ViewBuilder message: @escaping (Data) -> Message
+    ) -> some View {
+        background {
+            Color.clear.frame(width: 0, height: 0)
+                .alert(Text(title), isPresented: isPresented, presenting: data, actions: actions, message: message)
+                .tint(Color.primary)
+        }
+    }
+
     /// Shared title and list spacing for top-level tab screens, so switching tabs never shifts the header or first section.
     /// The zero top margin drops the grouped list's default gap, so content starts where a search field would.
     func tabRootStyle() -> some View {

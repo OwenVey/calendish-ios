@@ -87,7 +87,7 @@ struct CookModeView: View {
                     }
                 )) {
                     ingredientList
-                        .alert("Timer Done", isPresented: timerAlertPresented(onIngredients: true)) {
+                        .calendishAlert("Timer Done", isPresented: timerAlertPresented(onIngredients: true)) {
                             Button("Done") { }
                         } message: { Text(timerFinishedMessage) }
                         .presentationDetents([.height(sheetHeight), .large])
@@ -117,7 +117,7 @@ struct CookModeView: View {
         .onChange(of: stepIndex) { _, _ in ingredientFocus = nil }
         .sensoryFeedback(.selection, trigger: stepIndex) { _, _ in haptics }
         .sensoryFeedback(.success, trigger: timerStore.finished.first?.id) { _, _ in haptics }
-        .alert("Timer Done", isPresented: timerAlertPresented(onIngredients: false)) {
+        .calendishAlert("Timer Done", isPresented: timerAlertPresented(onIngredients: false)) {
             Button("Done") { }
         } message: { Text(timerFinishedMessage) }
         .onAppear {

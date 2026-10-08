@@ -40,7 +40,7 @@ struct ContentView: View {
         .environment(store)
         .environment(timers)
         .task(id: timers.timers.map(\.end)) { await timers.waitForNextTimer() }
-        .alert("Timer Done", isPresented: Binding(get: { !timers.finished.isEmpty && !timers.isCooking }, set: { if !$0 && !timers.isCooking { timers.acknowledge() } })) {
+        .calendishAlert("Timer Done", isPresented: Binding(get: { !timers.finished.isEmpty && !timers.isCooking }, set: { if !$0 && !timers.isCooking { timers.acknowledge() } })) {
             Button("Done") { }
         } message: {
             Text(timers.finished.map { "\($0.recipeTitle), step \($0.stepIndex + 1): your \($0.durationText) timer is up." }.joined(separator: "\n\n"))
@@ -90,7 +90,7 @@ struct ContentView: View {
                 .environment(store)
                 .onAppear { SharedInbox.remove(share.id) }
         }
-        .alert("Couldn’t sync", isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) {
+        .calendishAlert("Couldn’t sync", isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) {
             Button("OK") {}
         } message: {
             Text(store.errorMessage ?? "")

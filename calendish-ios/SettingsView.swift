@@ -188,8 +188,11 @@ struct HouseholdSettingsView: View {
     @State private var deleting = false
     @State private var deleteError: String?
     @State private var memberToRemove: HouseholdMember?
-    @State private var showJoin = false
-    @State private var showLeave = false
+    private enum HouseholdChange: String, Identifiable {
+        case join, leave
+        var id: String { rawValue }
+    }
+    @State private var householdChange: HouseholdChange?
     @State private var memberToOwn: HouseholdMember?
     @State private var copiedCode = false
     @State private var copiedReset: Task<Void, Never>?
@@ -203,68 +206,79 @@ struct HouseholdSettingsView: View {
                 ForEach(store.members) { member in
                     HStack(spacing: 12) {
                         MemberAvatar(member: member, size: 32)
-                        Text(member.displayName)
-                        if member.userID == store.userID { Text("(You)").foregroundStyle(.secondary) }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(member.displayName)
+                            Text(member.userID == store.userID ? "You · \(member.role.capitalized)" : member.role.capitalized)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
                         Spacer()
-                        Text(member.role.capitalized).foregroundStyle(.secondary)
-                    }
-                    .swipeActions {
                         if store.isOwner && member.role != "owner" {
-                            Button("Make Owner") { memberToOwn = member }.tint(.orange)
-                            Button("Remove") { memberToRemove = member }
-                                .tint(.red)
+                            Menu {
+                                Button("Make Owner", systemImage: "person.badge.key") { memberToOwn = member }
+                                Button("Remove Member", systemImage: "person.badge.minus", role: .destructive) { memberToRemove = member }
+                            } label: {
+                                Image(systemName: "ellipsis")
+                                    .foregroundStyle(Color.secondary)
+                                    .frame(minWidth: 44, minHeight: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .accessibilityLabel("Actions for \(member.displayName)")
                         }
                     }
+                }
+                if let code = store.household?.inviteCode {
+                    Menu {
+                        ShareLink(item: "Join my household on Calendish: \(HouseholdInvite.link(for: code).absoluteString)\nInvite code: \(code)") {
+                            Label("Share Invitation", systemImage: "square.and.arrow.up")
+                        }
+                        Button("Copy Code", systemImage: "doc.on.doc") { copyInviteCode(code) }
+                    } label: {
+                        LabeledContent {
+                            HStack(spacing: 8) {
+                                Text(code).font(.body.monospaced())
+                                Image(systemName: copiedCode ? "checkmark" : "chevron.down")
+                                    .font(.footnote.weight(.semibold))
+                                    .frame(width: 16)
+                                    .contentTransition(.symbolEffect(.replace))
+                            }
+                            .foregroundStyle(.secondary)
+                        } label: {
+                            Label("Invite Members", systemImage: "person.badge.plus")
+                                .foregroundStyle(Color.accentColor)
+                        }
+                    }
+                    .accessibilityIdentifier("household-invitation")
+                    .accessibilityLabel("Invite Members")
+                    .accessibilityValue(copiedCode ? "Code copied" : code)
+                    .accessibilityHint("Share an invitation or copy the invite code")
+                    .sensoryFeedback(.success, trigger: copiedCode) { _, new in new }
                 }
             } header: {
                 Text("Members")
             } footer: {
-                if store.isOwner && store.members.count > 1 {
-                    Text("Swipe left on a member to remove them from your household.")
-                }
-            }
-            if let code = store.household?.inviteCode {
-                Section {
-                    Button { copyInviteCode(code) } label: {
-                        LabeledContent("Invite code") {
-                            HStack(spacing: 8) {
-                                Text(code).font(.body.monospaced())
-                                // Hidden copy icon reserves a fixed size so the shorter checkmark can't shift the row.
-                                Image(systemName: "doc.on.doc").hidden()
-                                    .overlay {
-                                        Image(systemName: copiedCode ? "checkmark" : "doc.on.doc")
-                                            .foregroundStyle(copiedCode ? Color.accentColor : .secondary)
-                                            .contentTransition(.symbolEffect(.replace))
-                                    }
-                            }
-                        }
-                    }
-                    .tint(.primary)
-                    .contextMenu {
-                        Button("Copy", systemImage: "doc.on.doc") { copyInviteCode(code) }
-                    }
-                    .accessibilityHint("Copies the invite code")
-                    .sensoryFeedback(.success, trigger: copiedCode) { _, new in new }
-                    ShareLink(item: "Join my household on Calendish: \(HouseholdInvite.link(for: code).absoluteString)\nInvite code: \(code)") {
-                        Label("Invite Members", systemImage: "person.badge.plus")
-                    }
-                } footer: {
-                    Text("Someone joins by creating an account and entering this code.")
-                }
+                Text("Share an invitation or copy the code.")
             }
             Section {
-                Button("Join Household") { showJoin = true }
-                Button("Leave Household", role: .destructive) { showLeave = true }
+                Button("Join Household", systemImage: "person.2.badge.plus") { householdChange = .join }
+                Button("Leave Household", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) { householdChange = .leave }
+                    // Form row icons use list-item tint separately from the button's destructive title.
+                    .listItemTint(.red)
+            } header: {
+                Text("Change Household")
             } footer: {
-                Text("Your personal recipes follow you. Review what stays behind before making a change.")
+                Text("Your personal recipes stay with you.")
             }
             if store.isOwner {
                 Section {
                     Button(role: .destructive) { confirmDelete = true } label: {
-                        if deleting { ProgressView() } else { Text("Delete All Data") }
+                        if deleting { ProgressView("Deleting Household Data…") }
+                        else { Label("Delete Household Data", systemImage: "trash") }
                     }
-                    .frame(maxWidth: .infinity)
+                    .listItemTint(.red)
                     .disabled(deleting)
+                } header: {
+                    Text("Household Data")
                 } footer: {
                     Text("Deletes household-owned recipes, meal plans, and groceries. Personal recipes, members, and the invite code stay.")
                 }
@@ -273,41 +287,44 @@ struct HouseholdSettingsView: View {
         .navigationTitle("Household")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { householdName = store.household?.name ?? "" }
+        .onChange(of: store.household?.id) { _, _ in householdName = store.household?.name ?? "" }
         .onDisappear { saveName() }
-        .alert("Delete All Household Data?", isPresented: $confirmDelete) {
-            Button("Delete All Data", role: .destructive) { deleteAllData() }
+        .calendishAlert("Delete Household Data?", isPresented: $confirmDelete) {
+            Button("Delete Household Data", role: .destructive) { deleteAllData() }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This permanently removes household-owned recipes, meal plans, and groceries. Everyone’s personal recipes stay. This can’t be undone.")
         }
-        .alert("Remove \(memberToRemove?.displayName ?? "Member")?", isPresented: Binding(get: { memberToRemove != nil }, set: { if !$0 { memberToRemove = nil } }), presenting: memberToRemove) { member in
+        .calendishAlert("Remove \(memberToRemove?.displayName ?? "Member")?", isPresented: Binding(get: { memberToRemove != nil }, set: { if !$0 { memberToRemove = nil } }), presenting: memberToRemove) { member in
             Button("Remove", role: .destructive) { store.removeMember(member) }
             Button("Cancel", role: .cancel) { }
         } message: { _ in
             Text("They keep their personal recipes and receive a fresh solo household. Their shared recipes remain here as independent household copies. Your invite code will change.")
         }
-        .sheet(isPresented: $showJoin) { HouseholdMoveView() }
-        .sheet(isPresented: $showLeave) { HouseholdMoveView(leaving: true) }
-        .alert("Transfer Ownership?", isPresented: Binding(get: { memberToOwn != nil }, set: { if !$0 { memberToOwn = nil } }), presenting: memberToOwn) { member in
-            Button("Make Owner") { store.transferOwnership(to: member); memberToOwn = nil }
+        .sheet(item: $householdChange) { change in
+            HouseholdMoveView(leaving: change == .leave)
+        }
+        .calendishAlert("Transfer Ownership?", isPresented: Binding(get: { memberToOwn != nil }, set: { if !$0 { memberToOwn = nil } }), presenting: memberToOwn) { member in
+            Button("Make Owner", role: .confirm) { store.transferOwnership(to: member); memberToOwn = nil }
+                .keyboardShortcut(.defaultAction)
             Button("Cancel", role: .cancel) { memberToOwn = nil }
         } message: { member in
             Text("\(member.displayName) will manage membership. You’ll remain a member and can still edit household recipes, groceries, and meals.")
         }
-        .alert("Couldn’t Delete Data", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+        .calendishAlert("Couldn’t Delete Data", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
             Button("OK") { }
         } message: {
             Text("Nothing was deleted. \(deleteError ?? "")")
         }
     }
     private func saveName() { store.renameHousehold(to: householdName.trimmingCharacters(in: .whitespaces)) }
-    /// Copies the code and briefly swaps the copy icon for a checkmark.
+    /// Copies the code and briefly confirms it with a checkmark in the invitation row.
     private func copyInviteCode(_ code: String) {
         UIPasteboard.general.string = code
         copiedCode = true
         copiedReset?.cancel()
         copiedReset = Task {
-            try? await Task.sleep(for: .seconds(1.5))
+            try? await Task.sleep(for: .seconds(3))
             guard !Task.isCancelled else { return }
             copiedCode = false
         }

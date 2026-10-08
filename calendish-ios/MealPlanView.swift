@@ -129,7 +129,7 @@ struct MealPlanView: View {
         .sheet(item: $reviewPeriod) { period in
             GroceryImportReviewView(candidates: groceryCandidates(for: period))
         }
-        .alert("Remove This Planned Meal?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } })) {
+        .calendishAlert("Remove This Planned Meal?", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } })) {
             Button("Remove Meal", role: .destructive) {
                 if let removing { store.removeMeal(removing) }
                 removing = nil
