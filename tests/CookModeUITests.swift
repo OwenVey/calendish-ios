@@ -9,7 +9,7 @@ final class CookModeUITests: XCTestCase {
         let recipe = app.staticTexts["Sheet pan lemon chicken"]
         XCTAssertTrue(recipe.waitForExistence(timeout: 10))
         recipe.tap()
-        app.buttons["Start Cooking"].tap()
+        app.buttons["Cook"].tap()
         XCTAssertTrue(app.buttons["cook-ingredients-close"].waitForExistence(timeout: 5))
         app.buttons["cook-ingredients-close"].tap()
         XCTAssertTrue(app.staticTexts["Step 1 of 5"].exists)
@@ -79,7 +79,7 @@ final class CookModeUITests: XCTestCase {
         let recipe = app.staticTexts["Sheet pan lemon chicken"]
         XCTAssertTrue(recipe.waitForExistence(timeout: 10))
         recipe.tap()
-        app.buttons["Start Cooking"].tap()
+        app.buttons["Cook"].tap()
         let sheetTitle = app.staticTexts["All Ingredients"]
         XCTAssertTrue(sheetTitle.waitForExistence(timeout: 5))
         let instruction = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Heat the oven to 425")).firstMatch

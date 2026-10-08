@@ -102,7 +102,7 @@ struct MealPlanView: View {
                     Button("This Week", systemImage: "calendar.day.timeline.left") { reviewPeriod = .week }
                     Button("This Month", systemImage: "calendar") { reviewPeriod = .month }
                 } label: {
-                    Label("Review groceries", systemImage: "basket")
+                    Label("Review Groceries", systemImage: "basket")
                 }
             }
         }
@@ -300,7 +300,7 @@ struct MealPickerView: View {
                             .accessibilityAddTraits(recipeID == recipe.id ? .isSelected : [])
                     }
                     if recipes.isEmpty {
-                        ContentUnavailableView(store.recipes.isEmpty ? "Add a Recipe First" : "No Matching Recipes", systemImage: "book.closed", description: Text(store.recipes.isEmpty ? "Open Recipes and tap Add Recipe to write your first dish." : "Try another search."))
+                        ContentUnavailableView(store.recipes.isEmpty ? "Add a Recipe First" : "No Matching Recipes", systemImage: "book.closed", description: Text(store.recipes.isEmpty ? "Open Recipes and tap + to add your first dish." : "Try another search."))
                     }
                 }
     }
@@ -333,7 +333,7 @@ struct MealPickerView: View {
                 recipeChoices
             }
             .searchable(text: $search, prompt: "Find a recipe")
-            .navigationTitle(selection.meal == nil ? "Plan a meal" : "Edit meal").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(selection.meal == nil ? "Plan Meal" : "Edit Meal").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } }.toolbarGlyph()

@@ -177,7 +177,7 @@ struct RecipeBookView: View {
                         Button("Choose from Photos", systemImage: "photo.on.rectangle") { showPhotoPicker = true }
                         Button("Choose File", systemImage: "folder") { showFilePicker = true }
                     }
-                } label: { Label("Add recipe", systemImage: "plus") }
+                } label: { Label("New Recipe", systemImage: "plus") }
             }
         }
         .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }
@@ -484,7 +484,7 @@ struct RecipeDetailView: View {
             }
             ToolbarSpacer(.fixed, placement: .topBarTrailing)
             ToolbarItem(placement: .topBarTrailing) {
-                Button { isCooking = true } label: { OnAccentLabel(title: "Start Cooking", systemImage: "play.fill") }
+                Button { isCooking = true } label: { OnAccentLabel(title: "Cook", systemImage: "frying.pan") }
                     .labelStyle(.iconOnly)
                     .modifier(GlassActionStyle(prominent: true))
                     .disabled(recipe.steps.isEmpty)
@@ -662,52 +662,104 @@ struct RecipeEditorView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if original == nil {
-                    Section {
-                        Toggle("Share with Household", isOn: $shareNewRecipe)
-                    } footer: {
-                        Text(shareNewRecipe ? "Only you edit your original. If you stop sharing, delete it, or leave, your household keeps an independent copy." : "Only me: this recipe is private to your collection.")
-                    }
+                Section {
+                    TextField("Recipe Title", text: $title)
+                        .font(.title3.weight(.semibold))
+                    ServingsField(servings: $servings)
+                    RecipeDurationField(title: "Prep time", minutes: $prepMinutes)
+                    RecipeDurationField(title: "Cook time", minutes: $cookMinutes)
+                } footer: {
+                    if !canSave { Text("To save, add a title, at least one ingredient, and one instruction.") }
                 }
                 Section {
                     PhotoSourceMenu(hasPhoto: hasPhoto, onPick: { newPhoto = $0; draftPhoto = RecipePhotos.uploadData(for: $0) }, onRemove: { newPhoto = nil; draftPhoto = nil; removesPhoto = true }) {
-                        VStack(spacing: 12) {
+                        HStack(spacing: 14) {
                             ZStack {
-                                RoundedRectangle(cornerRadius: 20).fill(Color(.tertiarySystemFill))
+                                RoundedRectangle(cornerRadius: 10).fill(Color(.tertiarySystemFill))
                                 if let newPhoto {
                                     Image(uiImage: newPhoto).resizable().scaledToFill()
                                 } else if let keptPhotoPath {
                                     RecipePhoto(path: keptPhotoPath)
                                 } else {
-                                    Image(systemName: "camera").font(.system(size: 40, weight: .light)).foregroundStyle(.secondary)
+                                    Image(systemName: "camera").font(.title3).foregroundStyle(.secondary)
                                 }
                             }
-                            .frame(height: 180)
-                            .clipShape(.rect(cornerRadius: 20))
+                            .frame(width: 56, height: 56)
+                            .clipShape(.rect(cornerRadius: 10))
                             Text(hasPhoto ? "Edit Photo" : "Add Photo")
-                                .font(.subheadline.weight(.semibold)).foregroundStyle(CalendishStyle.accent)
+                                .foregroundStyle(CalendishStyle.accent)
+                            Spacer(minLength: 0)
                         }
                         .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(hasPhoto ? "Edit Photo" : "Add Photo")
                 }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
                 Section {
-                    TextField("Recipe Title (Required)", text: $title)
-                    TextField("A little about this recipe", text: $summary, axis: .vertical)
-                    TextField("Recipe Link", text: $sourceLink)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    TextField("Category, like Dinner or Dessert", text: $category)
-                    ServingsField(servings: $servings)
-                    TextField("Yield, like 24 cookies", text: $yieldText)
-                    RecipeDurationField(title: "Prep time", minutes: $prepMinutes)
-                    RecipeDurationField(title: "Cook time", minutes: $cookMinutes)
-                } header: { Text("The Basics") } footer: {
-                    if !canSave { Text("To save, add a title, at least one ingredient, and one instruction.") }
+                    ForEach($ingredients) { $ingredient in
+                        TextField("e.g. 2 cups flour", text: $ingredient.text)
+                            .focused($focusedIngredient, equals: ingredient.id)
+                            .submitLabel(.next)
+                            .onSubmit { addIngredient(after: ingredient.id) }
+                    }
+                    .onMove { source, destination in
+                        ingredients.move(fromOffsets: source, toOffset: destination)
+                    }
+                    .onDelete { offsets in
+                        ingredients.remove(atOffsets: offsets)
+                    }
+
+                    Button("Add Ingredient", systemImage: "plus.circle.fill") {
+                        addIngredient(after: ingredients.last?.id)
+                    }
+                } header: {
+                    Text("Ingredients")
+                } footer: {
+                    Text("At least one entry is required. Drag the handles to reorder.")
+                }
+                Section {
+                    ForEach($steps) { $step in
+                        HStack(alignment: .top, spacing: 12) {
+                            Text("\((steps.firstIndex { $0.id == step.id } ?? 0) + 1).")
+                                .monospacedDigit().foregroundStyle(.secondary)
+                            TextField("Describe this step", text: $step.text, axis: .vertical)
+                                .lineLimit(3...8)
+                                .focused($focusedStep, equals: step.id)
+                        }
+                    }
+                    .onMove { source, destination in
+                        steps.move(fromOffsets: source, toOffset: destination)
+                    }
+                    .onDelete { offsets in
+                        steps.remove(atOffsets: offsets)
+                    }
+
+                    Button("Add Step", systemImage: "plus.circle.fill") {
+                        let step = StepDraft()
+                        steps.append(step)
+                        focusedStep = step.id
+                    }
+                } header: {
+                    Text("Instructions")
+                } footer: {
+                    Text("At least one entry is required. Drag the handles to reorder.")
+                }
+                Section("Details") {
+                    LabeledFormField("Description") {
+                        TextField("A little about this recipe", text: $summary, axis: .vertical)
+                    }
+                    LabeledFormField("Source Link") {
+                        TextField("https://", text: $sourceLink)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    }
+                    LabeledFormField("Category") {
+                        TextField("Dinner or Dessert", text: $category)
+                    }
+                    LabeledFormField("Yield") {
+                        TextField("24 cookies", text: $yieldText)
+                    }
                 }
                 Section {
                     if !tags.isEmpty {
@@ -749,59 +801,17 @@ struct RecipeEditorView: View {
                 } footer: {
                     if !tags.isEmpty { Text("Tap a tag to remove it.") }
                 }
-                Section {
-                    ForEach($ingredients) { $ingredient in
-                        TextField("e.g. 2 cups flour", text: $ingredient.text)
-                            .focused($focusedIngredient, equals: ingredient.id)
-                            .submitLabel(.next)
-                            .onSubmit { addIngredient(after: ingredient.id) }
+                if original == nil {
+                    Section {
+                        Toggle("Share with Household", isOn: $shareNewRecipe)
+                    } footer: {
+                        Text(shareNewRecipe ? "Your household can see and cook this recipe. Only you can edit it." : "Only you can see this recipe.")
                     }
-                    .onMove { source, destination in
-                        ingredients.move(fromOffsets: source, toOffset: destination)
-                    }
-                    .onDelete { offsets in
-                        ingredients.remove(atOffsets: offsets)
-                    }
-
-                    Button("Add ingredient", systemImage: "plus.circle.fill") {
-                        addIngredient(after: ingredients.last?.id)
-                    }
-                } header: {
-                    Text("Ingredients")
-                } footer: {
-                    Text("At least one entry is required. Drag the handles to reorder.")
-                }
-                Section {
-                    ForEach($steps) { $step in
-                        HStack(alignment: .top, spacing: 12) {
-                            Text("\((steps.firstIndex { $0.id == step.id } ?? 0) + 1).")
-                                .monospacedDigit().foregroundStyle(.secondary)
-                            TextField("Describe this step", text: $step.text, axis: .vertical)
-                                .lineLimit(3...8)
-                                .focused($focusedStep, equals: step.id)
-                        }
-                    }
-                    .onMove { source, destination in
-                        steps.move(fromOffsets: source, toOffset: destination)
-                    }
-                    .onDelete { offsets in
-                        steps.remove(atOffsets: offsets)
-                    }
-
-                    Button("Add step", systemImage: "plus.circle.fill") {
-                        let step = StepDraft()
-                        steps.append(step)
-                        focusedStep = step.id
-                    }
-                } header: {
-                    Text("Instructions")
-                } footer: {
-                    Text("At least one entry is required. Drag the handles to reorder.")
                 }
             }
             // Always editing, so ingredient and step rows show the delete control and drag handle.
             .environment(\.editMode, .constant(.active))
-            .navigationTitle(original == nil ? "New recipe" : "Edit recipe").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(original == nil ? "New Recipe" : "Edit Recipe").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } }.toolbarGlyph()
@@ -885,6 +895,23 @@ struct RecipeEditorView: View {
         let ingredient = Ingredient(text: "")
         ingredients.insert(ingredient, at: index)
         focusedIngredient = ingredient.id
+    }
+}
+
+/// A form field whose label stays visible above its value, so filled-in rows still say what they are.
+private struct LabeledFormField<Field: View>: View {
+    let title: String
+    @ViewBuilder var field: Field
+    init(_ title: String, @ViewBuilder field: () -> Field) {
+        self.title = title
+        self.field = field()
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.footnote).foregroundStyle(.secondary)
+            field
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 

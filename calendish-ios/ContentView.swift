@@ -116,7 +116,6 @@ struct ContentView: View {
             Tab("Groceries", systemImage: "basket", value: .groceries) {
                 NavigationStack { GroceryListView() }
             }
-            .badge(store.groceries.count { !$0.isComplete })
             Tab("Settings", systemImage: "gearshape", value: .settings) {
                 NavigationStack { SettingsView() }
             }
