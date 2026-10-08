@@ -105,8 +105,10 @@ struct RecipeRow: View {
     let recipe: Recipe
     /// Servings to show instead of the recipe's own, such as a planned meal's.
     var servings: Int?
+    /// Whether to name whose recipe it is.
+    var showsOwner = true
     /// Whose recipe it is. Your own recipes don't name an owner.
-    private var owner: String? { store.isMine(recipe) ? nil : store.ownerName(of: recipe) }
+    private var owner: String? { !showsOwner || store.isMine(recipe) ? nil : store.ownerName(of: recipe) }
     var body: some View {
         HStack(spacing: 14) {
             RecipeArtwork(recipe: recipe, compact: true).frame(width: 64, height: 64)
@@ -120,10 +122,12 @@ struct RecipeRow: View {
                         Image(systemName: "star.fill").font(.caption).foregroundStyle(.yellow).accessibilityLabel("Favorite")
                     }
                 }
+                if let owner {
+                    Text("By \(owner)").font(.footnote).foregroundStyle(.secondary).lineLimit(1).padding(.top, -4)
+                }
                 HStack(spacing: 10) {
                     Label("\(recipe.minutes) min", systemImage: "clock")
                     Label("\(servings ?? recipe.servings) servings", systemImage: "person.2")
-                    if let owner { Text(owner) }
                 }
                 .labelStyle(RecipeDetailLabelStyle())
                 .font(.subheadline)

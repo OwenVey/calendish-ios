@@ -59,7 +59,7 @@ struct RecipeBookView: View {
         List {
             scopePicker.listRowSeparator(.hidden)
             ForEach(filteredRecipes) { recipe in
-                NavigationLink(value: recipe) { RecipeRow(recipe: recipe) }
+                NavigationLink(value: recipe) { RecipeRow(recipe: recipe, showsOwner: false) }
                     .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         // A destructive swipe button removes the row before confirmation.
