@@ -123,6 +123,7 @@ struct GroceryListView: View {
                 }
             }
             .contentMargins(.bottom, 16, for: .scrollContent)
+            .onAppear { store.clearExpiredGroceries() }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if addingItem {
                     newItemComposer

@@ -48,9 +48,13 @@ final class HouseholdStore {
     private var writeRevision: UInt64 = 0
     @ObservationIgnored private lazy var grocerySync = GrocerySync(
         transport: isPreview ? nil : SupabaseGroceryTransport(client: client),
-        onChange: { [weak self] in self?.sortGroceriesIntoAisles() },
+        onChange: { [weak self] in self?.sortGroceriesIntoAisles(); self?.noteCheckedGroceries() },
         onError: { [weak self] error in self?.report(error) })
     private var aisleTask: Task<Void, Never>?
+    /// When this device first saw each grocery checked off, keyed by item ID. Items don't store it,
+    /// so the clock starts on whichever device notices first.
+    @ObservationIgnored private var checkedAt = UserDefaults.standard.dictionary(forKey: HouseholdStore.checkedAtKey) as? [String: Date] ?? [:]
+    private static let checkedAtKey = "groceryCheckedAt"
     /// The name each item was last sorted under, so a failed save isn't retried on every refetch.
     private var sortedNames: [UUID: String] = [:]
     /// Replaced whenever the account or household changes, so older work can't publish into the new one.
@@ -552,6 +556,7 @@ final class HouseholdStore {
             await startRealtime()
         }
         await refresh()
+        clearExpiredGroceries()
     }
 
     /// Listens on the household's topic for shared changes and on the person's own topic
@@ -851,6 +856,28 @@ final class HouseholdStore {
     func clearCompletedGroceries() { removeGroceries(groceries.filter(\.isComplete)) }
 
     func clearAllGroceries() { removeGroceries(groceries) }
+
+    /// Removes checked items older than the Clear Checked Items setting allows.
+    func clearExpiredGroceries() {
+        guard let interval = GroceryAutoClear.current.interval else { return }
+        let cutoff = Date.now.addingTimeInterval(-interval)
+        let expired = groceries.filter { $0.isComplete && checkedAt[$0.id.uuidString].map { $0 <= cutoff } == true }
+        if !expired.isEmpty { removeGroceries(expired) }
+    }
+
+    /// Stamps newly checked items and forgets unchecked ones. Items missing from the list, which may just
+    /// not have loaded yet, are forgotten only after a month.
+    private func noteCheckedGroceries() {
+        let now = Date.now
+        let items = Dictionary(groceries.map { ($0.id.uuidString, $0.isComplete) }, uniquingKeysWith: { first, _ in first })
+        var stamps = checkedAt.filter { id, date in items[id] ?? (now.timeIntervalSince(date) < 30 * 86_400) }
+        for (id, isComplete) in items where isComplete && stamps[id] == nil { stamps[id] = now }
+        if stamps != checkedAt {
+            checkedAt = stamps
+            UserDefaults.standard.set(stamps, forKey: Self.checkedAtKey)
+        }
+        clearExpiredGroceries()
+    }
 
     // MARK: Household data
 

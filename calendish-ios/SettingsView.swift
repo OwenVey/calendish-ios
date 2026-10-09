@@ -1,4 +1,5 @@
 import ActivityKit
+import AlarmKit
 import SwiftUI
 import UserNotifications
 
@@ -7,11 +8,9 @@ struct SettingsView: View {
     @Environment(HouseholdStore.self) private var store
     @AppStorage("appearance") private var appearance: AppAppearance = .system
     @AppStorage(WeekStart.storageKey) private var weekStart = WeekStart.system
-    @AppStorage(PreferenceKey.recipeSort) private var recipeSort = RecipeSort.recent
     @AppStorage(PreferenceKey.defaultServings) private var defaultServings = 4
-    @AppStorage(PreferenceKey.groceryGrouping) private var groceryGrouping = GroceryGrouping.none
-    @AppStorage(PreferenceKey.showCompletedGroceries) private var showCompletedGroceries = false
     @AppStorage(MeasurementPreference.storageKey) private var units = MeasurementPreference.original
+    @AppStorage(PreferenceKey.groceryAutoClear) private var groceryAutoClear = GroceryAutoClear.never
     var body: some View {
         Form {
             Section {
@@ -34,7 +33,8 @@ struct SettingsView: View {
                     }
                 }
             }
-            Section {
+            // Sort, grouping, and show-completed live in each screen's own menus, which remember the choice.
+            Section("General") {
                 NavigationLink { AppearanceSettingsView() } label: {
                     LabeledContent {
                         Text(appearance.title)
@@ -42,14 +42,20 @@ struct SettingsView: View {
                         SettingsLabel("Appearance", systemImage: "circle.lefthalf.filled", color: .blue)
                     }
                 }
-            }
-            Section {
-                Picker(selection: $recipeSort) {
-                    ForEach(RecipeSort.allCases) { Text($0.title).tag($0) }
+                Picker(selection: $weekStart) {
+                    ForEach(WeekStart.allCases) { Text($0.title).tag($0) }
                 } label: {
-                    SettingsLabel("Sort By", systemImage: "arrow.up.arrow.down", color: .brown)
+                    SettingsLabel("Week Starts On", systemImage: "calendar", color: .red)
                 }
                 .tint(.secondary)
+                Picker(selection: $units) {
+                    ForEach(MeasurementPreference.allCases) { Text($0.title).tag($0) }
+                } label: {
+                    SettingsLabel("Units", systemImage: "ruler.fill", color: .indigo)
+                }
+                .tint(.secondary)
+            }
+            Section("Recipes") {
                 HStack {
                     SettingsLabel("Default Servings", systemImage: "person.2.fill", color: .pink)
                     Spacer()
@@ -59,38 +65,41 @@ struct SettingsView: View {
                         .fixedSize()
                 }
                 .accessibilityElement(children: .combine)
-                Picker(selection: $units) {
-                    ForEach(MeasurementPreference.allCases) { Text($0.title).tag($0) }
-                } label: {
-                    SettingsLabel("Units", systemImage: "ruler.fill", color: .indigo)
-                }
-                .tint(.secondary)
                 NavigationLink { CookingSettingsView() } label: {
                     SettingsLabel("Cooking", systemImage: "frying.pan.fill", color: .purple)
                 }
-            } header: {
-                Text("Recipes")
-            }
-            Section("Meal Plan") {
-                Picker(selection: $weekStart) {
-                    ForEach(WeekStart.allCases) { Text($0.title).tag($0) }
-                } label: {
-                    SettingsLabel("Week Starts On", systemImage: "calendar", color: .red)
-                }
-                .tint(.secondary)
-            }
-            Section("Groceries") {
-                Picker(selection: $groceryGrouping) {
-                    ForEach(GroceryGrouping.allCases) { Text($0.rawValue).tag($0) }
-                } label: {
-                    SettingsLabel("Group By", systemImage: "basket.fill", color: .green)
-                }
-                .tint(.secondary)
-                Toggle(isOn: $showCompletedGroceries) {
-                    SettingsLabel("Show Completed", systemImage: "checkmark.circle.fill", color: .mint)
-                }
             }
             Section {
+                Picker(selection: $groceryAutoClear) {
+                    ForEach(GroceryAutoClear.allCases) { Text($0.title).tag($0) }
+                } label: {
+                    SettingsLabel("Clear Checked Items", systemImage: "checklist.checked", color: .green)
+                }
+                .tint(.secondary)
+            } header: {
+                Text("Groceries")
+            } footer: {
+                Text("Checked items are removed from the list for everyone in your household.")
+            }
+            Section("About") {
+                Link(destination: AppLinks.feedback) {
+                    SettingsLinkLabel("Send Feedback", systemImage: "envelope.fill", color: .blue)
+                }
+                if let review = AppLinks.writeReview {
+                    Link(destination: review) {
+                        SettingsLinkLabel("Rate on the App Store", systemImage: "star.fill", color: .yellow)
+                    }
+                }
+                if let privacy = AppLinks.privacyPolicy {
+                    Link(destination: privacy) {
+                        SettingsLinkLabel("Privacy Policy", systemImage: "hand.raised.fill", color: .blue)
+                    }
+                }
+                if let terms = AppLinks.terms {
+                    Link(destination: terms) {
+                        SettingsLinkLabel("Terms of Use", systemImage: "doc.text.fill", color: .gray)
+                    }
+                }
                 LabeledContent {
                     Text(Bundle.main.appVersion)
                 } label: {
@@ -123,6 +132,39 @@ struct SettingsLabel: View {
                 .frame(width: 29, height: 29)
                 .background(color.gradient, in: .rect(cornerRadius: 7))
         }
+    }
+}
+
+/// A settings row that leaves the app, marked with the outward arrow Settings uses for links.
+struct SettingsLinkLabel: View {
+    let title: String
+    let systemImage: String
+    let color: Color
+    init(_ title: String, systemImage: String, color: Color) {
+        self.title = title
+        self.systemImage = systemImage
+        self.color = color
+    }
+    var body: some View {
+        HStack {
+            SettingsLabel(title, systemImage: systemImage, color: color).foregroundStyle(.primary)
+            Spacer()
+            Image(systemName: "arrow.up.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.tertiary)
+        }
+    }
+}
+
+/// Pages outside the app. Rows for links that aren't set yet stay hidden.
+enum AppLinks {
+    static let feedback = URL(string: "https://github.com/OwenVey/calendish-ios/issues/new")!
+    /// The numeric ID from the app's App Store URL.
+    static let appStoreID: String? = nil
+    static let privacyPolicy: URL? = nil
+    static let terms: URL? = nil
+    static var writeReview: URL? {
+        appStoreID.flatMap { URL(string: "https://apps.apple.com/app/id\($0)?action=write-review") }
     }
 }
 
@@ -379,11 +421,12 @@ struct CookingSettingsView: View {
     @AppStorage(PreferenceKey.showCookIngredients) private var showIngredients = true
     @AppStorage(PreferenceKey.cookingHaptics) private var haptics = true
     @AppStorage(PreferenceKey.liveActivity) private var liveActivity = true
-    @AppStorage(PreferenceKey.timerSound) private var timerSound = true
+    @AppStorage(PreferenceKey.timerAlert) private var timerAlert = TimerAlert.alarm
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
     @State private var notifications: UNAuthorizationStatus?
     @State private var activitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
+    @State private var alarms = AlarmManager.shared.authorizationState
     private var notificationsAllowed: Bool { [.authorized, .provisional, .ephemeral].contains(notifications) }
     var body: some View {
         Form {
@@ -415,8 +458,21 @@ struct CookingSettingsView: View {
                     : "Follow the current step and start timers from the Lock Screen and Dynamic Island.")
             }
             Section {
-                Toggle("Timer Sound", isOn: $timerSound)
-                if let notifications {
+                Picker("Alert", selection: $timerAlert) {
+                    ForEach(TimerAlert.allCases) { Text($0.title).tag($0) }
+                }
+                .tint(.secondary)
+                if timerAlert == .alarm {
+                    if alarms == .notDetermined {
+                        Button("Allow Alarms") {
+                            Task { alarms = (try? await AlarmManager.shared.requestAuthorization()) ?? AlarmManager.shared.authorizationState }
+                        }
+                    } else if alarms == .denied {
+                        Button("Open Calendish Settings") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                        }
+                    }
+                } else if let notifications {
                     LabeledContent("Notifications", value: notificationsAllowed ? "On" : "Off")
                     if notifications == .notDetermined {
                         Button("Allow Notifications") {
@@ -434,7 +490,7 @@ struct CookingSettingsView: View {
             } header: {
                 Text("Timers")
             } footer: {
-                Text("Timers alert you outside Calendish only when notifications are on.")
+                Text(timerFooter)
             }
         }
         .navigationTitle("Cooking")
@@ -443,7 +499,17 @@ struct CookingSettingsView: View {
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             activitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
+            alarms = AlarmManager.shared.authorizationState
             Task { await loadNotificationStatus() }
+        }
+    }
+    private var timerFooter: String {
+        switch timerAlert {
+        case .alarm where alarms == .denied:
+            "Alarms are turned off for Calendish in the Settings app, so timers use notifications instead."
+        case .alarm: "Timers ring like the Clock app, even when your iPhone is on silent or in a Focus."
+        case .notification: "Timers play a sound and show a notification. They alert you outside Calendish only when notifications are on."
+        case .silent: "Timers show a notification without a sound."
         }
     }
     private func loadNotificationStatus() async {
