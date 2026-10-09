@@ -24,6 +24,14 @@ struct GroceryImportCandidate: Identifiable {
         return candidates
     }
 
+    /// Notes with grocery items, each reviewed like a recipe that can't be scaled.
+    static func noted(_ notes: [MealPlanNote]) -> [Self] {
+        notes.filter { !$0.items.isEmpty }.map { note in
+            let recipe = Recipe(id: note.id, title: note.text, summary: "", prepMinutes: 0, cookMinutes: 0, servings: 0,
+                                tags: [], symbol: "", ingredients: note.items.map { Ingredient(text: $0) }, steps: [])
+            return Self(recipe: recipe, servings: 0)
+        }
+    }
 }
 
 /// Owns review choices independently of presentation and grocery persistence.

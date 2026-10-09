@@ -145,6 +145,20 @@ nonisolated struct PlannedMealRecord: Decodable, Sendable {
     }
 }
 
+nonisolated struct MealPlanNoteRecord: Codable, Sendable {
+    var id: UUID
+    var householdID: UUID
+    /// A `yyyy-MM-dd` calendar day, like a planned meal's.
+    var date: String
+    var text: String
+    var items: [String]
+    /// Notes within a day appear in the order they were added. Left out when saving, so it keeps its first value.
+    var createdAt: Date?
+    enum CodingKeys: String, CodingKey {
+        case id, householdID = "household_id", date, text, items, createdAt = "created_at"
+    }
+}
+
 nonisolated struct GroceryItemRecord: Codable, Sendable {
     var id: UUID
     var householdID: UUID
@@ -179,6 +193,16 @@ extension PlannedMeal {
     init?(_ row: PlannedMealRecord) {
         guard let date = DayFormat.date(from: row.date) else { return nil }
         self.init(id: row.id, date: date, recipe: Recipe(row.recipe), recipeID: row.recipeID, servings: row.servings)
+    }
+}
+
+extension MealPlanNote {
+    init?(_ row: MealPlanNoteRecord) {
+        guard let date = DayFormat.date(from: row.date) else { return nil }
+        self.init(id: row.id, date: date, text: row.text, items: row.items)
+    }
+    func record(household: UUID) -> MealPlanNoteRecord {
+        MealPlanNoteRecord(id: id, householdID: household, date: DayFormat.string(from: date), text: text, items: items)
     }
 }
 

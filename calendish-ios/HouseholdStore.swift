@@ -25,6 +25,7 @@ final class HouseholdStore {
     /// The person's own recipes, household recipes, and recipes other members share.
     var recipes: [Recipe] = []
     var meals: [PlannedMeal] = []
+    var notes: [MealPlanNote] = []
     var groceries: [GroceryItem] { grocerySync.items }
     /// The latest failed save or load, shown as an alert.
     var errorMessage: String?
@@ -83,6 +84,7 @@ final class HouseholdStore {
             PlannedMeal(date: today, recipe: recipes[0], recipeID: recipes[0].id, servings: 4),
             PlannedMeal(date: Calendar.current.date(byAdding: .day, value: 1, to: today)!, recipe: recipes[1], recipeID: recipes[1].id, servings: 4)
         ]
+        store.notes = [MealPlanNote(date: Calendar.current.date(byAdding: .day, value: 2, to: today)!, text: "Leftovers", items: ["Baguette"])]
         store.grocerySync.setHousehold(store.household?.id, items: [
             GroceryItem(name: "Cherry tomatoes", amount: "2 cups", source: "Lemon & herb orzo", position: 0),
             GroceryItem(name: "Orzo", amount: "1½ cups", source: "Lemon & herb orzo", position: 1),
@@ -148,7 +150,7 @@ final class HouseholdStore {
         writeRevision &+= 1
         grocerySync.setHousehold(nil)
         household = nil
-        members = []; recipes = []; meals = []
+        members = []; recipes = []; meals = []; notes = []
         await stopRealtime()
         return session
     }
@@ -508,8 +510,9 @@ final class HouseholdStore {
         async let recipeRows: [RecipeRecord] = fetchRows("recipes", key: \.id)
         async let favoriteRows: [FavoriteRecord] = fetchRows("recipe_favorites", idColumn: "recipe_id", key: \.recipeID)
         async let mealRows: [PlannedMealRecord] = fetchRows("planned_meals", householdID: id, key: \.id)
+        async let noteRows: [MealPlanNoteRecord] = fetchRows("meal_plan_notes", householdID: id, key: \.id)
         async let groceryRefresh: Void = grocerySync.refresh()
-        let (hs, m, r, f, p, _) = try await (householdRows, memberRows, recipeRows, favoriteRows, mealRows, groceryRefresh)
+        let (hs, m, r, f, p, n, _) = try await (householdRows, memberRows, recipeRows, favoriteRows, mealRows, noteRows, groceryRefresh)
         guard !Task.isCancelled, session == syncSession, household?.id == id else { return }
         // Row Level Security hides the household once this person is removed or moves elsewhere.
         guard let h = hs.first, m.contains(where: { $0.userID == userID }) else {
@@ -524,6 +527,7 @@ final class HouseholdStore {
             let favorites = Set(f.map(\.recipeID))
             recipes = r.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }.map { Recipe($0, favorites: favorites) }
             meals = p.sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }.compactMap(PlannedMeal.init)
+            notes = n.sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }.compactMap(MealPlanNote.init)
         }
     }
 
@@ -841,6 +845,32 @@ final class HouseholdStore {
         save { [client] in try await client.from("planned_meals").delete().eq("id", value: meal.id).execute() }
     }
 
+    /// Adds a note to the meal plan, or saves changes to one already there.
+    func saveNote(_ note: MealPlanNote) {
+        guard let id = household?.id else { return }
+        var note = note
+        note.date = Calendar.current.startOfDay(for: note.date)
+        note.text = note.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        note.items = note.items.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        guard !note.text.isEmpty else { return }
+        // Notes stay in the order they were first added, even when moved to another day.
+        if let index = notes.firstIndex(where: { $0.id == note.id }) { notes[index] = note } else { notes.append(note) }
+        let record = note.record(household: id)
+        save { [client] in try await client.from("meal_plan_notes").upsert(record).execute() }
+    }
+
+    func moveNote(_ note: MealPlanNote, to day: Date) {
+        guard !Calendar.current.isDate(note.date, inSameDayAs: day) else { return }
+        var moved = note
+        moved.date = day
+        saveNote(moved)
+    }
+
+    func removeNote(_ note: MealPlanNote) {
+        notes.removeAll { $0.id == note.id }
+        save { [client] in try await client.from("meal_plan_notes").delete().eq("id", value: note.id).execute() }
+    }
+
     // MARK: Groceries
 
     func addGrocery(name: String, amount: String = "", source: String = "General") {
@@ -881,7 +911,7 @@ final class HouseholdStore {
 
     // MARK: Household data
 
-    /// Owner only. Deletes household recipes, planned meals, and grocery items in one transaction, then
+    /// Owner only. Deletes household recipes, the meal plan, and grocery items in one transaction, then
     /// photos nothing uses anymore. Members, their personal recipes, the household, and its invite code remain.
     func deleteAllHouseholdData() async throws {
         guard !isPreview, let id = household?.id else { return }
@@ -892,6 +922,7 @@ final class HouseholdStore {
         guard household?.id == id else { return }
         recipes.removeAll { $0.owner == .household }
         meals = []
+        notes = []
         await removePhotos(photoPaths)
         await refresh()
     }
