@@ -36,3 +36,7 @@ One member's star rating and note on a recipe, such as "Use half the salt". Each
 
 **Cooked history**:
 The days a household cooked a recipe: days marked as cooked, including finishing Cook Mode, plus past planned meals. It drives "Last cooked", cooked-based sorting, and meal suggestions.
+
+**Hands-free cook mode**:
+An option within Cook Mode for moving between recipe steps and starting cooking timers through spoken commands.
+_Avoid_: Voice assistant, Siri mode

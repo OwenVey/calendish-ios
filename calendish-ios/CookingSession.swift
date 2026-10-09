@@ -97,12 +97,28 @@ final class CookingSession {
     }
 
     func startTimer(sessionID: String, at index: Int) async {
-        guard let snapshot, snapshot.id.uuidString == sessionID, snapshot.stepIndex == index,
-              let duration = CookTimer.duration(in: snapshot.recipe.steps[index]),
-              !CookingTimers.shared.timers.contains(where: { $0.recipeID == snapshot.recipe.id && $0.stepIndex == index }) else { return }
-        CookingTimers.shared.start(recipe: snapshot.recipe, stepIndex: index, duration: duration)
+        guard snapshot?.id.uuidString == sessionID, snapshot?.stepIndex == index,
+              case .started = startCurrentStepTimer() else { return }
         await CookingTimers.shared.schedulingTask?.value
         await pendingUpdate?.value
+    }
+
+    enum TimerStart: Equatable {
+        case started(TimeInterval)
+        case alreadyRunning
+        case noDuration
+    }
+
+    /// Starts the current step's suggested timer, unless that step already has one running.
+    func startCurrentStepTimer() -> TimerStart? {
+        guard let snapshot else { return nil }
+        let index = snapshot.stepIndex
+        guard let duration = CookTimer.duration(in: snapshot.recipe.steps[index]) else { return .noDuration }
+        guard !CookingTimers.shared.timers.contains(where: { $0.recipeID == snapshot.recipe.id && $0.stepIndex == index }) else {
+            return .alreadyRunning
+        }
+        CookingTimers.shared.start(recipe: snapshot.recipe, stepIndex: index, duration: duration)
+        return .started(duration)
     }
 
     func refresh() {

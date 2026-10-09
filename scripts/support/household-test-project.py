@@ -2,9 +2,13 @@
 import json
 import pathlib
 import subprocess
+import sys
 
+# Usage: household-test-project.py [test-file harness-dir product bundle-id]
+test_file, harness, product, bundle = sys.argv[1:5] if len(sys.argv) > 4 else (
+    'tests/HouseholdStoreWorkflowTests.swift', 'household-workflow', 'HouseholdWorkflow', 'owenvey.calendish-household-workflow')
 root = pathlib.Path(__file__).resolve().parents[2]
-dest = root / '.build/household-workflow/Workflow.xcodeproj'
+dest = root / '.build' / harness / 'Workflow.xcodeproj'
 dest.mkdir(parents=True, exist_ok=True)
 converted = dest.parent / 'project.json'
 subprocess.run(['plutil', '-convert', 'json', '-o', str(converted), str(root / 'calendish-ios.xcodeproj/project.pbxproj')], check=True)
@@ -17,20 +21,20 @@ project_object['projectDirPath'] = str(root)
 target = objects[target_id]
 target['dependencies'] = []
 target['buildPhases'].remove('5E0A11CE000000000000000B')
-target['name'] = target['productName'] = 'HouseholdWorkflow'
+target['name'] = target['productName'] = product
 for obj in objects.values():
     if obj.get('isa') == 'PBXFileSystemSynchronizedRootGroup':
         obj['path'] = str(root / obj['path'])
 for config in objects[target['buildConfigurationList']]['buildConfigurations']:
     settings = objects[config]['buildSettings']
-    settings.update(PRODUCT_BUNDLE_IDENTIFIER='owenvey.calendish-household-workflow', PRODUCT_NAME='HouseholdWorkflow',
+    settings.update(PRODUCT_BUNDLE_IDENTIFIER=bundle, PRODUCT_NAME=product,
                     GENERATE_INFOPLIST_FILE='YES', CODE_SIGNING_ALLOWED='NO', ASSETCATALOG_COMPILER_APPICON_NAME='')
     settings.pop('CODE_SIGN_ENTITLEMENTS', None)
     settings.pop('INFOPLIST_FILE', None)
 objects['05BDE7763072DA7C00C5B9A0']['membershipExceptions'].append('calendish_iosApp.swift')
 file_id, build_id = 'ABCDEF000000000000000001', 'ABCDEF000000000000000002'
 objects[file_id] = dict(isa='PBXFileReference', lastKnownFileType='sourcecode.swift',
-                        path=str(root / 'tests/HouseholdStoreWorkflowTests.swift'), sourceTree='<absolute>')
+                        path=str(root / test_file), sourceTree='<absolute>')
 objects[build_id] = dict(isa='PBXBuildFile', fileRef=file_id)
 objects['05BDE7583072DA7B00C5B9A0']['files'].append(build_id)
 objects['05BDE7533072DA7B00C5B9A0']['children'].append(file_id)

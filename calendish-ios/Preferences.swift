@@ -11,6 +11,8 @@ nonisolated enum PreferenceKey {
     static let showCookIngredients = "cookShowIngredients"
     static let cookingHaptics = "cookHaptics"
     static let liveActivity = "cookLiveActivity"
+    /// Whether the voice-commands explanation has been shown before first activation.
+    static let handsFreeIntroSeen = "cookHandsFreeIntroSeen"
     static let timerAlert = "timerAlert"
     static let groceryAutoClear = "groceryAutoClear"
 

@@ -112,4 +112,51 @@ final class CookModeUITests: XCTestCase {
         waitForExpectations(timeout: 5)
         XCTAssertGreaterThan(stepCount.frame.midY, originalY + 100)
     }
+
+    func testVoiceCommandsKeepTouchControls() {
+        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
+        app.launch()
+        app.buttons["Recipes"].tap()
+        let recipe = app.staticTexts["Sheet pan lemon chicken"]
+        XCTAssertTrue(recipe.waitForExistence(timeout: 10))
+        recipe.tap()
+        app.buttons["Cook"].tap()
+        XCTAssertTrue(app.buttons["cook-ingredients-close"].waitForExistence(timeout: 5))
+        app.buttons["cook-ingredients-close"].tap()
+        let firstStep = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Step 1 of")).firstMatch
+        XCTAssertTrue(firstStep.exists)
+        XCTAssertFalse(app.staticTexts["Listening"].exists, "Cook Mode doesn't listen until voice commands are enabled")
+
+        app.buttons["Voice Commands"].tap()
+        // The explanation appears before the first activation only.
+        let turnOn = app.alerts.buttons["Turn On"]
+        if turnOn.waitForExistence(timeout: 2) {
+            XCTAssertTrue(app.alerts.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "a TV")).firstMatch.exists)
+            turnOn.tap()
+        }
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.alerts.buttons["Allow"]
+        if allow.waitForExistence(timeout: 3) { allow.tap() }
+        // Simulators may lack the on-device model; any truthful state is acceptable here.
+        let states = ["Listening", "Preparing voice commands", "Voice commands paused"].map { app.staticTexts[$0] }
+            + [app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "aren’t available")).firstMatch,
+               app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Voice commands need microphone")).firstMatch,
+               app.staticTexts["Voice commands stopped unexpectedly"], app.staticTexts["Couldn’t prepare voice commands"]]
+        let shown = NSPredicate { _, _ in states.contains { $0.exists } }
+        expectation(for: shown, evaluatedWith: nil)
+        waitForExpectations(timeout: 15)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Voice commands status"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+
+        app.buttons["Next Step"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Step 2 of")).firstMatch.waitForExistence(timeout: 5), "Touch navigation keeps working")
+        app.buttons["Previous Step"].tap()
+        XCTAssertTrue(firstStep.waitForExistence(timeout: 5))
+        if app.buttons["Stop Voice Commands"].exists { app.buttons["Stop Voice Commands"].tap() }
+        else if app.buttons["Turn Off Voice Commands"].exists { app.buttons["Turn Off Voice Commands"].tap() }
+        XCTAssertFalse(app.staticTexts["Listening"].exists, "Stopping ends listening")
+        app.buttons["Close"].firstMatch.tap()
+    }
 }

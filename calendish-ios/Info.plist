@@ -4,6 +4,8 @@
 <dict>
 	<key>NSAlarmKitUsageDescription</key>
 	<string>Cooking timers ring like an alarm so you hear them even when your iPhone is on silent.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>With voice commands on, Calendish listens for “next”, “back”, and “start timer” while you cook. Speech is recognized on this iPhone and never saved.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>CFBundleURLTypes</key>

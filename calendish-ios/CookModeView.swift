@@ -26,6 +26,11 @@ struct CookModeView: View {
     @Environment(CookingTimers.self) private var timerStore
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
+    @State private var handsFree = HandsFreeCooking(speech: LocalHandsFreeSpeech())
+    @State private var showHandsFreeIntro = false
+    @AppStorage(PreferenceKey.handsFreeIntroSeen) private var handsFreeIntroSeen = false
     @State private var ingredientScope = IngredientScope.all
     @State private var wideLayout = false
     @State private var ingredientFocus: IngredientFocus?
@@ -76,6 +81,8 @@ struct CookModeView: View {
                             }
                         }
                         .tabViewStyle(.page(indexDisplayMode: .never))
+                        .overlay(alignment: .top) { finishedTimerBanner }
+                        if handsFree.status != .off { handsFreeStatus }
                         stepControls
                     }
                     .padding(.bottom, !wide && showIngredients ? sheetHeight + geometry.safeAreaInsets.bottom + 12 : 0)
@@ -108,6 +115,15 @@ struct CookModeView: View {
                     Button(role: .close) { session.end(); dismiss() }.toolbarGlyph()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button(handsFree.keepsScreenAwake ? "Stop Voice Commands" : "Voice Commands",
+                           systemImage: handsFree.keepsScreenAwake ? "mic.fill" : "mic") {
+                        if handsFree.keepsScreenAwake { handsFree.stop() }
+                        else if handsFreeIntroSeen { handsFree.enable() }
+                        else { showHandsFreeIntro = true }
+                    }
+                    .toolbarGlyph()
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button(showIngredients ? "Hide Ingredients" : "Show Ingredients", systemImage: "list.bullet") {
                         withAnimation(reduceMotion ? nil : .default) { showIngredients.toggle() }
                     }
@@ -124,16 +140,33 @@ struct CookModeView: View {
         .calendishAlert("Timer Done", isPresented: timerAlertPresented(onIngredients: false)) {
             Button("Done") { }
         } message: { Text(timerFinishedMessage) }
+        .calendishAlert("Voice Commands", isPresented: $showHandsFreeIntro) {
+            Button("Cancel", role: .cancel) { }
+            Button("Turn On") {
+                handsFreeIntroSeen = true
+                handsFree.enable()
+            }
+        } message: {
+            Text("Say “next”, “back”, or “start timer” without touching your phone. Calendish listens only while Cook Mode is open, and speech stays on this iPhone.\n\nAnyone nearby, or a TV, saying a command can trigger it too.")
+        }
         .onAppear {
             session.begin(recipe: recipe, servings: servings)
             timerStore.isCooking = true
-            UIApplication.shared.isIdleTimerDisabled = keepScreenAwake
+            updateScreenAwake()
         }
         .onChange(of: session.snapshot?.id) { _, id in
             if id == nil { dismiss() }
         }
-        .onChange(of: keepScreenAwake) { _, awake in UIApplication.shared.isIdleTimerDisabled = awake }
+        .onChange(of: keepScreenAwake) { _, _ in updateScreenAwake() }
+        .onChange(of: handsFree.keepsScreenAwake) { _, _ in updateScreenAwake() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { handsFree.pause() }
+        }
+        // While listening, finished timers are announced in a banner instead of the blocking alert.
+        .onChange(of: timerStore.finished.map(\.id)) { _, _ in handsFree.announceFinishedTimers() }
+        .onChange(of: handsFree.isListening) { _, _ in handsFree.announceFinishedTimers() }
         .onDisappear {
+            handsFree.stop()
             timerStore.isCooking = false
             UIApplication.shared.isIdleTimerDisabled = false
         }
@@ -142,9 +175,110 @@ struct CookModeView: View {
     // Present timer alerts from the visible sheet when it owns the presentation.
     private func timerAlertPresented(onIngredients: Bool) -> Binding<Bool> {
         Binding(
-            get: { !timerStore.finished.isEmpty && (showIngredients && !wideLayout) == onIngredients },
+            get: { !timerStore.finished.isEmpty && !handsFree.isListening && (showIngredients && !wideLayout) == onIngredients },
             set: { if !$0 && (showIngredients && !wideLayout) == onIngredients { timerStore.acknowledge() } }
         )
+    }
+
+    /// Hands-free use keeps the screen awake even when the usual preference is off.
+    private func updateScreenAwake() {
+        UIApplication.shared.isIdleTimerDisabled = keepScreenAwake || handsFree.keepsScreenAwake
+    }
+
+    @ViewBuilder private var finishedTimerBanner: some View {
+        if !handsFree.finishedTimers.isEmpty {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Image(systemName: "timer").foregroundStyle(CalendishStyle.accent)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Timer Done").font(.headline)
+                    ForEach(handsFree.finishedTimers) { timer in
+                        Text("\(timer.recipeID == recipe.id ? "" : "\(timer.recipeTitle), ")Step \(timer.stepIndex + 1): your \(timer.durationText) timer is up.")
+                            .font(.subheadline).foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                Button("Dismiss", systemImage: "xmark") {
+                    withAnimation(reduceMotion ? nil : .default) { handsFree.dismissFinishedTimers() }
+                }
+                .labelStyle(.iconOnly)
+                .font(.body.weight(.semibold))
+                .frame(minWidth: 44, minHeight: 44)
+                .tint(Color.primary)
+            }
+            .padding(.leading, 16).padding(.trailing, 4).padding(.vertical, 6)
+            .glassEffect(.regular, in: .rect(cornerRadius: 20))
+            .padding(.horizontal, 16).padding(.top, 8)
+            .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+            .accessibilityElement(children: .contain)
+        }
+    }
+
+    private var handsFreeStatus: some View {
+        HStack(spacing: 12) {
+            switch handsFree.status {
+            case .off: EmptyView()
+            case .starting:
+                ProgressView()
+                statusText("Starting voice commands…")
+            case .preparing(let progress):
+                VStack(alignment: .leading, spacing: 6) {
+                    statusText("Preparing voice commands")
+                    ProgressView(value: progress).tint(CalendishStyle.accent)
+                }
+                Button("Cancel") { handsFree.stop() }.modifier(GlassActionStyle())
+            case .listening:
+                Image(systemName: "waveform")
+                    .foregroundStyle(CalendishStyle.accent)
+                    .symbolEffect(.variableColor.iterative, options: .repeating, isActive: !reduceMotion)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Listening").font(.subheadline.weight(.semibold))
+                    Text(handsFree.outcome ?? "Say “next”, “back”, or “start timer”")
+                        .font(.footnote).foregroundStyle(.secondary).lineLimit(2)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+                Button("Stop") { handsFree.stop() }.modifier(GlassActionStyle())
+            case .paused:
+                statusText("Voice commands paused")
+                Button("Resume") { handsFree.enable() }.modifier(GlassActionStyle())
+                closeHandsFree
+            case .failed:
+                statusText("Voice commands stopped unexpectedly")
+                Button("Retry") { handsFree.enable() }.modifier(GlassActionStyle())
+                closeHandsFree
+            case .preparationFailed:
+                statusText("Couldn’t prepare voice commands")
+                Button("Retry") { handsFree.enable() }.modifier(GlassActionStyle())
+                closeHandsFree
+            case .microphoneDenied:
+                statusText("Voice commands need microphone access. You can allow it in Settings.")
+                Button("Settings") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                }
+                .modifier(GlassActionStyle())
+                closeHandsFree
+            case .unavailable(let reason):
+                statusText(reason)
+                closeHandsFree
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 10)
+        .frame(minHeight: 56)
+        .glassEffect(.regular, in: .rect(cornerRadius: 20))
+        .padding(.horizontal, 16).padding(.top, 8)
+    }
+
+    private func statusText(_ text: String) -> some View {
+        Text(text).font(.subheadline).frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var closeHandsFree: some View {
+        Button("Turn Off Voice Commands", systemImage: "xmark") { handsFree.stop() }
+            .labelStyle(.iconOnly)
+            .font(.body.weight(.semibold))
+            .frame(minWidth: 44, minHeight: 44)
+            .tint(Color.primary)
     }
 
     private var timerFinishedMessage: String {
