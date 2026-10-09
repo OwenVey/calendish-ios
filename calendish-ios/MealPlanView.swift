@@ -29,7 +29,7 @@ private struct GroceryReview: Identifiable {
 }
 
 /// Days from the start of this week onward, each with the recipes planned for it. More days load as you
-/// scroll toward the end, and earlier weeks load on request.
+/// scroll toward the end, and pulling down past the top loads the previous week.
 struct MealPlanView: View {
     @Environment(HouseholdStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -40,7 +40,11 @@ struct MealPlanView: View {
     @State private var selection: MealSelection?
     @State private var groceryReview: GroceryReview?
     @State private var removing: [PlannedMeal] = []
+    /// How far the list is pulled down past its top.
+    @State private var pullDistance: CGFloat = 0
     private static let pageSize = 4
+    private static let pullThreshold: CGFloat = 70
+    private var isPullArmed: Bool { pullDistance >= Self.pullThreshold }
 
     private var weeks: [Date] {
         (0..<weekCount).map { Calendar.current.date(byAdding: .weekOfYear, value: $0, to: firstDay)! }
@@ -52,16 +56,6 @@ struct MealPlanView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 10) {
-                    Button("Show Earlier Weeks", systemImage: "chevron.up") {
-                        // Slide the earlier week in under the button instead of snapping the list down a screen.
-                        withAnimation(reduceMotion ? nil : .snappy) {
-                            firstDay = calendar.date(byAdding: .weekOfYear, value: -1, to: firstDay)!
-                            weekCount += 1
-                        }
-                    }
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .frame(minHeight: 44)
                     ForEach(weeks, id: \.self) { week in
                         let isThisWeek = calendar.isDate(week, inSameDayAs: CalendarDays.startOfWeek(.now))
                         Section {
@@ -86,7 +80,21 @@ struct MealPlanView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 20)
+                // Sits just above the first week, so it's revealed in the gap as the list is pulled down.
+                .background(alignment: .top) {
+                    PullForEarlierWeek(isArmed: isPullArmed)
+                        .opacity(min(1, pullDistance / Self.pullThreshold))
+                        .alignmentGuide(.top) { $0[.bottom] }
+                }
             }
+            .onScrollGeometryChange(for: CGFloat.self) { max(0, -($0.contentOffset.y + $0.contentInsets.top)) } action: { _, distance in
+                pullDistance = distance
+            }
+            .onScrollPhaseChange { old, new in
+                if old == .interacting, new != .interacting, isPullArmed { loadPreviousWeek() }
+            }
+            .sensoryFeedback(.impact(weight: .light), trigger: isPullArmed) { _, armed in armed }
+            .accessibilityAction(named: "Load Previous Week", loadPreviousWeek)
             .background(CalendishStyle.background)
             .navigationTitle("Meal Plan")
             .tabRootStyle()
@@ -125,10 +133,43 @@ struct MealPlanView: View {
         } message: { Text(removing.count > 1 ? "The recipes stay in your recipe book." : "The recipe stays in your recipe book.") }
     }
 
+    private func loadPreviousWeek() {
+        withAnimation(reduceMotion ? nil : .snappy) {
+            firstDay = Calendar.current.date(byAdding: .weekOfYear, value: -1, to: firstDay)!
+            weekCount += 1
+        }
+    }
+
     private func reviewGroceries(weeksFromNow: Int) {
         let start = Calendar.current.date(byAdding: .weekOfYear, value: weeksFromNow, to: CalendarDays.startOfWeek(.now))!
         let days = CalendarDays.week(containing: start)
         groceryReview = GroceryReview(meals: store.meals.filter { meal in days.contains { Calendar.current.isDate($0, inSameDayAs: meal.date) } })
+    }
+}
+
+/// The hint revealed above the first week while pulling the meal plan down.
+private struct PullForEarlierWeek: View {
+    let isArmed: Bool
+
+    var body: some View {
+        Label(isArmed ? "Release to Load Previous Week" : "Pull to Load Previous Week", systemImage: "arrow.down")
+            .labelStyle(PullHintLabelStyle(isArmed: isArmed))
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(.secondary)
+            .padding(.bottom, 16)
+            .animation(.snappy, value: isArmed)
+            .accessibilityHidden(true)
+    }
+}
+
+private struct PullHintLabelStyle: LabelStyle {
+    let isArmed: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 6) {
+            configuration.icon.rotationEffect(.degrees(isArmed ? 180 : 0))
+            configuration.title.contentTransition(.opacity)
+        }
     }
 }
 
