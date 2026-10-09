@@ -71,6 +71,22 @@ struct IngredientParserTests {
             precondition(actual.map(\.0) == expected.map(\.0) && actual.map(\.1) == expected.map(\.1),
                          "mentions in \(step): expected \(expected), got \(actual)")
         }
+        let keys: [(String, String)] = [
+            ("1 large onion, diced", "onion"),
+            ("2 onions", "onion"),
+            ("1 cup unsalted butter, softened", "unsalted butter"),
+            ("2 tbsp salted butter", "salted butter"),
+            ("3 ripe tomatoes", "tomato"),
+            ("1 cup fresh blueberries", "fresh blueberry"),
+            ("Salt to taste", "salt"),
+            ("1 cup", ""),
+        ]
+        for (line, expected) in keys {
+            let actual = IngredientParser.foodKey(of: line)
+            precondition(actual == expected, "food key of \(line): expected \(expected), got \(actual)")
+        }
+        precondition(IngredientParser.plural(of: "onion") == "onions" && IngredientParser.plural(of: "berry") == "berries")
+
         print("Ingredient parser tests passed")
     }
 }

@@ -95,7 +95,7 @@ struct GroceryImportReview {
             let recipe = candidate.recipe
             let count = servings[candidate.id] ?? candidate.servings
             let scale = recipe.servings > 0 ? Double(count) / Double(recipe.servings) : 1
-            let names = Set(groceries.filter { $0.source == recipe.title && !$0.isComplete }.map { foodKey($0.name) })
+            let names = Set(groceries.filter { $0.sources.contains(recipe.title) && !$0.isComplete }.map { foodKey($0.name) })
             let lines = recipe.ingredients.map { ingredient in
                 let text = ingredient.display(scale: scale, units: units)
                 return Section.Line(id: ingredient.id, text: text, isSelected: selected.contains(ingredient.id),
@@ -106,16 +106,13 @@ struct GroceryImportReview {
         }
     }
 
-    /// Use the latest grocery positions, without overriding explicit review choices.
-    func groceriesToAdd(groceries: [GroceryItem], units: MeasurementPreference) -> [GroceryItem] {
-        let start = (groceries.map(\.position).max() ?? 0) + 1
-        var items: [GroceryItem] = []
-        for section in sections(groceries: groceries, units: units) {
-            for line in section.lines where line.isSelected {
-                items.append(GroceryItem(name: line.text, amount: "", source: section.title, position: start + Double(items.count)))
-            }
+    /// Use the latest grocery positions, without overriding explicit review choices. Selected lines for the same
+    /// food combine with each other and with unchecked items already on the list.
+    func groceriesToAdd(groceries: [GroceryItem], units: MeasurementPreference) -> GroceryImport {
+        let lines = sections(groceries: groceries, units: units).flatMap { section in
+            section.lines.filter(\.isSelected).map { (text: $0.text, source: section.title) }
         }
-        return items
+        return GroceryMerge.plan(lines, into: groceries)
     }
 
     private func foodKey(_ line: String) -> String {

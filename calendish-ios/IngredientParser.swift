@@ -36,6 +36,15 @@ nonisolated enum IngredientParser {
         "peeled", "seeded", "trimmed", "halved", "quartered", "organic", "low-sodium", "unsalted", "salted", "plain",
     ]
 
+    /// Descriptors of size or preparation that don't change what to buy, so "1 large onion, diced" and
+    /// "2 onions" are the same grocery while "unsalted butter" and "salted butter" are not.
+    private static let preparationWords: Set = [
+        "large", "medium", "small", "extra-large", "jumbo", "whole", "ripe", "packed", "lightly", "firmly", "loosely",
+        "heaping", "level", "chopped", "finely", "roughly", "coarsely", "thinly", "minced", "diced", "sliced", "grated",
+        "shredded", "crushed", "melted", "softened", "cold", "warm", "room-temperature", "peeled", "seeded", "trimmed",
+        "halved", "quartered",
+    ]
+
     /// Words that can't begin a name in a step, so "salt and pepper" isn't found as "and pepper".
     private static let joiningWords: Set = ["and", "or", "&", "of", "with", "in", "plus", "to"]
 
@@ -80,6 +89,33 @@ nonisolated enum IngredientParser {
             words.removeFirst()
         }
         return words.joined(separator: " ").trimmingCharacters(in: .punctuationCharacters.union(.whitespaces))
+    }
+
+    /// The food a line names, reduced so the same food written differently matches: "1 large onion, diced"
+    /// and "2 onions" are both "onion". Empty when the line names nothing.
+    static func foodKey(of line: String) -> String {
+        var words = name(of: line).lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
+        let kept = words.filter { !preparationWords.contains($0) }
+        if !kept.isEmpty { words = kept }
+        guard let last = words.popLast() else { return "" }
+        return (words + [singular(of: last)]).joined(separator: " ")
+    }
+
+    /// The likely singular of a plural word: "onions" to "onion", "berries" to "berry", "tomatoes" to "tomato".
+    static func singular(of word: String) -> String {
+        guard word.count > 3, word.allSatisfy(\.isLetter) else { return word }
+        if word.hasSuffix("ies") { return String(word.dropLast(3)) + "y" }
+        if ["oes", "shes", "ches", "xes"].contains(where: word.hasSuffix) { return String(word.dropLast(2)) }
+        if word.hasSuffix("ss") || word.hasSuffix("us") { return word }
+        if word.hasSuffix("s") { return String(word.dropLast()) }
+        return word
+    }
+
+    /// The likely plural of a singular word: "onion" to "onions", "berry" to "berries".
+    static func plural(of word: String) -> String {
+        guard !word.hasSuffix("s") else { return word }
+        let forms = forms(of: word)
+        return forms.count > 1 ? forms[1] : word
     }
 
     /// Ingredients mentioned in a step: each range in `step` with the indexes of the `ingredients` it could mean.

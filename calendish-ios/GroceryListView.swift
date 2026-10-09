@@ -42,7 +42,8 @@ struct GroceryListView: View {
         switch grouping {
         case .none: [(title: String?.none, items: activeItems)]
         case .recipe:
-            Dictionary(grouping: activeItems, by: \.source).sorted { $0.key < $1.key }.map { ($0.key, $0.value) }
+            // An item for several recipes forms its own section, titled with all of them.
+            Dictionary(grouping: activeItems) { $0.sources.formatted(.list(type: .and)) }.sorted { $0.key < $1.key }.map { ($0.key, $0.value) }
         case .aisle:
             Dictionary(grouping: activeItems) { $0.aisle.map { GroceryAisle(rawValue: $0) ?? .other } }
                 .sorted { order($0.key) < order($1.key) }
@@ -94,7 +95,7 @@ struct GroceryListView: View {
                 } else {
                     ForEach(groups, id: \.title) { group in
                         Section {
-                            ForEach(group.items) { item in GroceryRow(item: item) }
+                            ForEach(group.items) { item in GroceryRow(item: item, showsSources: grouping != .recipe) }
                                 .onMove { move(group.items, from: $0, to: $1) }
                                 .onDelete { offsets in store.removeGroceries(offsets.map { group.items[$0] }) }
                                 .moveDisabled(searchPresented)
@@ -282,6 +283,8 @@ private struct GroceryAddLabelStyle: LabelStyle {
 
 struct GroceryRow: View {
     let item: GroceryItem
+    /// Lists an item's recipes under it when there are several, unless its section header already does.
+    var showsSources = true
     @Environment(HouseholdStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var feedback = false
@@ -291,8 +294,9 @@ struct GroceryRow: View {
     @State private var originalLine = ""
     @FocusState private var textFocused: Bool
 
-    init(item: GroceryItem) {
+    init(item: GroceryItem, showsSources: Bool = true) {
         self.item = item
+        self.showsSources = showsSources
         _line = State(initialValue: Self.line(for: item))
     }
 
@@ -325,36 +329,45 @@ struct GroceryRow: View {
             .accessibilityLabel(isChecked ? "Mark \(item.name) as not completed" : "Complete \(item.name)")
             .accessibilityValue(isChecked ? "Completed" : "Not completed")
 
-            TextField("Grocery Item", text: $line, axis: .vertical)
-                .font(.body.weight(.medium))
-                .textFieldStyle(.plain)
-                .focused($textFocused)
-                .submitLabel(.done)
-                .foregroundStyle(textFocused ? Color.primary : Color.clear)
-                .overlay(alignment: .leading) {
-                    if !textFocused {
-                        IngredientLineText(line: line)
-                            .font(.body.weight(.medium))
-                            .strikethrough(isChecked)
-                            .foregroundStyle(isChecked ? .secondary : .primary)
-                            .allowsHitTesting(false)
-                            .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                TextField("Grocery Item", text: $line, axis: .vertical)
+                    .font(.body.weight(.medium))
+                    .textFieldStyle(.plain)
+                    .focused($textFocused)
+                    .submitLabel(.done)
+                    .foregroundStyle(textFocused ? Color.primary : Color.clear)
+                    .overlay(alignment: .leading) {
+                        if !textFocused {
+                            IngredientLineText(line: line)
+                                .font(.body.weight(.medium))
+                                .strikethrough(isChecked)
+                                .foregroundStyle(isChecked ? .secondary : .primary)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
                     }
-                }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .contentShape(Rectangle())
-                .onTapGesture { textFocused = true }
-                .onSubmit { finishEditing() }
-                .onChange(of: line) { _, updatedLine in
-                    // A vertical TextField inserts a newline from the software
-                    // keyboard's Done key instead of invoking onSubmit.
-                    if textFocused && updatedLine.contains("\n") {
-                        line = updatedLine.replacingOccurrences(of: "\n", with: "")
-                        finishEditing()
+                    .onSubmit { finishEditing() }
+                    .onChange(of: line) { _, updatedLine in
+                        // A vertical TextField inserts a newline from the software
+                        // keyboard's Done key instead of invoking onSubmit.
+                        if textFocused && updatedLine.contains("\n") {
+                            line = updatedLine.replacingOccurrences(of: "\n", with: "")
+                            finishEditing()
+                        }
                     }
+                    .accessibilityLabel("Grocery Item")
+                    .accessibilityHint("Edit the grocery item directly")
+                if showsSources && item.sources.count > 1 {
+                    Text(item.sources.formatted(.list(type: .and)))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("For \(item.sources.formatted(.list(type: .and)))")
                 }
-                .accessibilityLabel("Grocery Item")
-                .accessibilityHint("Edit the grocery item directly")
+            }
+            .padding(.vertical, showsSources && item.sources.count > 1 ? 6 : 0)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
+            .onTapGesture { textFocused = true }
         }
         .frame(minHeight: 44)
         // The circle's tap target includes 8 points on either side of its glyph.

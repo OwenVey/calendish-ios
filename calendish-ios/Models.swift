@@ -25,7 +25,8 @@ nonisolated struct Ingredient: Identifiable, Codable, Hashable, Sendable {
         ("⅛", 0.125), ("¼", 0.25), ("⅓", 1.0 / 3), ("⅜", 0.375), ("½", 0.5), ("⅝", 0.625), ("⅔", 2.0 / 3), ("¾", 0.75), ("⅞", 0.875)
     ]
 
-    private static func quantity(_ token: String) -> Double? {
+    /// The value of a quantity token such as "1½", "1 1/2", or "1.5".
+    static func quantity(_ token: String) -> Double? {
         var token = token.replacingOccurrences(of: ",", with: ".")
         var total = 0.0
         if let last = token.last, let glyph = fractionGlyphs.first(where: { $0.0 == last }) {
@@ -48,7 +49,7 @@ nonisolated struct Ingredient: Identifiable, Codable, Hashable, Sendable {
     }
 
     /// Kitchen-friendly numbers: "1½" rather than "1.5", unless the recipe wrote decimals itself.
-    private static func format(_ value: Double, decimals: Bool) -> String {
+    static func format(_ value: Double, decimals: Bool) -> String {
         if !decimals {
             let whole = value.rounded(.down)
             let remainder = value - whole
@@ -424,6 +425,12 @@ struct GroceryItem: Identifiable {
     var position: Double = 0
     /// A `GroceryAisle` raw value, or nil until the item has been sorted.
     var aisle: String?
+
+    /// The recipes this item is for. An item merged from several recipes stores each title on its own line of `source`.
+    var sources: [String] {
+        get { source.split(separator: "\n").map(String.init) }
+        set { source = newValue.joined(separator: "\n") }
+    }
 }
 
 struct Household: Identifiable {

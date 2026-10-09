@@ -23,10 +23,13 @@ A meal scheduled in a household's meal plan with a saved recipe version and serv
 The choice of recipe ingredients and serving counts to add to the household grocery list, entered from a recipe or planned meals.
 
 **On List**:
-A reviewed ingredient whose food name matches an unchecked grocery attributed to the same recipe title, regardless of quantity.
+A reviewed ingredient whose food name matches an unchecked grocery attributed to the same recipe title, regardless of quantity. A merged grocery counts for each of its recipes.
 
 **Selected ingredient**:
 A reviewed ingredient the person has chosen to add to groceries. Existing groceries inform the initial choice; later grocery changes do not override that choice.
+
+**Merged grocery**:
+One grocery row for the same food needed by several reviewed lines or recipes, such as "3 onions" for Stew and Tacos. Lines merge when their food and unit match, including into unchecked items already on the list; ranges and different units stay separate rows.
 
 **Recipe review**:
 One member's star rating and note on a recipe, such as "Use half the salt". Each member has their own; the household sees all current members' reviews on recipes they can see.

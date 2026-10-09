@@ -1079,9 +1079,10 @@ final class HouseholdStore {
         grocerySync.update(item, original: original)
     }
 
-    func importGroceries(_ items: [GroceryItem]) {
+    func importGroceries(_ changes: GroceryImport) {
         guard household != nil else { return }
-        grocerySync.insert(items)
+        for (item, original) in changes.updated { grocerySync.update(item, original: original) }
+        grocerySync.insert(changes.added)
     }
 
     /// Fills in the aisle of every unsorted item, including ones another member added.
