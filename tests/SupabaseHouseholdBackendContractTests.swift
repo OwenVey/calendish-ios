@@ -1,0 +1,86 @@
+import Foundation
+import Supabase
+
+/// Small wire-contract checks complement the in-memory store workflows; they do not simulate SQL rules.
+private actor HouseholdWireRequests {
+    static let shared = HouseholdWireRequests()
+    var requests: [URLRequest] = []
+    func record(_ request: URLRequest) { requests.append(request) }
+    func last() -> URLRequest { requests.last! }
+}
+private final class HouseholdWireProtocol: URLProtocol, @unchecked Sendable {
+    nonisolated override class func canInit(with request: URLRequest) -> Bool { true }
+    nonisolated override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    nonisolated override func startLoading() {
+        Task {
+            await HouseholdWireRequests.shared.record(request)
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: Data("[]".utf8))
+            client?.urlProtocolDidFinishLoading(self)
+        }
+    }
+    nonisolated override func stopLoading() { }
+}
+private final class HouseholdWireAuthStorage: AuthLocalStorage, @unchecked Sendable {
+    func store(key: String, value: Data) { }
+    func retrieve(key: String) -> Data? { nil }
+    func remove(key: String) { }
+}
+@MainActor
+enum SupabaseHouseholdBackendContractTests {
+    private static func body(_ request: URLRequest) throws -> [String: Any] {
+        var data = request.httpBody ?? Data()
+        if let stream = request.httpBodyStream {
+            stream.open(); defer { stream.close() }
+            var buffer = [UInt8](repeating: 0, count: 4096)
+            while stream.hasBytesAvailable {
+                let count = stream.read(&buffer, maxLength: buffer.count)
+                guard count > 0 else { break }
+                data.append(contentsOf: buffer.prefix(count))
+            }
+        }
+        return try JSONSerialization.jsonObject(with: data) as! [String: Any]
+    }
+    private static func expect(_ condition: Bool, _ message: String) throws {
+        if !condition { throw NSError(domain: message, code: 1) }
+    }
+    static func run() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [HouseholdWireProtocol.self]
+        let client = SupabaseClient(supabaseURL: URL(string: "http://127.0.0.1:1")!, supabaseKey: "wire-test",
+            options: .init(auth: .init(storage: HouseholdWireAuthStorage(), autoRefreshToken: false),
+                global: .init(session: URLSession(configuration: configuration))))
+        let backend = SupabaseHouseholdBackend(client: client)
+        var recipe = SampleRecipes.all[0]
+        let person = UUID(), household = UUID()
+        recipe.owner = .person(person, shared: true)
+        let meal = PlannedMeal(date: .now, recipe: recipe, recipeID: recipe.id, servings: 3)
+        try await backend.write(.saveMeal(meal, household: household, keepVersion: true))
+        let kept = await HouseholdWireRequests.shared.last()
+        let keptBody = try body(kept)
+        try expect(kept.url?.path == "/rest/v1/rpc/save_planned_meal" && keptBody["meal_recipe"] is NSNull
+            && keptBody["keep_version"] as? Bool == true && keptBody["meal_servings"] as? Int == 3,
+            "Keeping a meal version sends the required explicit null recipe argument")
+        try await backend.write(.saveMeal(meal, household: household, keepVersion: false))
+        let captured = await HouseholdWireRequests.shared.last()
+        try expect((try body(captured)["meal_recipe"] as? String)?.lowercased() == recipe.id.uuidString.lowercased(), "Capturing a meal sends its source recipe ID")
+        try await backend.write(.saveRecipe(recipe, isNew: false, upload: nil, stalePhoto: nil))
+        let edited = await HouseholdWireRequests.shared.last()
+        let editedBody = try body(edited)
+        try expect(edited.httpMethod == "PATCH" && editedBody["owner_id"] == nil && editedBody["household_id"] == nil
+            && editedBody["is_shared"] == nil, "Recipe edits omit ownership and sharing fields")
+        try await backend.write(.saveRecipe(recipe, isNew: true, upload: nil, stalePhoto: nil))
+        let inserted = await HouseholdWireRequests.shared.last()
+        let insertedBody = try body(inserted)
+        try expect(inserted.httpMethod == "POST" && (insertedBody["owner_id"] as? String)?.lowercased() == person.uuidString.lowercased()
+            && insertedBody["is_shared"] as? Bool == true, "New recipes carry their personal owner")
+        try await backend.write(.markCooked(household: household, recipe: recipe.id, day: meal.date))
+        let cooked = await HouseholdWireRequests.shared.last()
+        try expect(cooked.url?.path == "/rest/v1/recipe_cooks"
+            && cooked.value(forHTTPHeaderField: "Prefer")?.contains("resolution=ignore-duplicates") == true,
+            "Marking cooked keeps duplicate-safe upsert semantics")
+        let snapshot = try await backend.snapshot(household: household)
+        try expect(snapshot.household == nil && snapshot.recipes.isEmpty, "An RLS-hidden household remains absent")
+    }
+}

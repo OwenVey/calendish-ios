@@ -38,6 +38,13 @@ objects[file_id] = dict(isa='PBXFileReference', lastKnownFileType='sourcecode.sw
 objects[build_id] = dict(isa='PBXBuildFile', fileRef=file_id)
 objects['05BDE7583072DA7B00C5B9A0']['files'].append(build_id)
 objects['05BDE7533072DA7B00C5B9A0']['children'].append(file_id)
+if test_file == 'tests/HouseholdStoreWorkflowTests.swift':
+    contract_file, contract_build = 'ABCDEF000000000000000003', 'ABCDEF000000000000000004'
+    objects[contract_file] = dict(isa='PBXFileReference', lastKnownFileType='sourcecode.swift',
+                                 path=str(root / 'tests/SupabaseHouseholdBackendContractTests.swift'), sourceTree='<absolute>')
+    objects[contract_build] = dict(isa='PBXBuildFile', fileRef=contract_file)
+    objects['05BDE7583072DA7B00C5B9A0']['files'].append(contract_build)
+    objects['05BDE7533072DA7B00C5B9A0']['children'].append(contract_file)
 objects['05BDE75A3072DA7B00C5B9A0']['files'] = []
 path = dest / 'project.pbxproj'
 path.write_text(json.dumps(project))
