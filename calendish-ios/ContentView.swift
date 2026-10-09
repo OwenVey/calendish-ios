@@ -58,7 +58,9 @@ struct ContentView: View {
             }
         }
         .fullScreenCover(item: $resumedCooking) { session in
-            CookModeView(recipe: session.recipe, servings: session.servings, checked: $resumedChecked)
+            CookModeView(recipe: session.recipe, cookedRecipeID: store.recipes.contains { $0.id == session.recipe.id } ? session.recipe.id : nil,
+                         servings: session.servings, checked: $resumedChecked)
+                .environment(store)
                 .environment(timers)
         }
         .preferredColorScheme(appearance.colorScheme)

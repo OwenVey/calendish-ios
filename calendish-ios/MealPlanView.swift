@@ -423,23 +423,46 @@ struct MealPickerView: View {
     private var isDirty: Bool { initialValues != nil && values != initialValues }
     private var recipes: [Recipe] { store.recipes.filter { search.isEmpty || $0.title.localizedCaseInsensitiveContains(search) } }
 
+    private func recipeChoice(_ recipe: Recipe, stats: RecipeStats?, caption: String? = nil) -> some View {
+        Button {
+            keepsSavedVersion = false
+            recipeID = recipe.id
+            servings = recipe.servings
+        } label: {
+            HStack {
+                RecipeRow(recipe: recipe, stats: stats, caption: caption)
+                Spacer()
+                if recipeID == recipe.id { Image(systemName: "checkmark.circle.fill").foregroundStyle(CalendishStyle.accent).accessibilityHidden(true) }
+            }
+        }.buttonStyle(.plain)
+            .accessibilityValue(recipeID == recipe.id ? "Selected" : "Not selected")
+            .accessibilityAddTraits(recipeID == recipe.id ? .isSelected : [])
+    }
+
+    /// Why a recipe is suggested, such as "Rated 4.5 · Last cooked 2 months ago".
+    private func suggestionReason(_ recipe: Recipe, stats: RecipeStats?) -> String {
+        let liked = stats?.averageRating.map { "Rated \(RecipeRow.formatted($0))" } ?? "Favorite"
+        return "\(liked) · \(RecipeRow.lastCookedText(stats))"
+    }
+
+    @ViewBuilder private var suggestions: some View {
+        let stats = store.recipeStats
+        let suggested = search.isEmpty ? RecipeStats.suggestions(from: store.recipes, stats: stats, meals: store.meals, limit: 3) : []
+        if !suggested.isEmpty {
+            Section {
+                ForEach(suggested) { recipeChoice($0, stats: stats[$0.id], caption: suggestionReason($0, stats: stats[$0.id])) }
+            } header: {
+                Text("Suggestions")
+            } footer: {
+                Text("Well-liked recipes you haven’t cooked in a while.")
+            }
+        }
+    }
+
     private var recipeChoices: some View {
-                Section("Choose a recipe") {
-                    ForEach(recipes) { recipe in
-                        Button {
-                            keepsSavedVersion = false
-                            recipeID = recipe.id
-                            servings = recipe.servings
-                        } label: {
-                            HStack {
-                                RecipeRow(recipe: recipe)
-                                Spacer()
-                                if recipeID == recipe.id { Image(systemName: "checkmark.circle.fill").foregroundStyle(CalendishStyle.accent).accessibilityHidden(true) }
-                            }
-                        }.buttonStyle(.plain)
-                            .accessibilityValue(recipeID == recipe.id ? "Selected" : "Not selected")
-                            .accessibilityAddTraits(recipeID == recipe.id ? .isSelected : [])
-                    }
+                let stats = store.recipeStats
+                return Section("Choose a recipe") {
+                    ForEach(recipes) { recipeChoice($0, stats: stats[$0.id]) }
                     if recipes.isEmpty {
                         ContentUnavailableView(store.recipes.isEmpty ? "Add a Recipe First" : "No Matching Recipes", systemImage: "book.closed", description: Text(store.recipes.isEmpty ? "Open Recipes and tap + to add your first dish." : "Try another search."))
                     }
@@ -460,6 +483,7 @@ struct MealPickerView: View {
                         Toggle("Keep saved version", isOn: $keepsSavedVersion)
                     } header: { Text("Saved recipe version") } footer: { Text("Keep the planned ingredients and instructions when changing the day or servings. Turn this off to choose a current recipe.") }
                 }
+                suggestions
                 recipeChoices
             }
             .searchable(text: $search, prompt: "Find a recipe")

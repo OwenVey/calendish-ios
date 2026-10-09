@@ -26,6 +26,10 @@ final class HouseholdStore {
     var recipes: [Recipe] = []
     var meals: [PlannedMeal] = []
     var notes: [MealPlanNote] = []
+    /// Each member's ratings and notes on recipes this person can see, including their own.
+    var reviews: [RecipeReview] = []
+    /// Days the household marked recipes as cooked.
+    var cooks: [RecipeCook] = []
     var groceries: [GroceryItem] { grocerySync.items }
     /// The latest failed save or load, shown as an alert.
     var errorMessage: String?
@@ -85,6 +89,15 @@ final class HouseholdStore {
             PlannedMeal(date: Calendar.current.date(byAdding: .day, value: 1, to: today)!, recipe: recipes[1], recipeID: recipes[1].id, servings: 4)
         ]
         store.notes = [MealPlanNote(date: Calendar.current.date(byAdding: .day, value: 2, to: today)!, text: "Leftovers", items: ["Baguette"])]
+        store.reviews = [
+            RecipeReview(userID: me, recipeID: recipes[0].id, rating: 5, note: "Use half the salt."),
+            RecipeReview(userID: partner, recipeID: recipes[0].id, rating: 4, note: "Great with feta on top."),
+            RecipeReview(userID: partner, recipeID: recipes[1].id, rating: 5)
+        ]
+        store.cooks = [
+            RecipeCook(recipeID: recipes[0].id, date: Calendar.current.date(byAdding: .day, value: -21, to: today)!, cookedBy: me),
+            RecipeCook(recipeID: recipes[1].id, date: Calendar.current.date(byAdding: .day, value: -45, to: today)!, cookedBy: partner)
+        ]
         store.grocerySync.setHousehold(store.household?.id, items: [
             GroceryItem(name: "Cherry tomatoes", amount: "2 cups", source: "Lemon & herb orzo", position: 0),
             GroceryItem(name: "Orzo", amount: "1½ cups", source: "Lemon & herb orzo", position: 1),
@@ -150,7 +163,7 @@ final class HouseholdStore {
         writeRevision &+= 1
         grocerySync.setHousehold(nil)
         household = nil
-        members = []; recipes = []; meals = []; notes = []
+        members = []; recipes = []; meals = []; notes = []; reviews = []; cooks = []
         await stopRealtime()
         return session
     }
@@ -511,8 +524,12 @@ final class HouseholdStore {
         async let favoriteRows: [FavoriteRecord] = fetchRows("recipe_favorites", idColumn: "recipe_id", key: \.recipeID)
         async let mealRows: [PlannedMealRecord] = fetchRows("planned_meals", householdID: id, key: \.id)
         async let noteRows: [MealPlanNoteRecord] = fetchRows("meal_plan_notes", householdID: id, key: \.id)
+        // Row Level Security limits reviews to this person's and their household's, on recipes they can see.
+        async let reviewRows: [RecipeReviewRecord] = fetchRows("recipe_reviews", key: \.id)
+        async let cookRows: [RecipeCookRecord] = fetchRows("recipe_cooks", householdID: id, key: \.id)
         async let groceryRefresh: Void = grocerySync.refresh()
-        let (hs, m, r, f, p, n, _) = try await (householdRows, memberRows, recipeRows, favoriteRows, mealRows, noteRows, groceryRefresh)
+        let (hs, m, r, f, p, n, v, c, _) = try await (householdRows, memberRows, recipeRows, favoriteRows, mealRows, noteRows,
+                                                      reviewRows, cookRows, groceryRefresh)
         guard !Task.isCancelled, session == syncSession, household?.id == id else { return }
         // Row Level Security hides the household once this person is removed or moves elsewhere.
         guard let h = hs.first, m.contains(where: { $0.userID == userID }) else {
@@ -528,6 +545,9 @@ final class HouseholdStore {
             recipes = r.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }.map { Recipe($0, favorites: favorites) }
             meals = p.sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }.compactMap(PlannedMeal.init)
             notes = n.sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }.compactMap(MealPlanNote.init)
+            // Oldest first, so each member's note keeps its place as others edit theirs.
+            reviews = v.sorted { ($0.updatedAt ?? .distantPast) < ($1.updatedAt ?? .distantPast) }.map(RecipeReview.init)
+            cooks = c.compactMap(RecipeCook.init)
         }
     }
 
@@ -736,6 +756,8 @@ final class HouseholdStore {
     /// leaves the household a copy. Planned meals keep their saved versions, and groceries stay.
     func deleteRecipe(_ recipe: Recipe) {
         recipes.removeAll { $0.id == recipe.id }
+        reviews.removeAll { $0.recipeID == recipe.id }
+        cooks.removeAll { $0.recipeID == recipe.id }
         for index in meals.indices where meals[index].recipeID == recipe.id { meals[index].recipeID = nil }
         save { [client, weak self] in
             let unused: [String] = try await client.rpc("delete_recipe", params: ["target_recipe": recipe.id]).execute().value
@@ -793,6 +815,85 @@ final class HouseholdStore {
         for start in stride(from: 0, to: paths.count, by: 100) {
             let batch = Array(paths[start..<min(start + 100, paths.count)])
             _ = try? await client.storage.from(RecipePhotos.bucket).remove(paths: batch)
+        }
+    }
+
+    // MARK: Ratings, notes, and cooked history
+
+    /// Ratings and cooked days for every recipe with either, keyed by recipe ID.
+    /// Only current members' ratings count, even before a refetch drops a departed member's.
+    var recipeStats: [UUID: RecipeStats] {
+        let people = Set(members.map(\.userID) + [userID].compactMap { $0 })
+        return RecipeStats.make(reviews: reviews.filter { people.contains($0.userID) }, cooks: cooks, meals: meals)
+    }
+
+    /// Well-liked recipes the household hasn't cooked lately or planned yet.
+    func suggestedRecipes(limit: Int = 5) -> [Recipe] {
+        RecipeStats.suggestions(from: recipes, stats: recipeStats, meals: meals, limit: limit)
+    }
+
+    /// The person's own rating and note for a recipe, if they've left one.
+    func myReview(of recipeID: UUID) -> RecipeReview? {
+        reviews.first { $0.recipeID == recipeID && $0.userID == userID }
+    }
+
+    /// Other current members' ratings and notes for a recipe, in the order the household lists members.
+    func memberReviews(of recipeID: UUID) -> [(member: HouseholdMember, review: RecipeReview)] {
+        members.filter { $0.userID != userID }.compactMap { member in
+            reviews.first { $0.recipeID == recipeID && $0.userID == member.userID }.map { (member, $0) }
+        }
+    }
+
+    /// Saves the person's rating and note for a recipe. Clearing both removes the review.
+    func saveReview(of recipeID: UUID, rating: Int?, note: String) {
+        guard let userID, recipes.contains(where: { $0.id == recipeID }) else { return }
+        let review = RecipeReview(userID: userID, recipeID: recipeID, rating: rating.map { min(5, max(1, $0)) },
+                                  note: note.trimmingCharacters(in: .whitespacesAndNewlines))
+        guard review != myReview(of: recipeID) else { return }
+        if review.isEmpty {
+            reviews.removeAll { $0.recipeID == recipeID && $0.userID == userID }
+            save { [client] in
+                try await client.from("recipe_reviews").delete().eq("user_id", value: userID).eq("recipe_id", value: recipeID).execute()
+            }
+            return
+        }
+        if let index = reviews.firstIndex(where: { $0.recipeID == recipeID && $0.userID == userID }) {
+            reviews[index] = review
+        } else {
+            reviews.append(review)
+        }
+        let record = review.record
+        save { [client] in
+            try await client.from("recipe_reviews").upsert(record, onConflict: "user_id,recipe_id", returning: .minimal).execute()
+        }
+    }
+
+    /// Records that the household cooked a recipe on a day. Marking the same day twice changes nothing.
+    func markCooked(_ recipeID: UUID, on date: Date = .now) {
+        guard let householdID = household?.id, recipes.contains(where: { $0.id == recipeID }) else { return }
+        let day = Calendar.current.startOfDay(for: date)
+        guard !cooks.contains(where: { $0.recipeID == recipeID && Calendar.current.isDate($0.date, inSameDayAs: day) }) else { return }
+        cooks.append(RecipeCook(recipeID: recipeID, date: day, cookedBy: userID))
+        let record = RecipeCookRecord(householdID: householdID, recipeID: recipeID, cookedOn: DayFormat.string(from: day))
+        save { [client] in
+            try await client.from("recipe_cooks")
+                .upsert(record, onConflict: "household_id,recipe_id,cooked_on", returning: .minimal, ignoreDuplicates: true)
+                .execute()
+        }
+    }
+
+    /// Whether a cooked day was marked by hand, rather than coming from a past planned meal, so it can be removed.
+    func isMarkedCooked(_ recipeID: UUID, on day: Date) -> Bool {
+        cooks.contains { $0.recipeID == recipeID && Calendar.current.isDate($0.date, inSameDayAs: day) }
+    }
+
+    func removeCooked(_ recipeID: UUID, on day: Date) {
+        guard let householdID = household?.id else { return }
+        cooks.removeAll { $0.recipeID == recipeID && Calendar.current.isDate($0.date, inSameDayAs: day) }
+        let cookedOn = DayFormat.string(from: day)
+        save { [client] in
+            try await client.from("recipe_cooks").delete()
+                .eq("household_id", value: householdID).eq("recipe_id", value: recipeID).eq("cooked_on", value: cookedOn).execute()
         }
     }
 
@@ -923,6 +1024,7 @@ final class HouseholdStore {
         recipes.removeAll { $0.owner == .household }
         meals = []
         notes = []
+        cooks = []
         await removePhotos(photoPaths)
         await refresh()
     }

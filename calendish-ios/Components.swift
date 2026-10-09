@@ -107,6 +107,11 @@ struct RecipeRow: View {
     var servings: Int?
     /// Whether to name whose recipe it is.
     var showsOwner = true
+    /// The household's rating and cooked history, shown when there is some.
+    var stats: RecipeStats?
+    var showsLastCooked = false
+    /// A line under the details, such as why a recipe is suggested.
+    var caption: String?
     /// Whose recipe it is. Your own recipes don't name an owner.
     private var owner: String? { !showsOwner || store.isMine(recipe) ? nil : store.ownerName(of: recipe) }
     var body: some View {
@@ -128,11 +133,18 @@ struct RecipeRow: View {
                 HStack(spacing: 10) {
                     Label("\(recipe.minutes) min", systemImage: "clock")
                     Label("\(servings ?? recipe.servings) servings", systemImage: "person.2")
+                    if let rating = stats?.averageRating {
+                        Label(Self.formatted(rating), systemImage: "star")
+                            .accessibilityLabel("Rated \(Self.formatted(rating)) stars")
+                    }
                 }
                 .labelStyle(RecipeDetailLabelStyle())
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                if let caption = caption ?? (showsLastCooked ? Self.lastCookedText(stats) : nil) {
+                    Text(caption).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                }
                 if !recipe.tags.isEmpty {
                     FlowLayout(spacing: 4) {
                         ForEach(recipe.tags.prefix(2), id: \.self) { TagPill(tag: $0, compact: true) }
@@ -143,6 +155,17 @@ struct RecipeRow: View {
                 }
             }.padding(.vertical, 4)
         }
+    }
+}
+
+extension RecipeRow {
+    /// An average rating like "4.5", or "4" when whole.
+    static func formatted(_ rating: Double) -> String {
+        rating.formatted(.number.precision(.fractionLength(0...1)))
+    }
+
+    static func lastCookedText(_ stats: RecipeStats?) -> String {
+        stats?.lastCooked.map { "Last cooked \(RecipeStats.cookedAgo($0))" } ?? "Not cooked yet"
     }
 }
 

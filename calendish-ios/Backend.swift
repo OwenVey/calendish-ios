@@ -129,6 +129,50 @@ nonisolated struct FavoriteRecord: Codable, Sendable {
     enum CodingKeys: String, CodingKey { case recipeID = "recipe_id" }
 }
 
+nonisolated struct RecipeReviewRecord: Codable, Sendable {
+    /// Assigned by the database, for paging. Left out when saving.
+    var id = UUID()
+    var userID: UUID
+    var recipeID: UUID
+    var rating: Int?
+    var note: String
+    var updatedAt: Date?
+    enum CodingKeys: String, CodingKey {
+        case id, userID = "user_id", recipeID = "recipe_id", rating, note, updatedAt = "updated_at"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(userID, forKey: .userID)
+        try container.encode(recipeID, forKey: .recipeID)
+        // An explicit null clears a rating when only the note remains.
+        try container.encode(rating, forKey: .rating)
+        try container.encode(note, forKey: .note)
+        try container.encodeIfPresent(updatedAt, forKey: .updatedAt)
+    }
+}
+
+nonisolated struct RecipeCookRecord: Codable, Sendable {
+    /// Assigned by the database, for paging. Left out when saving.
+    var id = UUID()
+    var householdID: UUID
+    var recipeID: UUID
+    /// A `yyyy-MM-dd` calendar day, like a planned meal's.
+    var cookedOn: String
+    /// Filled in by the database when saving.
+    var cookedBy: UUID?
+    enum CodingKeys: String, CodingKey {
+        case id, householdID = "household_id", recipeID = "recipe_id", cookedOn = "cooked_on", cookedBy = "cooked_by"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(householdID, forKey: .householdID)
+        try container.encode(recipeID, forKey: .recipeID)
+        try container.encode(cookedOn, forKey: .cookedOn)
+    }
+}
+
 nonisolated struct PlannedMealRecord: Decodable, Sendable {
     var id: UUID
     var householdID: UUID
@@ -203,6 +247,22 @@ extension MealPlanNote {
     }
     func record(household: UUID) -> MealPlanNoteRecord {
         MealPlanNoteRecord(id: id, householdID: household, date: DayFormat.string(from: date), text: text, items: items)
+    }
+}
+
+extension RecipeReview {
+    init(_ row: RecipeReviewRecord) {
+        self.init(userID: row.userID, recipeID: row.recipeID, rating: row.rating, note: row.note)
+    }
+    var record: RecipeReviewRecord {
+        RecipeReviewRecord(userID: userID, recipeID: recipeID, rating: rating, note: note, updatedAt: .now)
+    }
+}
+
+extension RecipeCook {
+    init?(_ row: RecipeCookRecord) {
+        guard let date = DayFormat.date(from: row.cookedOn) else { return nil }
+        self.init(recipeID: row.recipeID, date: date, cookedBy: row.cookedBy)
     }
 }
 

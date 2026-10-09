@@ -334,6 +334,87 @@ struct MealPlanNote: Identifiable, Hashable {
     var items: [String] = []
 }
 
+/// One person's rating and note for a recipe, such as four stars and "Use half the salt". The household sees each member's.
+struct RecipeReview: Hashable {
+    var userID: UUID
+    var recipeID: UUID
+    /// One to five stars, or nil when the person only left a note.
+    var rating: Int?
+    var note: String = ""
+    var isEmpty: Bool { rating == nil && note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+}
+
+/// A day the household marked a recipe as cooked.
+struct RecipeCook: Hashable {
+    var recipeID: UUID
+    var date: Date
+    var cookedBy: UUID?
+}
+
+/// What the household thinks of a recipe and when it last cooked it, for sorting and suggestions.
+struct RecipeStats: Hashable {
+    var averageRating: Double?
+    var ratingCount = 0
+    /// Days cooked, most recent first.
+    var cookedDays: [Date] = []
+    var lastCooked: Date? { cookedDays.first }
+
+    /// Combines ratings, days marked cooked, and past planned meals. Planned meals count from the day after they were planned.
+    static func make(reviews: [RecipeReview], cooks: [RecipeCook], meals: [PlannedMeal], now: Date = .now) -> [UUID: RecipeStats] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        var days: [UUID: Set<Date>] = [:]
+        for cook in cooks { days[cook.recipeID, default: []].insert(calendar.startOfDay(for: cook.date)) }
+        for meal in meals {
+            guard let id = meal.recipeID else { continue }
+            let day = calendar.startOfDay(for: meal.date)
+            if day < today { days[id, default: []].insert(day) }
+        }
+        var stats: [UUID: RecipeStats] = days.mapValues { RecipeStats(cookedDays: $0.sorted(by: >)) }
+        for (id, ratings) in Dictionary(grouping: reviews.compactMap { review in review.rating.map { (review.recipeID, $0) } }, by: \.0) {
+            stats[id, default: RecipeStats()].averageRating = Double(ratings.map(\.1).reduce(0, +)) / Double(ratings.count)
+            stats[id, default: RecipeStats()].ratingCount = ratings.count
+        }
+        return stats
+    }
+
+    /// Recipes worth planning again: rated four stars or more, or a favorite, and not cooked in the last two weeks
+    /// or planned from today on. Higher ratings and longer gaps come first.
+    static func suggestions(from recipes: [Recipe], stats: [UUID: RecipeStats], meals: [PlannedMeal], now: Date = .now, limit: Int = 5) -> [Recipe] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        let planned = Set(meals.filter { calendar.startOfDay(for: $0.date) >= today }.compactMap(\.recipeID))
+        let scored = recipes.compactMap { recipe -> (Recipe, Double)? in
+            let stat = stats[recipe.id] ?? RecipeStats()
+            guard !planned.contains(recipe.id) else { return nil }
+            let rating = stat.averageRating ?? (recipe.isFavorite ? 4 : 0)
+            guard rating >= 4 || recipe.isFavorite else { return nil }
+            let daysSince = stat.lastCooked.map { calendar.dateComponents([.day], from: $0, to: today).day ?? 0 }
+            if let daysSince, daysSince < 14 { return nil }
+            // Up to three extra points for a long gap. Recipes never cooked here count as a month, so a rated
+            // recipe the household knows it likes edges out an untried favorite.
+            return (recipe, rating + Double(min(daysSince ?? 30, 90)) / 30)
+        }
+        return scored.sorted { $0.1 > $1.1 }.prefix(limit).map(\.0)
+    }
+
+    /// "today", "yesterday", "3 weeks ago", or similar, counted in calendar days, to follow "Last cooked".
+    static func cookedAgo(_ day: Date, now: Date = .now) -> String {
+        let calendar = Calendar.current
+        let days = max(0, calendar.dateComponents([.day], from: calendar.startOfDay(for: day), to: calendar.startOfDay(for: now)).day ?? 0)
+        let formatter = RelativeDateTimeFormatter()
+        // Named styles read "last week" past a few days, which doesn't follow "Last cooked" well.
+        formatter.dateTimeStyle = days < 7 ? .named : .numeric
+        let components: DateComponents = switch days {
+        case ..<7: DateComponents(day: -days)
+        case ..<30: DateComponents(weekOfMonth: -(days / 7))
+        case ..<365: DateComponents(month: -max(1, days / 30))
+        default: DateComponents(year: -(days / 365))
+        }
+        return formatter.localizedString(from: components)
+    }
+}
+
 struct GroceryItem: Identifiable {
     var id = UUID()
     var name: String

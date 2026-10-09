@@ -27,3 +27,9 @@ A reviewed ingredient whose food name matches an unchecked grocery attributed to
 
 **Selected ingredient**:
 A reviewed ingredient the person has chosen to add to groceries. Existing groceries inform the initial choice; later grocery changes do not override that choice.
+
+**Recipe review**:
+One member's star rating and note on a recipe, such as "Use half the salt". Each member has their own; the household sees all current members' reviews on recipes they can see.
+
+**Cooked history**:
+The days a household cooked a recipe: days marked as cooked, including finishing Cook Mode, plus past planned meals. It drives "Last cooked", cooked-based sorting, and meal suggestions.

@@ -38,8 +38,9 @@ struct RecipeBookView: View {
             (!favoritesOnly || recipe.isFavorite) &&
             (search.isEmpty || ([recipe.title, recipe.summary, recipe.category?.title ?? ""] + recipe.tags + recipe.ingredients.map(\.text)).contains { $0.localizedCaseInsensitiveContains(search) })
         }
-        return sort == .title ? recipes.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending } : recipes
+        return sort.sorted(recipes, stats: recipeStats)
     }
+    private var recipeStats: [UUID: RecipeStats] { store.recipeStats }
     private var subtitle: String {
         let count = filteredRecipes.count == 1 ? "1 recipe" : "\(filteredRecipes.count) recipes"
         let filters = (favoritesOnly ? ["Favorites"] : []) + (selectedTag == "All recipes" ? [] : [selectedTag])
@@ -55,10 +56,13 @@ struct RecipeBookView: View {
     }
 
     private var recipeList: some View {
-        List {
+        let stats = recipeStats
+        return List {
             scopePicker.listRowSeparator(.hidden)
             ForEach(filteredRecipes) { recipe in
-                NavigationLink(value: recipe) { RecipeRow(recipe: recipe, showsOwner: false) }
+                NavigationLink(value: recipe) {
+                    RecipeRow(recipe: recipe, showsOwner: false, stats: stats[recipe.id], showsLastCooked: sort.showsLastCooked)
+                }
                     .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
                     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         // A destructive swipe button removes the row before confirmation.
@@ -76,12 +80,13 @@ struct RecipeBookView: View {
     }
 
     private var recipeGrid: some View {
-        ScrollView {
+        let stats = recipeStats
+        return ScrollView {
             VStack(spacing: 20) {
                 scopePicker
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16, alignment: .top), count: 2), spacing: 24) {
                     ForEach(filteredRecipes) { recipe in
-                        NavigationLink(value: recipe) { RecipeCard(recipe: recipe) }
+                        NavigationLink(value: recipe) { RecipeCard(recipe: recipe, stats: stats[recipe.id], showsLastCooked: sort.showsLastCooked) }
                             .buttonStyle(.plain)
                             .calendishContextMenu { actions(for: recipe) } preview: { RecipePreview(recipe: recipe) }
                     }
@@ -244,6 +249,8 @@ struct RecipeBookView: View {
 private struct RecipeCard: View {
     @Environment(HouseholdStore.self) private var store
     let recipe: Recipe
+    var stats: RecipeStats?
+    var showsLastCooked = false
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             RecipeArtwork(recipe: recipe)
@@ -264,12 +271,19 @@ private struct RecipeCard: View {
                 HStack(spacing: 4) {
                     Image(systemName: "clock").font(.caption2).accessibilityHidden(true)
                     Text("\(recipe.minutes) min")
+                    if let rating = stats?.averageRating {
+                        Image(systemName: "star.fill").font(.caption2).padding(.leading, 4).accessibilityHidden(true)
+                        Text(RecipeRow.formatted(rating)).accessibilityLabel("Rated \(RecipeRow.formatted(rating)) stars")
+                    }
                     if store.isMine(recipe) && recipe.owner?.isShared == false {
                         Image(systemName: "lock.fill").font(.caption2).accessibilityLabel("Only me")
                     }
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
+                if showsLastCooked {
+                    Text(RecipeRow.lastCookedText(stats)).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                }
             }
             .padding(.horizontal, 2)
         }
@@ -328,6 +342,12 @@ struct RecipeDetailView: View {
     private var servings: Int { scaledServings ?? plannedMeal?.servings ?? recipe.servings }
     private var isScaled: Bool { servings != recipe.servings && recipe.servings > 0 }
     private var scale: Double { isScaled ? Double(servings) / Double(recipe.servings) : 1 }
+    /// The recipe in the person's book that ratings, notes, and cooked history belong to. A planned meal's
+    /// saved version uses its source recipe, while that still exists.
+    private var reviewedRecipeID: UUID? {
+        let id = plannedMeal == nil ? recipe.id : plannedMeal?.recipeID
+        return id.flatMap { id in store.recipes.contains { $0.id == id } ? id : nil }
+    }
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -373,6 +393,7 @@ struct RecipeDetailView: View {
                         .accessibilityLabel("Tags: \(recipe.tags.formatted(.list(type: .and)))")
                     }
                 }
+                if let reviewedRecipeID { RecipeNotesSection(recipeID: reviewedRecipeID) }
                 VStack(alignment: .leading, spacing: 8) {
                     SectionHeading(title: "Ingredients", subtitle: ingredientsSubtitle)
                     servingsStepper
@@ -508,7 +529,7 @@ struct RecipeDetailView: View {
             RecipeSourceBrowser(url: source.url)
                 .ignoresSafeArea()
         }
-        .fullScreenCover(isPresented: $isCooking) { CookModeView(recipe: recipe, servings: servings, checked: $checked) }
+        .fullScreenCover(isPresented: $isCooking) { CookModeView(recipe: recipe, cookedRecipeID: reviewedRecipeID, servings: servings, checked: $checked) }
         .sheet(isPresented: $showImportOutline) {
             GroceryImportReviewView(candidates: [GroceryImportCandidate(recipe: recipe, servings: servings)])
         }

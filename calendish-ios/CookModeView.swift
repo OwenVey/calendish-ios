@@ -7,7 +7,10 @@ import Observation
 /// Full-screen, adaptive step-by-step view for cooking a recipe.
 struct CookModeView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(HouseholdStore.self) private var store
     let recipe: Recipe
+    /// The recipe to mark as cooked on finishing, when it's in the person's recipe book.
+    var cookedRecipeID: UUID?
     /// The servings chosen on the recipe page; ingredient quantities scale to match.
     var servings: Int
     @Binding var checked: Set<UUID>
@@ -181,7 +184,11 @@ struct CookModeView: View {
                 .accessibilityHint("Choose a step")
                 Spacer(minLength: 0)
                 if isLastStep {
-                    Button { session.end(finished: true); dismiss() } label: { OnAccentLabel(title: "Finish", systemImage: "checkmark") }
+                    Button {
+                        session.end(finished: true)
+                        if let cookedRecipeID { store.markCooked(cookedRecipeID) }
+                        dismiss()
+                    } label: { OnAccentLabel(title: "Finish", systemImage: "checkmark") }
                         .controlSize(.large)
                         .modifier(GlassActionStyle(prominent: true))
                 } else {
