@@ -89,8 +89,8 @@ nonisolated enum RecipeImageImporter {
     /// Bullets, checkboxes (often read as "]" or "["), and step numbers that start a new item.
     private static var itemMarker: Regex<Substring> { #/[•●◦▪▢☐□\]\[|\-–*]\s|\d+[.)]\s/# }
 
-    private enum ImportError: LocalizedError {
+    enum ImportError: LocalizedError {
         case noText
-        var errorDescription: String? { "Couldn’t find any text in these images." }
+        var errorDescription: String? { "No readable text found. Try a clearer photo or paste the recipe text." }
     }
 }

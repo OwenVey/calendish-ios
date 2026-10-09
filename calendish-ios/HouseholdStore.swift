@@ -29,6 +29,7 @@ final class HouseholdStore {
     var cooks: [RecipeCook] = []
     /// The latest failed save or load, shown as an alert.
     var errorMessage: String?
+    var errorTitle = "Couldn’t update household data"
     var needsPasswordReset = false
     /// An invite code opened before onboarding finished. It survives sign-up and relaunching.
     private(set) var pendingInvite = UserDefaults.standard.string(forKey: HouseholdStore.pendingInviteKey)
@@ -48,7 +49,7 @@ final class HouseholdStore {
     private var writeRevision: UInt64 = 0
     @ObservationIgnored private(set) lazy var groceries = GrocerySync(
         transport: backend.groceryTransport,
-        onError: { [weak self] error in self?.report(error) },
+        onError: { [weak self] error in self?.report(error, action: "update groceries", recovery: "Reopen the list to try again.") },
         defaults: .standard,
         autoClearInterval: { GroceryAutoClear.current.interval },
         classifyAisles: backend.aisleClassifier)
@@ -180,7 +181,7 @@ final class HouseholdStore {
     }
 
     func signOut() async {
-        do { try await backend.signOut() } catch { report(error) }
+        do { try await backend.signOut() } catch { report(error, action: "sign out", recovery: "Try signing out again.") }
     }
 
     /// Finishes onboarding: joins the pending invitation's household, or starts a solo household.
@@ -576,7 +577,7 @@ final class HouseholdStore {
     }
 
     func deletionExplanation(for recipe: Recipe) -> String {
-        let retained = isMine(recipe) && recipe.owner?.isShared == true ? " Your household keeps an independent copy of your shared recipe." : ""
+        let retained = isMine(recipe) && recipe.owner?.isShared == true ? " Your household keeps a separate copy of your shared recipe." : ""
         return "This permanently deletes this recipe. Planned meals keep their saved versions and groceries stay unchanged." + retained
     }
 
@@ -814,7 +815,7 @@ final class HouseholdStore {
             do {
                 try await backend.write(mutation)
                 if session == syncSession { acknowledged = true; onSuccess?() }
-            } catch { if session == syncSession { report(error) } }
+            } catch { if session == syncSession { report(error, action: mutation.failureAction, recovery: mutation.failureRecovery) } }
             guard session == syncSession else { return }
             pendingWrites -= 1
             writeRevision &+= 1
@@ -823,8 +824,9 @@ final class HouseholdStore {
         savingTasks[token] = writeTask
     }
 
-    private func report(_ error: Error) {
+    private func report(_ error: Error, action: String = "update household data", recovery: String = "Reopen Calendish to try again.") {
         if error is CancellationError { return }
-        errorMessage = error.localizedDescription
+        errorTitle = "Couldn’t \(action)"
+        errorMessage = InterfaceCopy.recoveryMessage(error, fallback: recovery)
     }
 }

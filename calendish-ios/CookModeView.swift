@@ -47,8 +47,8 @@ struct CookModeView: View {
     private var isLastStep: Bool { stepIndex >= recipe.steps.count - 1 }
 
     private enum IngredientScope: String, CaseIterable, Identifiable {
-        case all = "All Ingredients"
-        case currentStep = "Current Step"
+        case all = "All ingredients"
+        case currentStep = "Current step"
         var id: Self { self }
     }
 
@@ -98,7 +98,7 @@ struct CookModeView: View {
                     }
                 )) {
                     ingredientList
-                        .calendishAlert("Timer Done", isPresented: timerAlertPresented(onIngredients: true)) {
+                        .calendishAlert("Timer finished", isPresented: timerAlertPresented(onIngredients: true)) {
                             Button("Done") { }
                         } message: { Text(timerFinishedMessage) }
                         .presentationDetents([.height(sheetHeight), .large])
@@ -115,7 +115,7 @@ struct CookModeView: View {
                     Button(role: .close) { session.end(); dismiss() }.toolbarGlyph()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(handsFree.keepsScreenAwake ? "Stop Voice Commands" : "Voice Commands",
+                    Button(handsFree.keepsScreenAwake ? "Turn off voice commands" : "Voice commands",
                            systemImage: handsFree.keepsScreenAwake ? "mic.fill" : "mic") {
                         if handsFree.keepsScreenAwake { handsFree.stop() }
                         else if handsFreeIntroSeen { handsFree.enable() }
@@ -124,7 +124,7 @@ struct CookModeView: View {
                     .toolbarGlyph()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(showIngredients ? "Hide Ingredients" : "Show Ingredients", systemImage: "list.bullet") {
+                    Button(showIngredients ? "Hide ingredients" : "Show ingredients", systemImage: "list.bullet") {
                         withAnimation(reduceMotion ? nil : .default) { showIngredients.toggle() }
                     }
                     .toolbarGlyph()
@@ -137,12 +137,12 @@ struct CookModeView: View {
         .onChange(of: stepIndex) { _, _ in ingredientFocus = nil }
         .sensoryFeedback(.selection, trigger: stepIndex) { _, _ in haptics }
         .sensoryFeedback(.success, trigger: timerStore.finished.first?.id) { _, _ in haptics }
-        .calendishAlert("Timer Done", isPresented: timerAlertPresented(onIngredients: false)) {
+        .calendishAlert("Timer finished", isPresented: timerAlertPresented(onIngredients: false)) {
             Button("Done") { }
         } message: { Text(timerFinishedMessage) }
-        .calendishAlert("Voice Commands", isPresented: $showHandsFreeIntro) {
+        .calendishAlert("Voice commands", isPresented: $showHandsFreeIntro) {
             Button("Cancel", role: .cancel) { }
-            Button("Turn On") {
+            Button("Turn on voice commands") {
                 handsFreeIntroSeen = true
                 handsFree.enable()
             }
@@ -190,9 +190,9 @@ struct CookModeView: View {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Image(systemName: "timer").foregroundStyle(CalendishStyle.accent)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Timer Done").font(.headline)
+                    Text("Timer finished").font(.headline)
                     ForEach(handsFree.finishedTimers) { timer in
-                        Text("\(timer.recipeID == recipe.id ? "" : "\(timer.recipeTitle), ")Step \(timer.stepIndex + 1): your \(timer.durationText) timer is up.")
+                        Text("\(timer.recipeID == recipe.id ? "" : "\(timer.recipeTitle), ")Step \(timer.stepIndex + 1): \(timer.durationText) timer finished.")
                             .font(.subheadline).foregroundStyle(.secondary)
                     }
                 }
@@ -238,7 +238,7 @@ struct CookModeView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)
-                Button("Stop") { handsFree.stop() }.modifier(GlassActionStyle())
+                Button("Turn off") { handsFree.stop() }.modifier(GlassActionStyle())
             case .paused:
                 statusText("Voice commands paused")
                 Button("Resume") { handsFree.enable() }.modifier(GlassActionStyle())
@@ -253,7 +253,7 @@ struct CookModeView: View {
                 closeHandsFree
             case .microphoneDenied:
                 statusText("Voice commands need microphone access. You can allow it in Settings.")
-                Button("Settings") {
+                Button("Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                 }
                 .modifier(GlassActionStyle())
@@ -274,7 +274,7 @@ struct CookModeView: View {
     }
 
     private var closeHandsFree: some View {
-        Button("Turn Off Voice Commands", systemImage: "xmark") { handsFree.stop() }
+        Button("Turn off voice commands", systemImage: "xmark") { handsFree.stop() }
             .labelStyle(.iconOnly)
             .font(.body.weight(.semibold))
             .frame(minWidth: 44, minHeight: 44)
@@ -282,7 +282,7 @@ struct CookModeView: View {
     }
 
     private var timerFinishedMessage: String {
-        timerStore.finished.map { "\($0.recipeTitle), step \($0.stepIndex + 1): your \($0.durationText) timer is up." }.joined(separator: "\n\n")
+        timerStore.finished.map { "\($0.recipeTitle), step \($0.stepIndex + 1): \($0.durationText) timer finished." }.joined(separator: "\n\n")
     }
 
     private var stepControls: some View {
@@ -295,7 +295,7 @@ struct CookModeView: View {
                         .font(.title2.weight(.semibold))
                         .frame(width: 48, height: 48)
                 }
-                .accessibilityLabel("Previous Step")
+                .accessibilityLabel("Previous step")
                 .tint(Color.primary)
                 .buttonStyle(.glass)
                 .buttonBorderShape(.circle)
@@ -321,9 +321,12 @@ struct CookModeView: View {
                     Button {
                         session.end(finished: true)
                         dismiss()
-                    } label: { OnAccentLabel(title: "Finish", systemImage: "checkmark") }
+                    } label: { OnAccentLabel(title: "Finish cooking", systemImage: "checkmark") }
                         .controlSize(.large)
                         .modifier(GlassActionStyle(prominent: true))
+                        .accessibilityHint(session.snapshot?.cookedRecipeID != nil
+                            ? "Records this recipe as cooked and closes cook mode"
+                            : "Closes cook mode")
                 } else {
                     Button {
                         withAnimation(reduceMotion ? nil : .default) { stepIndex = min(recipe.steps.count - 1, stepIndex + 1) }
@@ -333,7 +336,7 @@ struct CookModeView: View {
                             .foregroundStyle(CalendishStyle.onAccent)
                             .frame(width: 48, height: 48)
                     }
-                    .accessibilityLabel("Next Step")
+                    .accessibilityLabel("Next step")
                     .buttonStyle(.glassProminent)
                     .buttonBorderShape(.circle)
                 }
@@ -371,7 +374,7 @@ struct CookModeView: View {
                         .foregroundStyle(Color.primary)
                         .frame(width: 40, height: 40)
                 }
-                .accessibilityLabel("Hide Ingredients")
+                .accessibilityLabel("Hide ingredients")
                 .accessibilityIdentifier("cook-ingredients-close")
                 .tint(Color.primary)
                 .buttonStyle(.glass)
@@ -386,9 +389,9 @@ struct CookModeView: View {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         if visibleIngredients.isEmpty {
                             VStack(alignment: .leading, spacing: 8) {
-                                Text(ingredientScope == .currentStep ? "No ingredients mentioned" : "No ingredients listed")
+                                Text(ingredientScope == .currentStep ? "No matching ingredients" : "No ingredients listed")
                                     .font(.headline)
-                                Text(ingredientScope == .currentStep ? "This step doesn’t name any ingredients. Choose All Ingredients to see the full recipe." : "Follow the recipe’s instructions to get started.")
+                                Text(ingredientScope == .currentStep ? "No matching ingredients found for this step. Choose All ingredients to see the full list." : "Follow the recipe’s instructions to get started.")
                                     .font(.subheadline).foregroundStyle(.secondary)
                             }
                             .padding(.vertical, 20)
@@ -458,7 +461,7 @@ struct CookModeView: View {
                                 Text(timerInterval: Date.now...max(timer.end, .now), countsDown: true).monospacedDigit()
                             } icon: { Image(systemName: "timer") }
                                 .font(.title3.weight(.semibold)).foregroundStyle(CalendishStyle.accent)
-                            Button("Cancel", role: .destructive) { timerStore.cancel(timer) }
+                            Button("Cancel timer", role: .destructive) { timerStore.cancel(timer) }
                                 .modifier(GlassActionStyle())
                         }
                     } else {
@@ -558,14 +561,14 @@ final class CookingTimers {
                 let center = UNUserNotificationCenter.current()
                 let granted = try await center.requestAuthorization(options: [.alert, .sound])
                 guard granted else {
-                    notificationWarning = "Notifications are off. Keep Calendish open to hear your timers, or enable notifications in Settings."
+                    notificationWarning = "Notifications are off. Keep Calendish open to see timer alerts, or allow notifications in Settings."
                     return
                 }
                 notificationWarning = nil
                 guard timers.contains(where: { $0.id == timer.id }), timer.end > .now else { return }
                 let content = UNMutableNotificationContent()
-                content.title = "Timer Done"
-                content.body = "\(timer.recipeTitle), step \(timer.stepIndex + 1): your \(timer.durationText) timer is up."
+                content.title = "Timer finished"
+                content.body = "\(timer.recipeTitle), step \(timer.stepIndex + 1): \(timer.durationText) timer finished."
                 if alert != .silent { content.sound = .default }
                 try await center.add(UNNotificationRequest(identifier: timer.id.uuidString, content: content,
                     trigger: UNTimeIntervalNotificationTrigger(timeInterval: max(1, timer.end.timeIntervalSinceNow), repeats: false)))

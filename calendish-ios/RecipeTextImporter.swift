@@ -262,7 +262,7 @@ enum RecipeTextImporter {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private enum ImportError: LocalizedError {
+    enum ImportError: LocalizedError {
         case unrecognized
         var errorDescription: String? { "Couldn’t find a recipe in this text. Make sure it includes the ingredients or instructions." }
     }

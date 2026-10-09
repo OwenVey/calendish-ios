@@ -304,7 +304,7 @@ struct SocialRecipeImportTests {
             let recipe = try await RecipeLinkImporter.fetch(link, loader: metadata.loader, usesModel: true).recipe
             preconditionFailure("Expected no recipe, got \(recipe.ingredients.map(\.text)) \(recipe.steps)")
         } catch {
-            expect(error.localizedDescription, "Couldn’t get a recipe from this link.")
+            expect(error.localizedDescription, "Couldn’t find a written recipe at this link. Paste the ingredients or instructions instead.")
         }
 
         // Lists under headings are copied exactly, whatever the model writes.
@@ -322,7 +322,7 @@ struct SocialRecipeImportTests {
             let recipe = try await RecipeLinkImporter.fetch(link, loader: pages.loader, usesModel: false).recipe
             preconditionFailure("Expected no recipe, got \(recipe.title): \(recipe.ingredients.map(\.text)) \(recipe.steps)", file: file, line: line)
         } catch {
-            expect(error.localizedDescription, "Couldn’t get a recipe from this link.", file: file, line: line)
+            expect(error.localizedDescription, "Couldn’t find a written recipe at this link. Paste the ingredients or instructions instead.", file: file, line: line)
         }
     }
 

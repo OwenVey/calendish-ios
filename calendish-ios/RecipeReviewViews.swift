@@ -61,7 +61,7 @@ struct RecipeNotesSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeading(title: "Notes & Ratings")
+            SectionHeading(title: "Notes and ratings")
             cookedRow
             Divider()
             VStack(alignment: .leading, spacing: 4) {
@@ -79,14 +79,14 @@ struct RecipeNotesSection: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(.rect)
                     } else {
-                        Label("Add a Note", systemImage: "square.and.pencil")
+                        Label("Add note", systemImage: "square.and.pencil")
                     }
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(myReview?.note.isEmpty == false ? Color.primary : CalendishStyle.accent)
                 .frame(minHeight: 44)
-                .accessibilityLabel(myReview?.note.isEmpty == false ? "Your note: \(myReview?.note ?? "")" : "Add a Note")
-                .accessibilityHint(myReview?.note.isEmpty == false ? "Edits your note" : "Adds a personal tweak, like using half the salt")
+                .accessibilityLabel(myReview?.note.isEmpty == false ? "Your note: \(myReview?.note ?? "")" : "Add note")
+                .accessibilityHint(myReview?.note.isEmpty == false ? "Edits your note" : "Add a cooking note. Household members can see notes on recipes they can access.")
             }
             ForEach(store.memberReviews(of: recipeID), id: \.member.id) { entry in
                 Divider()
@@ -117,7 +117,7 @@ struct RecipeNotesSection: View {
                         Text(CookedHistory.lastCookedText(stats?.history))
                             .foregroundStyle(.primary)
                         if let count = stats?.history.days.count, count > 0 {
-                            Text(count == 1 ? "Cooked once" : "Cooked \(count) times").font(.subheadline).foregroundStyle(.secondary)
+                            Text(count == 1 ? "1 day marked cooked or planned" : "\(count) days marked cooked or planned").font(.subheadline).foregroundStyle(.secondary)
                         }
                     }
                 } icon: {
@@ -129,15 +129,15 @@ struct RecipeNotesSection: View {
             .buttonStyle(.plain)
             .accessibilityHint("Shows cooked history")
             if cookedToday {
-                Label("Cooked Today", systemImage: "checkmark")
+                Label("Cooked today", systemImage: "checkmark")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
             } else {
-                Button("Mark Cooked", systemImage: "checkmark") { store.markCooked(recipeID) }
+                Button("Mark cooked today", systemImage: "checkmark") { store.markCooked(recipeID) }
                     .font(.subheadline.weight(.semibold))
                     .buttonStyle(.bordered)
                     .buttonBorderShape(.capsule)
-                    .accessibilityLabel("Mark as Cooked Today")
+                    .accessibilityLabel("Mark cooked today")
             }
         }
         .sensoryFeedback(.success, trigger: cookedToday) { _, cooked in cooked }
@@ -165,24 +165,24 @@ private struct RecipeNoteEditor: View {
                         .lineLimit(4...12)
                         .focused($focused)
                 } footer: {
-                    Text("Your household can see your notes on recipes you share.")
+                    Text("Household members can see notes on recipes they can access.")
                 }
                 if initialText?.isEmpty == false {
                     Section {
-                        Button("Delete Note", role: .destructive) {
+                        Button("Delete note", role: .destructive) {
                             store.saveReview(of: recipeID, rating: store.myReview(of: recipeID)?.rating, note: "")
                             dismiss()
                         }
                     }
                 }
             }
-            .navigationTitle("Your Note").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Recipe note").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } }.toolbarGlyph()
-                        .confirmationDialog("Discard Note Changes?", isPresented: $discardChanges, titleVisibility: .visible) {
-                            Button("Discard Changes", role: .destructive) { dismiss() }
-                            Button("Keep Editing") { }
+                        .confirmationDialog("Discard note changes?", isPresented: $discardChanges, titleVisibility: .visible) {
+                            Button("Discard changes", role: .destructive) { dismiss() }
+                            Button("Keep editing") { }
                         }
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -222,8 +222,8 @@ private struct CookedHistoryView: View {
                 Section {
                     DatePicker("Day", selection: $day, in: ...Date.now, displayedComponents: .date)
                         .environment(\.calendar, weekStart.calendar)
-                    Button("Mark as Cooked", systemImage: "checkmark") { store.markCooked(recipeID, on: day) }
-                        .disabled(history.contains(day))
+                    Button("Mark cooked", systemImage: "checkmark") { store.markCooked(recipeID, on: day) }
+                        .disabled(history.isMarked(on: day))
                 }
                 Section {
                     ForEach(history.days, id: \.date) { cooked in
@@ -239,15 +239,15 @@ private struct CookedHistoryView: View {
                         for index in offsets { store.removeCooked(recipeID, on: days[index].date) }
                     }
                     if history.days.isEmpty {
-                        Text("Not cooked yet").foregroundStyle(.secondary)
+                        Text("No cooking recorded").foregroundStyle(.secondary)
                     }
                 } header: {
                     Text("History")
                 } footer: {
-                    Text("Days you mark and past planned meals both count. Remove a planned meal from the meal plan to take it out of the history.")
+                    Text("Includes days marked cooked and past planned meals. A past plan doesn’t confirm the meal was cooked. To remove a planned entry, remove it from the meal plan.")
                 }
             }
-            .navigationTitle("Cooked History").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Cooked history").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }.toolbarGlyph()

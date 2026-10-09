@@ -38,11 +38,14 @@ struct CookedHistoryTests {
         check(histories[oats.id] == nil, "today's planned meal isn't cooked yet")
         check(histories[bowls.id]?.days == [CookedDay(date: daysAgo(3), isMarked: true, isPlanned: false)], "marked only")
 
-        check(CookedHistory.lastCookedText(histories[orzo.id], now: now) == "Last cooked 3 weeks ago", "last cooked text")
-        check(CookedHistory.lastCookedText(nil, now: now) == "Not cooked yet", "not cooked text")
+        check(CookedHistory.lastCookedText(histories[orzo.id], now: now) == "Last marked cooked 3 weeks ago", "last cooked text")
+        check(CookedHistory.lastCookedText(nil, now: now) == "No cooking recorded", "not cooked text")
         check(CookedHistory.cookedAgo(daysAgo(0), now: now) == "today", "today: \(CookedHistory.cookedAgo(daysAgo(0), now: now))")
         check(CookedHistory.cookedAgo(daysAgo(1), now: now) == "yesterday", "yesterday")
         check(CookedHistory.cookedAgo(daysAgo(65), now: now) == "2 months ago", "months")
+
+        let plannedOnly = CookedHistory.make(cooks: [], meals: meals, now: now)
+        check(CookedHistory.lastCookedText(plannedOnly[orzo.id], now: now) == "Last planned 3 weeks ago", "a plan does not claim cooking happened")
 
         // Which recipe a cook counts toward.
         let book = [orzo, bowls]

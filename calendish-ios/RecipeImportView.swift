@@ -79,6 +79,16 @@ struct RecipeImportView: View {
 
     // MARK: Reading
 
+    private func importFailure(_ error: Error) -> String {
+        switch error {
+        case is RecipeLinkImporter.ImportError, is RecipeTextImporter.ImportError,
+             is RecipeImageImporter.ImportError, is RecipePDFImporter.ImportError:
+            return error.localizedDescription
+        default:
+            return InterfaceCopy.failure(error, action: "read the recipe", recovery: "Try another source or paste the recipe text.")
+        }
+    }
+
     private func read(_ content: RecipeImport) {
         composeError = nil
         phase = .reading(progressMessage(for: content))
@@ -106,14 +116,14 @@ struct RecipeImportView: View {
                 case .link(let url, let text):
                     drafts.link = url.absoluteString
                     linkText = text.map { (url, $0) }
-                    composeError = error.localizedDescription
+                    composeError = importFailure(error)
                     phase = .link
                 case .text(let text):
                     drafts.text = text
-                    composeError = error.localizedDescription
+                    composeError = importFailure(error)
                     phase = .text
                 case .images, .pdf:
-                    phase = .failed(error.localizedDescription, recognizedText: recognizedText)
+                    phase = .failed(importFailure(error), recognizedText: recognizedText)
                 }
             }
         }
@@ -128,7 +138,7 @@ struct RecipeImportView: View {
             }
             guard !Task.isCancelled else { return }
             if images.isEmpty {
-                phase = .failed("Couldn’t load these photos.", recognizedText: nil)
+                phase = .failed("Couldn’t load the photos. Choose them again.", recognizedText: nil)
             } else {
                 read(.images(images))
             }
@@ -147,7 +157,7 @@ struct RecipeImportView: View {
     // MARK: Link and text
 
     private var linkForm: some View {
-        composeForm(title: "Add from link", draft: $drafts.link) {
+        composeForm(title: "Import from link", draft: $drafts.link) {
             TextField("https://example.com/recipe", text: $drafts.link)
                 .keyboardType(.URL)
                 .textInputAutocapitalization(.never)
@@ -156,14 +166,14 @@ struct RecipeImportView: View {
                 .submitLabel(.go)
                 .onSubmit { importDraft(drafts.link) }
         } header: {
-            Text("Recipe Link")
+            Text("Recipe link")
         } footer: {
             Text("Paste a link to a recipe page, or to an Instagram, TikTok, or YouTube post.")
         }
     }
 
     private var textForm: some View {
-        composeForm(title: "Add from text", draft: $drafts.text) {
+        composeForm(title: "Import from text", draft: $drafts.text) {
             TextEditor(text: $drafts.text)
                 .frame(minHeight: 240)
                 .accessibilityLabel("Recipe text")
@@ -177,7 +187,7 @@ struct RecipeImportView: View {
                     }
                 }
         } header: {
-            Text("Recipe Text")
+            Text("Recipe text")
         } footer: {
             Text("Copy a recipe from a website, note, or message, including its ingredients or instructions.")
         }
@@ -286,12 +296,12 @@ struct RecipeImportView: View {
 
     private func failure(_ message: String, recognizedText: String?) -> some View {
         ContentUnavailableView {
-            Label("Couldn’t Read Recipe", systemImage: "text.viewfinder")
+            Label("Couldn’t read recipe", systemImage: "text.viewfinder")
         } description: {
             Text(message)
         } actions: {
             if let recognizedText {
-                Button("Edit Text") {
+                Button("Edit text") {
                     drafts.text = recognizedText
                     composeError = nil
                     phase = .text

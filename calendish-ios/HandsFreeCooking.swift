@@ -175,7 +175,7 @@ final class HandsFreeCooking {
             switch session.startCurrentStepTimer() {
             case .started(let duration): say("\(Self.spoken(duration)) timer started", run: run)
             case .alreadyRunning: say("Timer already running", run: run)
-            case .noDuration: say("No timer on this step", run: run)
+            case .noDuration: say("This step has no timer.", run: run)
             case nil: break
             }
         }
@@ -189,7 +189,7 @@ final class HandsFreeCooking {
         finishedTimers.append(contentsOf: finished)
         for timer in finished {
             let recipe = timer.recipeID == session.snapshot?.recipe.id ? "" : "\(timer.recipeTitle), "
-            say("\(recipe)Step \(timer.stepIndex + 1) timer done", run: run)
+            say("\(recipe)Step \(timer.stepIndex + 1) timer finished", run: run)
         }
     }
 

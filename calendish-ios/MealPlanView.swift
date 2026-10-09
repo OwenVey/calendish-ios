@@ -38,20 +38,20 @@ private struct PlanRemoval {
 
     var title: String {
         switch (meals.count, notes.count) {
-        case (0, 1): "Remove This Note?"
-        case (0, _): "Remove These Notes?"
-        case (1, 0): "Remove This Planned Meal?"
-        case (_, 0): "Remove These Planned Meals?"
-        default: "Clear This Day?"
+        case (0, 1): "Remove this note?"
+        case (0, _): "Remove these notes?"
+        case (1, 0): "Remove this planned meal?"
+        case (_, 0): "Remove these planned meals?"
+        default: "Clear this day?"
         }
     }
     var buttonTitle: String {
         switch (meals.count, notes.count) {
-        case (0, 1): "Remove Note"
-        case (0, _): "Remove Notes"
-        case (1, 0): "Remove Meal"
-        case (_, 0): "Remove Meals"
-        default: "Clear Day"
+        case (0, 1): "Remove note"
+        case (0, _): "Remove notes"
+        case (1, 0): "Remove meal"
+        case (_, 0): "Remove meals"
+        default: "Clear day"
         }
     }
     var message: String? {
@@ -138,9 +138,9 @@ struct MealPlanView: View {
                 if old == .interacting, new != .interacting, isPullArmed { loadPreviousWeek() }
             }
             .sensoryFeedback(.impact(weight: .light), trigger: isPullArmed) { _, armed in armed }
-            .accessibilityAction(named: "Load Previous Week", loadPreviousWeek)
+            .accessibilityAction(named: "Load previous week", loadPreviousWeek)
             .background(CalendishStyle.background)
-            .navigationTitle("Meal Plan")
+            .navigationTitle("Meal plan")
             .tabRootStyle()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -151,9 +151,9 @@ struct MealPlanView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu("More", systemImage: "ellipsis") {
-                        Section("Add to Groceries") {
-                            Button("This Week", systemImage: "calendar.day.timeline.left") { reviewGroceries(weeksFromNow: 0) }
-                            Button("Next Week", systemImage: "calendar.day.timeline.right") { reviewGroceries(weeksFromNow: 1) }
+                        Section("Add to groceries") {
+                            Button("This week", systemImage: "calendar.day.timeline.left") { reviewGroceries(weeksFromNow: 0) }
+                            Button("Next week", systemImage: "calendar.day.timeline.right") { reviewGroceries(weeksFromNow: 1) }
                         }
                     }
                     .menuStyle(CalendishMenuStyle())
@@ -198,7 +198,7 @@ private struct PullForEarlierWeek: View {
     let isArmed: Bool
 
     var body: some View {
-        Label(isArmed ? "Release to Load Previous Week" : "Pull to Load Previous Week", systemImage: "arrow.down")
+        Label(isArmed ? "Release to load previous week" : "Pull to load previous week", systemImage: "arrow.down")
             .labelStyle(PullHintLabelStyle(isArmed: isArmed))
             .font(.subheadline.weight(.medium))
             .foregroundStyle(.secondary)
@@ -246,14 +246,14 @@ private struct MealPlanDay: View {
             header
             if isEmpty && isThisWeek {
                 Button(action: add) {
-                    Text("Nothing planned — tap to add a recipe")
+                    Text("Nothing planned yet. Add a recipe.")
                         .foregroundStyle(.tertiary)
                         .padding(.horizontal, 14).padding(.vertical, 12)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Add Recipe")
+                .accessibilityLabel("Add recipe")
             } else {
                 mealRows
                 noteRows
@@ -301,11 +301,11 @@ private struct MealPlanDay: View {
                     .environment(store)
             }
             .calendishContextMenu {
-                Button("Edit Meal", systemImage: "pencil") { edit(meal) }
-                Button("Remove Meal", systemImage: "trash", role: .destructive) { remove(PlanRemoval(meals: [meal])) }
+                Button("Edit meal", systemImage: "pencil") { edit(meal) }
+                Button("Remove meal", systemImage: "trash", role: .destructive) { remove(PlanRemoval(meals: [meal])) }
             }
-            .accessibilityAction(named: "Edit Meal") { edit(meal) }
-            .accessibilityAction(named: "Remove Meal") { remove(PlanRemoval(meals: [meal])) }
+            .accessibilityAction(named: "Edit meal") { edit(meal) }
+            .accessibilityAction(named: "Remove meal") { remove(PlanRemoval(meals: [meal])) }
         }
     }
 
@@ -326,10 +326,10 @@ private struct MealPlanDay: View {
                     .background(CalendishStyle.surface, in: .rect(cornerRadius: 20, style: .continuous))
             }
             .calendishContextMenu {
-                Button("Edit Note", systemImage: "pencil") { editNote(note) }
-                Button("Remove Note", systemImage: "trash", role: .destructive) { remove(PlanRemoval(notes: [note])) }
+                Button("Edit note", systemImage: "pencil") { editNote(note) }
+                Button("Remove note", systemImage: "trash", role: .destructive) { remove(PlanRemoval(notes: [note])) }
             }
-            .accessibilityAction(named: "Remove Note") { remove(PlanRemoval(notes: [note])) }
+            .accessibilityAction(named: "Remove note") { remove(PlanRemoval(notes: [note])) }
         }
     }
 
@@ -341,8 +341,8 @@ private struct MealPlanDay: View {
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 8)
             Menu {
-                Button("Add Recipe", systemImage: "book.closed", action: add)
-                Button("Add Note", systemImage: "note.text", action: addNote)
+                Button("Add recipe", systemImage: "book.closed", action: add)
+                Button("Add note", systemImage: "note.text", action: addNote)
             } label: {
                 Label("Add to \(day.formatted(.dateTime.weekday(.wide)))", systemImage: "plus")
                     .labelStyle(.iconOnly)
@@ -351,10 +351,10 @@ private struct MealPlanDay: View {
             }
             .menuStyle(CalendishMenuStyle())
             Menu {
-                Button("Add to Groceries", systemImage: "basket", action: addToGroceries)
+                Button("Add to groceries", systemImage: "basket", action: addToGroceries)
                     .disabled(meals.isEmpty && !notes.contains { !$0.items.isEmpty })
                 if !isEmpty {
-                    Button(notes.isEmpty ? "Remove All Meals" : "Clear Day", systemImage: "trash", role: .destructive) {
+                    Button(notes.isEmpty ? "Remove all meals" : "Clear day", systemImage: "trash", role: .destructive) {
                         remove(PlanRemoval(meals: meals, notes: notes))
                     }
                 }
@@ -388,9 +388,9 @@ private struct WeekHeader: View {
         let sameYear = calendar.isDate(week, equalTo: .now, toGranularity: .year) && calendar.isDate(end, equalTo: .now, toGranularity: .year)
         let range = (week..<end).formatted(sameYear ? .interval.month(.abbreviated).day() : .interval.month(.abbreviated).day().year())
         let name: String? = switch offset {
-        case -1: "Last Week"
-        case 0: "This Week"
-        case 1: "Next Week"
+        case -1: "Last week"
+        case 0: "This week"
+        case 1: "Next week"
         default: nil
         }
         HStack(alignment: .firstTextBaseline) {
@@ -454,7 +454,7 @@ struct MealPickerView: View {
             } header: {
                 Text("Suggestions")
             } footer: {
-                Text("Well-liked recipes you haven’t cooked in a while.")
+                Text("Well-liked recipes you haven’t marked cooked or planned recently.")
             }
         }
     }
@@ -464,7 +464,7 @@ struct MealPickerView: View {
                 return Section("Choose a recipe") {
                     ForEach(recipes) { recipeChoice($0, stats: stats[$0.id]) }
                     if recipes.isEmpty {
-                        ContentUnavailableView(store.recipes.isEmpty ? "Add a Recipe First" : "No Matching Recipes", systemImage: "book.closed", description: Text(store.recipes.isEmpty ? "Open Recipes and tap + to add your first dish." : "Try another search."))
+                        ContentUnavailableView(store.recipes.isEmpty ? "Add a recipe first" : "No matching recipes", systemImage: "book.closed", description: Text(store.recipes.isEmpty ? "Add a recipe in Recipes, then return to plan a meal." : "Try another search."))
                     }
                 }
     }
@@ -481,19 +481,19 @@ struct MealPickerView: View {
                     Section {
                         RecipeRow(recipe: meal.recipe, servings: meal.servings)
                         Toggle("Keep saved version", isOn: $keepsSavedVersion)
-                    } header: { Text("Saved recipe version") } footer: { Text("Keep the planned ingredients and instructions when changing the day or servings. Turn this off to choose a current recipe.") }
+                    } header: { Text("Saved recipe version") } footer: { Text("Changing the day or servings keeps this meal’s saved recipe. Turn this off to choose a recipe from your collection.") }
                 }
                 suggestions
                 recipeChoices
             }
             .searchable(text: $search, prompt: "Find a recipe")
-            .navigationTitle(selection.meal == nil ? "Add Recipe" : "Edit Meal").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(selection.meal == nil ? "Plan a meal" : "Edit meal").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } }.toolbarGlyph()
-                        .confirmationDialog("Discard Meal Changes?", isPresented: $discardChanges, titleVisibility: .visible) {
-                            Button("Discard Changes", role: .destructive) { dismiss() }
-                            Button("Keep Editing") { }
+                        .confirmationDialog("Discard meal changes?", isPresented: $discardChanges, titleVisibility: .visible) {
+                            Button("Discard changes", role: .destructive) { dismiss() }
+                            Button("Keep editing") { }
                         }
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -566,7 +566,7 @@ private struct MealNoteEditor: View {
     @State private var confirmRemoval = false
     @FocusState private var focusedItem: UUID?
     @FocusState private var textFocused: Bool
-    private static let suggestions = ["Leftovers", "Eating Out", "Takeout", "Fend for Yourself"]
+    private static let suggestions = ["Leftovers", "Eating out", "Takeout", "Everyone cooks separately"]
     private var isNew: Bool { !store.notes.contains { $0.id == note.id } }
     private var trimmedText: String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var values: String { ([text, "\(date.timeIntervalSince1970)"] + items.map(\.text)).joined(separator: "|") }
@@ -576,7 +576,7 @@ private struct MealNoteEditor: View {
         NavigationStack {
             List {
                 Section {
-                    TextField("Note", text: $text, prompt: Text("Leftovers, dinner out…"))
+                    TextField("Note", text: $text, prompt: Text("Leftovers or eating out"))
                         .focused($textFocused)
                         .submitLabel(.done)
                     DatePicker("Day", selection: $date, displayedComponents: .date)
@@ -601,16 +601,16 @@ private struct MealNoteEditor: View {
                             .onSubmit(addItem)
                     }
                     .onDelete { items.remove(atOffsets: $0) }
-                    Button("Add Item", systemImage: "plus", action: addItem)
+                    Button("Add item", systemImage: "plus", action: addItem)
                 } header: { Text("Groceries") } footer: {
                     Text("Included when you add this day’s meals to your grocery list.")
                 }
                 if !isNew {
                     Section {
-                        Button("Remove Note", role: .destructive) { confirmRemoval = true }
+                        Button("Remove note", role: .destructive) { confirmRemoval = true }
                             .frame(maxWidth: .infinity)
-                            .confirmationDialog("Remove This Note?", isPresented: $confirmRemoval, titleVisibility: .visible) {
-                                Button("Remove Note", role: .destructive) {
+                            .confirmationDialog("Remove this note?", isPresented: $confirmRemoval, titleVisibility: .visible) {
+                                Button("Remove note", role: .destructive) {
                                     store.removeNote(note)
                                     dismiss()
                                 }
@@ -618,13 +618,13 @@ private struct MealNoteEditor: View {
                     }
                 }
             }
-            .navigationTitle(isNew ? "Add Note" : "Edit Note").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(isNew ? "Add note" : "Edit note").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } }.toolbarGlyph()
-                        .confirmationDialog("Discard Note Changes?", isPresented: $discardChanges, titleVisibility: .visible) {
-                            Button("Discard Changes", role: .destructive) { dismiss() }
-                            Button("Keep Editing") { }
+                        .confirmationDialog("Discard note changes?", isPresented: $discardChanges, titleVisibility: .visible) {
+                            Button("Discard changes", role: .destructive) { dismiss() }
+                            Button("Keep editing") { }
                         }
                 }
                 ToolbarItem(placement: .confirmationAction) {

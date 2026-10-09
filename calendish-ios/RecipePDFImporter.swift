@@ -57,12 +57,12 @@ nonisolated enum RecipePDFImporter {
         return context.makeImage()
     }
 
-    private enum ImportError: LocalizedError {
+    enum ImportError: LocalizedError {
         case unreadable, noText
         var errorDescription: String? {
             switch self {
-            case .unreadable: "Couldn’t open this PDF."
-            case .noText: "Couldn’t find any text in this PDF."
+            case .unreadable: "Couldn’t open this PDF. Choose another file."
+            case .noText: "No readable text found in this PDF. Try a clearer scan or paste the recipe text."
             }
         }
     }

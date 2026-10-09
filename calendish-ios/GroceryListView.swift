@@ -8,6 +8,13 @@ enum GroceryGrouping: String, CaseIterable, Identifiable {
 enum GroceryScope: String, CaseIterable, Identifiable {
     case all = "All", toBuy = "To Buy", completed = "Completed"
     var id: Self { self }
+    var title: String {
+        switch self {
+        case .all: "All"
+        case .toBuy: "To buy"
+        case .completed: "Checked"
+        }
+    }
 }
 
 struct GroceryListView: View {
@@ -61,7 +68,7 @@ struct GroceryListView: View {
     private func order(_ aisle: GroceryAisle?) -> Int { aisle.flatMap { GroceryAisle.allCases.firstIndex(of: $0) } ?? -1 }
     private var subtitle: String {
         switch store.groceries.remainingCount {
-        case 0: "All done"
+        case 0: store.groceries.items.isEmpty ? "List is empty" : "All checked off"
         case 1: "1 item left"
         case let count: "\(count) items left"
         }
@@ -113,11 +120,12 @@ struct GroceryListView: View {
                         }
                     } header: {
                         HStack {
-                            Text("\(completedItems.count) Completed")
+                            Text("\(completedItems.count) checked")
                             Spacer()
                             if !searchPresented {
                                 Button(showCompleted ? "Hide" : "Show") { withAnimation(reduceMotion ? nil : .default) { showCompleted.toggle() } }
                                     .font(.subheadline).textCase(nil).frame(minWidth: 44, minHeight: 44)
+                                    .accessibilityLabel(showCompleted ? "Hide checked items" : "Show checked items")
                             }
                         }
                     }
@@ -149,10 +157,10 @@ struct GroceryListView: View {
                     if isSearching {
                         ContentUnavailableView.search(text: query)
                     } else {
-                        ContentUnavailableView(scope == .completed ? "No Completed Items" : "Nothing Left to Buy", systemImage: scope == .completed ? "checkmark.circle" : "basket")
+                        ContentUnavailableView(scope == .completed ? "No checked items" : "Nothing left to buy", systemImage: scope == .completed ? "checkmark.circle" : "basket")
                     }
                 } else if store.groceries.items.isEmpty && !addingItem {
-                    ContentUnavailableView("All set for now", systemImage: "basket", description: Text("Tap + to start your household list."))
+                    ContentUnavailableView("All set for now", systemImage: "basket", description: Text("Add an item to start your household grocery list."))
                         .allowsHitTesting(false)
                 }
             }
@@ -161,7 +169,7 @@ struct GroceryListView: View {
             .navigationSubtitle(subtitle)
             .searchable(text: $search, isPresented: $searchPresented, prompt: "Search or add an item")
             .searchScopes($scope, activation: .onSearchPresentation) {
-                ForEach(GroceryScope.allCases) { Text($0.rawValue).tag($0) }
+                ForEach(GroceryScope.allCases) { Text($0.title).tag($0) }
             }
             .toolbar {
                 ToolbarItem(id: "grocery-edit", placement: .topBarLeading) { EditButton().toolbarGlyph() }
@@ -170,24 +178,27 @@ struct GroceryListView: View {
                         Picker(selection: $grouping) {
                             ForEach(GroceryGrouping.allCases) { Text($0.rawValue).tag($0) }
                         } label: {
-                            Label("Group By", systemImage: "square.grid.3x1.below.line.grid.1x2")
+                            Label("Group by", systemImage: "square.grid.3x1.below.line.grid.1x2")
                             Text(grouping.rawValue)
                         }.pickerStyle(.menu)
-                        Button("Clear Completed", systemImage: "trash", role: .destructive) { clearCompleted = true }
+                        Button("Clear checked items", systemImage: "trash", role: .destructive) { clearCompleted = true }
                             .disabled(!store.groceries.items.contains(where: \.isComplete))
-                        Button("Clear All", systemImage: "trash.slash", role: .destructive) { clearAll = true }
+                        Button("Clear grocery list", systemImage: "trash.slash", role: .destructive) { clearAll = true }
                             .disabled(store.groceries.items.isEmpty)
                     } label: { Label("List options", systemImage: "ellipsis") }
-                    .confirmationDialog("Clear all completed items?", isPresented: $clearCompleted, titleVisibility: .visible) {
-                        Button("Clear Completed", role: .destructive) { store.groceries.clearCompleted() }
+                    .confirmationDialog("Clear checked items?", isPresented: $clearCompleted, titleVisibility: .visible) {
+                        Button("Clear checked items", role: .destructive) { store.groceries.clearCompleted() }
+                        Button("Cancel", role: .cancel) { }
+                    } message: {
+                        Text("Removes checked items for everyone in your household.")
                     }
                 }
                 ToolbarItem(id: "grocery-add", placement: .topBarTrailing) {
-                    Button("New Item", systemImage: "plus", action: beginAddingItem).toolbarGlyph()
+                    Button("New item", systemImage: "plus", action: beginAddingItem).toolbarGlyph()
                 }
             }
-            .calendishAlert("Clear the Entire Grocery List?", isPresented: $clearAll) {
-                Button("Clear All Items", role: .destructive) { store.groceries.clearAll() }
+            .calendishAlert("Clear the entire grocery list?", isPresented: $clearAll) {
+                Button("Clear grocery list", role: .destructive) { store.groceries.clearAll() }
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("This removes every item, including ones not yet bought, for everyone in your household.")
@@ -197,7 +208,7 @@ struct GroceryListView: View {
 
     private var newItemComposer: some View {
         HStack(spacing: 12) {
-            Button("Cancel New Item", systemImage: "xmark", action: cancelAddingItem)
+            Button("Cancel new item", systemImage: "xmark", action: cancelAddingItem)
                 .labelStyle(.iconOnly)
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
@@ -214,7 +225,7 @@ struct GroceryListView: View {
                     addingItem = false
                     newItemFocused = false
                 }
-                .accessibilityLabel("New Grocery Item")
+                .accessibilityLabel("New grocery item")
 
             Button {
                 addNewItem()
@@ -229,7 +240,7 @@ struct GroceryListView: View {
             .buttonStyle(.plain)
             .glassEffect(canAddItem ? .regular.tint(CalendishStyle.accent).interactive() : .regular, in: .circle)
             .disabled(!canAddItem)
-            .accessibilityLabel("Add Item")
+            .accessibilityLabel("Add item")
         }
         .padding(12)
         .glassEffect(.regular, in: .rect(cornerRadius: 26))
@@ -326,11 +337,11 @@ struct GroceryRow: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(isChecked ? "Mark \(item.name) as not completed" : "Complete \(item.name)")
-            .accessibilityValue(isChecked ? "Completed" : "Not completed")
+            .accessibilityLabel(isChecked ? "Uncheck \(Self.line(for: item))" : "Check off \(Self.line(for: item))")
+            .accessibilityValue(isChecked ? "Checked" : "Unchecked")
 
             VStack(alignment: .leading, spacing: 2) {
-                TextField("Grocery Item", text: $line, axis: .vertical)
+                TextField("Grocery item", text: $line, axis: .vertical)
                     .font(.body.weight(.medium))
                     .textFieldStyle(.plain)
                     .focused($textFocused)
@@ -355,8 +366,8 @@ struct GroceryRow: View {
                             finishEditing()
                         }
                     }
-                    .accessibilityLabel("Grocery Item")
-                    .accessibilityHint("Edit the grocery item directly")
+                    .accessibilityLabel("Grocery item")
+                    .accessibilityHint("Edit name and quantity")
                 if showsSources && item.sources.count > 1 {
                     Text(item.sources.formatted(.list(type: .and)))
                         .font(.subheadline)
@@ -377,9 +388,9 @@ struct GroceryRow: View {
             Button("Remove", systemImage: "trash", role: .destructive) { store.groceries.remove([item.id]) }
                 .tint(.red)
         }
-        .accessibilityAction(named: "Edit Item") { textFocused = true }
-        .accessibilityAction(named: "Move Up") { move(-1) }
-        .accessibilityAction(named: "Move Down") { move(1) }
+        .accessibilityAction(named: "Edit item") { textFocused = true }
+        .accessibilityAction(named: "Move up") { move(-1) }
+        .accessibilityAction(named: "Move down") { move(1) }
         .onChange(of: textFocused) { _, focused in
             if focused {
                 originalLine = line

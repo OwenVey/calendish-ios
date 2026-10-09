@@ -155,6 +155,12 @@
       "source": "./.agents/skills",
       "sourceType": "local",
       "computedHash": "95da47fc97af998e85b7d7e6d57b3ac76727c1e290cfe9ea09005aacb826959f"
+    },
+    "writing-for-interfaces": {
+      "source": "andrewgleave/skills",
+      "sourceType": "github",
+      "skillPath": "writing-for-interfaces/SKILL.md",
+      "computedHash": "fff061810c3e63b97fea546da1b86d88629f422a5d38d4ac13497b689a18419e"
     }
   }
 }

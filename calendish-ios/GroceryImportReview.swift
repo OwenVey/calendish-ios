@@ -3,6 +3,7 @@ import Foundation
 struct GroceryImportCandidate: Identifiable {
     var recipe: Recipe
     var servings: Int
+    var plannedOccurrences = 1
     var id: UUID { recipe.id }
 
     /// Identical planned versions appear once at their largest serving count. Different saved
@@ -13,6 +14,7 @@ struct GroceryImportCandidate: Identifiable {
         for meal in meals {
             if let index = versions.firstIndex(where: { $0.id == meal.recipe.id && $0.hasSameVersion(as: meal.recipe) }) {
                 candidates[index].servings = max(candidates[index].servings, meal.servings)
+                candidates[index].plannedOccurrences += 1
             } else {
                 versions.append(meal.recipe)
                 var recipe = meal.recipe
@@ -48,6 +50,7 @@ struct GroceryImportReview {
         let originalServings: Int
         let servings: Int
         let canScale: Bool
+        let plannedOccurrences: Int
         let lines: [Line]
         var allSelected: Bool { !lines.isEmpty && lines.allSatisfy(\.isSelected) }
         var onListCount: Int { lines.filter(\.isOnList).count }
@@ -102,7 +105,8 @@ struct GroceryImportReview {
                     isOnList: names.contains(foodKey(text)))
             }
             return Section(id: recipe.id, title: recipe.title, originalServings: candidate.servings,
-                servings: count, canScale: recipe.servings > 0 && !lines.isEmpty, lines: lines)
+                servings: count, canScale: recipe.servings > 0 && !lines.isEmpty,
+                plannedOccurrences: candidate.plannedOccurrences, lines: lines)
         }
     }
 

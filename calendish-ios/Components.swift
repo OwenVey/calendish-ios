@@ -5,7 +5,7 @@ enum AppAppearance: String, CaseIterable, Identifiable {
     var id: Self { self }
     var title: String {
         switch self {
-        case .system: "System"
+        case .system: "Device setting"
         case .light: "Light"
         case .dark: "Dark"
         }
@@ -128,14 +128,14 @@ struct RecipeRow: View {
                     }
                 }
                 if let owner {
-                    Text("By \(owner)").font(.footnote).foregroundStyle(.secondary).lineLimit(1).padding(.top, -4)
+                    Text(recipe.owner?.person == nil ? "Owned by the household" : "\(owner)’s recipe").font(.footnote).foregroundStyle(.secondary).lineLimit(1).padding(.top, -4)
                 }
                 HStack(spacing: 10) {
                     Label("\(recipe.minutes) min", systemImage: "clock")
-                    Label("\(servings ?? recipe.servings) servings", systemImage: "person.2")
+                    Label(InterfaceCopy.servings(servings ?? recipe.servings), systemImage: "person.2")
                     if let rating = stats?.averageRating {
                         Label(Self.formatted(rating), systemImage: "star")
-                            .accessibilityLabel("Rated \(Self.formatted(rating)) stars")
+                            .accessibilityLabel(InterfaceCopy.rating(Self.formatted(rating)))
                     }
                 }
                 .labelStyle(RecipeDetailLabelStyle())

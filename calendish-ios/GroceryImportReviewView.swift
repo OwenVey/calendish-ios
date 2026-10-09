@@ -18,11 +18,11 @@ struct GroceryImportReviewView: View {
                     section(for: candidate)
                 }
                 if review.isEmpty {
-                    ContentUnavailableView("No Meals Planned Here Yet", systemImage: "calendar", description: Text("Plan a meal to review its ingredients."))
+                    ContentUnavailableView("No meals planned here yet", systemImage: "calendar", description: Text("Plan a meal to review its ingredients."))
                         .listRowBackground(Color.clear)
                 }
             }
-            .navigationTitle("Add to Groceries").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Add to groceries").navigationBarTitleDisplayMode(.inline)
             .navigationSubtitle(review.ingredientCount == 0 ? "" : "\(review.selected.count) of \(review.ingredientCount) selected")
             .sensoryFeedback(.selection, trigger: review.selected)
             .sensoryFeedback(.selection, trigger: review.servings)
@@ -32,7 +32,7 @@ struct GroceryImportReviewView: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(action: add) { OnAccentLabel(title: "Add") }
                         .disabled(review.selected.isEmpty).modifier(GlassActionStyle(prominent: true))
-                        .accessibilityLabel(review.selected.count == 1 ? "Add 1 item" : "Add \(review.selected.count) items")
+                        .accessibilityLabel("Add selected ingredients")
                 }
             }
         }
@@ -57,13 +57,15 @@ struct GroceryImportReviewView: View {
                         Text(ingredient.text).foregroundStyle(isSelected ? .primary : .secondary)
                         if ingredient.isOnList {
                             Spacer(minLength: 8)
-                            Text("On List").font(.caption).foregroundStyle(.secondary)
+                            Text("On list").font(.caption).foregroundStyle(.secondary)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading).contentShape(.rect)
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .accessibilityLabel(ingredient.text + (ingredient.isOnList ? ". Already on list" : ""))
+                .accessibilityHint(ingredient.isOnList && !isSelected ? "Select to add more. Quantities may differ." : "")
             }
             if candidate.lines.isEmpty {
                 Text("This recipe has no ingredients.").foregroundStyle(.secondary)
@@ -73,7 +75,7 @@ struct GroceryImportReviewView: View {
                 Text(candidate.title).font(.headline).foregroundStyle(.primary).textCase(nil)
                 Spacer()
                 if !candidate.lines.isEmpty {
-                    Button(allSelected ? "Deselect All" : "Select All") {
+                    Button(allSelected ? "Deselect all" : "Select all") {
                         review.toggleRecipe(candidate.id)
                     }
                     .font(.subheadline).textCase(nil)
@@ -81,10 +83,11 @@ struct GroceryImportReviewView: View {
                 }
             }
         } footer: {
-            if onListCount == candidate.lines.count, !candidate.lines.isEmpty {
-                Text("These ingredients are already on your grocery list, so none are selected.")
-            } else if onListCount > 0 {
-                Text("Ingredients already on your grocery list aren’t selected.")
+            if onListCount > 0 {
+                Text("On list matches an unchecked item for this recipe. Quantities may differ. Matching ingredients start unselected. Select them to add more.")
+            }
+            if candidate.plannedOccurrences > 1 {
+                Text("Planned more than once. This amount uses the largest serving count for one meal, not the total for the week.")
             }
         }
     }
@@ -93,19 +96,19 @@ struct GroceryImportReviewView: View {
         let original = candidate.originalServings
         return HStack(spacing: 12) {
             Label {
-                Text("\(candidate.servings) servings").monospacedDigit().contentTransition(.numericText(value: Double(candidate.servings)))
+                Text(InterfaceCopy.servings(candidate.servings)).monospacedDigit().contentTransition(.numericText(value: Double(candidate.servings)))
             } icon: { Image(systemName: "person.2") }
             if candidate.servings != original {
                 Button("Reset") { review.resetServings(for: candidate.id) }
                     .font(.subheadline)
                     .buttonStyle(.borderless)
-                    .accessibilityLabel("Reset to \(original) servings")
+                    .accessibilityLabel("Reset to \(InterfaceCopy.servings(original))")
                     .transition(.opacity)
             }
             Spacer()
             Stepper("Servings", value: Binding(get: { candidate.servings }, set: { review.setServings($0, for: candidate.id) }), in: 1...100)
                 .labelsHidden()
-                .accessibilityValue("\(candidate.servings) servings")
+                .accessibilityValue(InterfaceCopy.servings(candidate.servings))
         }
         .animation(reduceMotion ? nil : .snappy, value: candidate.servings)
     }

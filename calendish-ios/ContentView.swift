@@ -40,19 +40,19 @@ struct ContentView: View {
         .environment(store)
         .environment(timers)
         .task(id: timers.timers.map(\.end)) { await timers.waitForNextTimer() }
-        .calendishAlert("Timer Done", isPresented: Binding(get: { !timers.finished.isEmpty && !timers.isCooking }, set: { if !$0 && !timers.isCooking { timers.acknowledge() } })) {
+        .calendishAlert("Timer finished", isPresented: Binding(get: { !timers.finished.isEmpty && !timers.isCooking }, set: { if !$0 && !timers.isCooking { timers.acknowledge() } })) {
             Button("Done") { }
         } message: {
-            Text(timers.finished.map { "\($0.recipeTitle), step \($0.stepIndex + 1): your \($0.durationText) timer is up." }.joined(separator: "\n\n"))
+            Text(timers.finished.map { "\($0.recipeTitle), step \($0.stepIndex + 1): \($0.durationText) timer finished." }.joined(separator: "\n\n"))
         }
         .safeAreaInset(edge: .bottom) {
             if !timers.timers.isEmpty {
                 Menu {
                     ForEach(timers.timers) { timer in
-                        Button("Cancel \(timer.recipeTitle), Step \(timer.stepIndex + 1)", role: .destructive) { timers.cancel(timer) }
+                        Button("Cancel timer: \(timer.recipeTitle), step \(timer.stepIndex + 1)", role: .destructive) { timers.cancel(timer) }
                     }
                 } label: {
-                    Label("\(timers.timers.count) \(timers.timers.count == 1 ? "Timer" : "Timers") Running", systemImage: "timer").frame(minHeight: 44)
+                    Label("\(timers.timers.count) \(timers.timers.count == 1 ? "timer" : "timers") running", systemImage: "timer").frame(minHeight: 44)
                 }
                 .frame(maxWidth: .infinity).background(CalendishStyle.surface)
             }
@@ -91,7 +91,7 @@ struct ContentView: View {
                 .environment(store)
                 .onAppear { SharedInbox.remove(share.id) }
         }
-        .calendishAlert("Couldn’t sync", isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) {
+        .calendishAlert(store.errorTitle, isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) {
             Button("OK") {}
         } message: {
             Text(store.errorMessage ?? "")
@@ -111,7 +111,7 @@ struct ContentView: View {
             Tab("Recipes", systemImage: "book.closed", value: .recipes) {
                 NavigationStack { RecipeBookView() }
             }
-            Tab("Meal Plan", systemImage: "calendar", value: .plan) {
+            Tab("Meal plan", systemImage: "calendar", value: .plan) {
                 NavigationStack { MealPlanView() }
             }
             Tab("Groceries", systemImage: "basket", value: .groceries) {
@@ -130,7 +130,7 @@ private struct LoadingView: View {
     var body: some View {
         ZStack {
             Color("LaunchBackground").ignoresSafeArea()
-            if showSpinner { ProgressView() }
+            if showSpinner { ProgressView("Loading Calendish") }
         }
         .task {
             try? await Task.sleep(for: .seconds(1))

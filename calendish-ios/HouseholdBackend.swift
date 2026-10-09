@@ -55,6 +55,30 @@ enum HouseholdMutation {
     case removeMeal(UUID)
     case saveNote(MealPlanNote, household: UUID)
     case removeNote(UUID)
+
+    var failureAction: String {
+        switch self {
+        case .renameHousehold: "save the household name"
+        case .renameMember: "save your name"
+        case .avatar: "save your profile photo"
+        case .transferOwnership: "confirm the ownership transfer"
+        case .removeMember: "confirm member removal"
+        case .saveRecipe: "confirm the recipe save"
+        case .deleteRecipe: "confirm recipe deletion"
+        case .sharing: "confirm recipe sharing"
+        case .favorite: "update favorites"
+        case .review: "save your recipe note or rating"
+        case .markCooked, .removeCooked: "update cooking history"
+        case .saveMeal, .updateMeal, .removeMeal: "confirm the meal plan change"
+        case .saveNote, .removeNote: "confirm the meal-plan note change"
+        }
+    }
+    var failureRecovery: String {
+        switch self {
+        case .saveRecipe: "Check the recipe in your collection before trying again. Reopen the editor to review your draft."
+        default: "Check the current data before trying again."
+        }
+    }
 }
 
 /// A database rejection is definitive; transport failures may follow a committed household move.

@@ -22,7 +22,7 @@ struct SignInView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     FeatureRow(symbol: "book.closed", title: "One recipe book", detail: "Save the dishes you love in one place.")
                     FeatureRow(symbol: "calendar", title: "A shared meal plan", detail: "Know what’s cooking every day of the week.")
-                    FeatureRow(symbol: "basket", title: "A live grocery list", detail: "Check things off together as you shop.")
+                    FeatureRow(symbol: "basket", title: "A shared grocery list", detail: "Check things off together as you shop.")
                 }
                 Color.clear.frame(height: 8)
                 VStack(spacing: 12) {
@@ -31,7 +31,7 @@ struct SignInView: View {
                     } label: {
                         HStack(spacing: 10) {
                             if working {
-                                ProgressView().tint(.black)
+                                ProgressView("Signing in with Google").tint(.black)
                             } else {
                                 Image("GoogleLogo").resizable().frame(width: 20, height: 20)
                                 Text("Continue with Google").fixedSize(horizontal: false, vertical: true)
@@ -49,7 +49,7 @@ struct SignInView: View {
                     Button {
                         showEmail = true
                     } label: {
-                        Text("Continue with Email").fixedSize(horizontal: false, vertical: true)
+                        Text("Continue with email").fixedSize(horizontal: false, vertical: true)
                             .font(.title3.weight(.semibold))
                             .frame(maxWidth: .infinity, minHeight: 44)
                     }
@@ -81,7 +81,7 @@ struct SignInView: View {
         message = nil
         working = true
         defer { working = false }
-        do { try await store.signInWithGoogle() } catch { message = error.localizedDescription }
+        do { try await store.signInWithGoogle() } catch { message = InterfaceCopy.failure(error, action: "sign in with Google", recovery: "Try signing in again, or use email.") }
     }
 }
 
@@ -98,9 +98,10 @@ private struct EmailSignInView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            AuthStep(title: "What’s your email?", subtitle: "We’ll sign you in, or help you create an account.") {
+            AuthStep(title: "What’s your email?", subtitle: "Use your email to sign in or create an account.") {
                 AuthField {
-                    TextField("name@example.com", text: $email)
+                    TextField("Email address", text: $email, prompt: Text("name@example.com"))
+                        .accessibilityLabel("Email address")
                         .textContentType(.username).keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                         .submitLabel(.continue)
@@ -140,6 +141,7 @@ private struct PasswordStepView: View {
     @State private var password = ""
     @State private var revealed = false
     @State private var working = false
+    @State private var sendingResetLink = false
     @State private var message: String?
     @State private var notice: String?
     @FocusState private var focused: Bool
@@ -190,20 +192,22 @@ private struct PasswordStepView: View {
             }
         } action: {
             VStack(spacing: 4) {
-                AuthButton(title: creatingAccount ? "Create Account" : "Sign In", working: working) {
+                AuthButton(title: creatingAccount ? "Create account" : "Sign in", working: working,
+                           workingTitle: sendingResetLink ? "Sending reset link" : creatingAccount ? "Creating account" : "Signing in") {
                     Task { await submit() }
                 }
                 .disabled(!canSubmit)
                 if !creatingAccount {
-                    Button("Forgot Password?") {
+                    Button("Forgot password?") {
                         Task {
                             working = true
-                            defer { working = false }
+                            sendingResetLink = true
+                            defer { working = false; sendingResetLink = false }
                             do {
                                 try await store.resetPassword(email: email)
                                 message = nil
                                 notice = "Check your email for a password reset link."
-                            } catch { message = error.localizedDescription }
+                            } catch { message = InterfaceCopy.failure(error, action: "send a password reset link", recovery: "Check your email address and try again.") }
                         }
                     }.frame(minHeight: 44).disabled(working)
                 }
@@ -239,7 +243,7 @@ private struct PasswordStepView: View {
                 try await store.signIn(email: email, password: password)
             }
         } catch {
-            withAnimation(reduceMotion ? nil : .default) { message = error.localizedDescription }
+            withAnimation(reduceMotion ? nil : .default) { message = InterfaceCopy.failure(error, action: creatingAccount ? "create an account" : "sign in", recovery: "Check your email and password, then try again.") }
         }
     }
 }
@@ -290,6 +294,7 @@ private struct AuthField<Content: View>: View {
 private struct AuthButton: View {
     let title: String
     let working: Bool
+    var workingTitle = "Working"
     let action: () -> Void
     var body: some View {
         Button(action: action) {
@@ -302,6 +307,7 @@ private struct AuthButton: View {
         }
         .modifier(GlassActionStyle(prominent: true))
         .controlSize(.large)
+        .accessibilityLabel(working ? workingTitle : title)
     }
 }
 
@@ -340,12 +346,15 @@ struct HouseholdSetupView: View {
             Form {
                 Section {
                     TextField("Your name", text: $memberName).textContentType(.givenName)
-                } footer: { Text("This is how you’ll appear to your household.") }
+                } footer: {
+                    Text("This is how you’ll appear to your household.")
+                    if trimmedName.count > 80 { Text("Use 80 characters or fewer.").foregroundStyle(.red) }
+                }
                 if store.pendingInvite != nil {
                     Section {
                         Label("Your invitation is ready", systemImage: "person.2")
-                        Text("Continue to join the household you were invited to.")
-                        Button("Start on My Own") { store.discardPendingInvite(); message = nil }
+                        Text("Join the household you were invited to, or start on your own.")
+                        Button("Start on my own") { store.discardPendingInvite(); message = nil }
                     }
                 }
                 Section {
@@ -355,15 +364,18 @@ struct HouseholdSetupView: View {
                         Task {
                             defer { working = false }
                             do { try await store.startHousehold(memberName: trimmedName) }
-                            catch { message = error.localizedDescription }
+                            catch { message = InterfaceCopy.failure(error, action: "complete account setup", recovery: "Check your details and try again.") }
                         }
                     } label: {
-                        if working { ProgressView() } else { Text("Continue") }
+                        if working { ProgressView(store.pendingInvite == nil ? "Starting household" : "Joining household") }
+                        else { Text(store.pendingInvite == nil ? "Start household" : "Join household") }
                     }
                     .disabled(trimmedName.isEmpty || trimmedName.count > 80)
-                } footer: { Text("Your recipes stay yours. Invite someone or join another household later in Settings.") }
+                } footer: { Text(store.pendingInvite == nil
+                    ? "Start with your own household. Invite someone or join another household later in Settings."
+                    : "Your recipes stay yours. Joining shares them with this household.") }
                 if let message { Section { Text(message).foregroundStyle(.red) } }
-                Section { Button("Sign Out", role: .destructive) { Task { await store.signOut() } } }
+                Section { Button("Sign out", role: .destructive) { Task { await store.signOut() } } }
             }
             .navigationTitle("Welcome")
             .disabled(working)
@@ -385,13 +397,13 @@ struct PasswordResetView: View {
         NavigationStack {
             Form {
                 Section {
-                    SecureField("New Password", text: $password).textContentType(.newPassword)
-                    SecureField("Confirm Password", text: $confirmation).textContentType(.newPassword)
+                    SecureField("New password", text: $password).textContentType(.newPassword)
+                    SecureField("Confirm password", text: $confirmation).textContentType(.newPassword)
                 } footer: { Text("Use at least 8 characters. Both passwords must match.") }
                 if let message { Section { Text(message).foregroundStyle(.red) } }
-                if working { ProgressView("Saving Password…") }
+                if working { ProgressView("Saving password…") }
             }
-            .navigationTitle("Reset Password").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Reset password").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.disabled(working).toolbarGlyph() }
                 ToolbarItem(placement: .confirmationAction) {
@@ -400,9 +412,9 @@ struct PasswordResetView: View {
                             working = true
                             defer { working = false }
                             do { try await store.updatePassword(password); dismiss() }
-                            catch { message = error.localizedDescription }
+                            catch { message = InterfaceCopy.failure(error, action: "save your password", recovery: "Try again. If the reset link has expired, request a new one.") }
                         }
-                    } label: { OnAccentLabel(title: "Save") }.disabled(working || password.count < 8 || confirmation != password).modifier(GlassActionStyle(prominent: true))
+                    } label: { OnAccentLabel(title: "Save password") }.disabled(working || password.count < 8 || confirmation != password).modifier(GlassActionStyle(prominent: true))
                 }
             }
         }.interactiveDismissDisabled(working || !password.isEmpty)

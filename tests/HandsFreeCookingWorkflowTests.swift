@@ -187,7 +187,7 @@ struct HandsFreeWorkflowApp: App {
     private func timerCommands() async throws {
         let (handsFree, speech) = try await listening()
         try await say("Start timer", to: handsFree, speech)
-        try await until("no duration is announced") { speech.spoken.last == "No timer on this step" }
+        try await until("no duration is announced") { speech.spoken.last == "This step has no timer." }
         try expect(timers.timers.isEmpty, "A step without a duration starts no timer")
         try await say("next", to: handsFree, speech)
         try await say("start the timer", to: handsFree, speech)
@@ -217,7 +217,7 @@ struct HandsFreeWorkflowApp: App {
         handsFree.announceFinishedTimers()
         try expect(timers.finished.isEmpty && handsFree.finishedTimers.count == 1,
             "While listening, completion shows a banner instead of the blocking alert")
-        try await until("completion is announced") { speech.spoken.last == "Step 4 timer done" }
+        try await until("completion is announced") { speech.spoken.last == "Step 4 timer finished" }
         try expect(handsFree.isListening, "Listening continues after timer completion")
         handsFree.dismissFinishedTimers()
         try expect(handsFree.finishedTimers.isEmpty, "The banner can be dismissed")
@@ -227,7 +227,7 @@ struct HandsFreeWorkflowApp: App {
         timers.start(recipe: other, stepIndex: 0, duration: 1)
         await timers.waitForNextTimer()
         handsFree.announceFinishedTimers()
-        try await until("another recipe's timer is named") { speech.spoken.last == "Other bread, Step 1 timer done" }
+        try await until("another recipe's timer is named") { speech.spoken.last == "Other bread, Step 1 timer finished" }
         try expect(handsFree.finishedTimers.map(\.recipeTitle) == ["Other bread"], "Another recipe's timer shows in the banner")
         handsFree.stop()
         try expect(handsFree.finishedTimers.isEmpty, "Turning voice commands off removes the banner")

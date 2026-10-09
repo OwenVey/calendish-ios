@@ -55,9 +55,11 @@ struct CookedHistory: Hashable {
         return id.flatMap { id in book.contains { $0.id == id } ? id : nil }
     }
 
-    /// "Last cooked 3 weeks ago", or "Not cooked yet".
+    /// Names whether the latest history day was marked cooked or only planned.
     static func lastCookedText(_ history: CookedHistory?, now: Date = .now) -> String {
-        history?.lastCooked.map { "Last cooked \(cookedAgo($0, now: now))" } ?? "Not cooked yet"
+        guard let day = history?.days.first else { return "No cooking recorded" }
+        let source = day.isMarked ? "Last marked cooked" : "Last planned"
+        return "\(source) \(cookedAgo(day.date, now: now))"
     }
 
     /// "today", "yesterday", "3 weeks ago", or similar, counted in calendar days, to follow "Last cooked".

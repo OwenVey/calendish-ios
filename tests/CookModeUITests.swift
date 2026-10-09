@@ -19,7 +19,7 @@ final class CookModeUITests: XCTestCase {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         // The compact Live Activity occupies the top-center Dynamic Island on the simulator fixture.
         springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.03)).press(forDuration: 1.5)
-        let next = springboard.buttons["Next Step"]
+        let next = springboard.buttons["Next step"]
         XCTAssertTrue(next.waitForExistence(timeout: 5), springboard.debugDescription)
         let activityScreenshot = XCTAttachment(screenshot: springboard.screenshot())
         activityScreenshot.name = "Expanded recipe Live Activity"
@@ -46,12 +46,12 @@ final class CookModeUITests: XCTestCase {
         let timerButton = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ AND label ENDSWITH %@", "Start ", " timer")).firstMatch
         for _ in 0..<3 {
             if timerButton.exists { break }
-            app.buttons["Next Step"].tap()
+            app.buttons["Next step"].tap()
         }
         XCTAssertTrue(timerButton.exists)
         XCUIDevice.shared.press(.home)
         springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.03)).press(forDuration: 1.5)
-        let startTimer = springboard.buttons["Start Timer"]
+        let startTimer = springboard.buttons["Start timer"]
         XCTAssertTrue(startTimer.waitForExistence(timeout: 5))
         startTimer.tap()
         let timerScreenshot = XCTAttachment(screenshot: springboard.screenshot())
@@ -68,30 +68,30 @@ final class CookModeUITests: XCTestCase {
         lockScreenScreenshot.lifetime = .keepAlways
         add(lockScreenScreenshot)
         app.activate()
-        XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
-        app.buttons["Cancel"].tap()
+        XCTAssertTrue(app.buttons["Cancel timer"].waitForExistence(timeout: 5))
+        app.buttons["Cancel timer"].tap()
 
         // Finishing from the Live Activity, with no tap in the app, still counts toward cooked history.
-        while !app.staticTexts["Step 5 of 5"].exists { app.buttons["Next Step"].tap() }
+        while !app.staticTexts["Step 5 of 5"].exists { app.buttons["Next step"].tap() }
         XCUIDevice.shared.press(.home)
         springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.03)).press(forDuration: 1.5)
-        let finish = springboard.buttons["Finish Cooking"]
+        let finish = springboard.buttons["Finish cooking"]
         XCTAssertTrue(finish.waitForExistence(timeout: 5), springboard.debugDescription)
         finish.tap()
         app.activate()
-        XCTAssertTrue(app.staticTexts["Cooked Today"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Cooked today"].waitForExistence(timeout: 10))
     }
 
     /// Removes a mark from earlier today so finishing has something to record.
     private func clearCookedToday(_ app: XCUIApplication) {
-        guard app.staticTexts["Cooked Today"].waitForExistence(timeout: 3) else { return }
-        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Last cooked")).firstMatch.tap()
+        guard app.staticTexts["Cooked today"].waitForExistence(timeout: 3) else { return }
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Last marked cooked")).firstMatch.tap()
         let marked = app.staticTexts["Marked as cooked"].firstMatch
         XCTAssertTrue(marked.waitForExistence(timeout: 5))
         marked.swipeLeft()
         app.buttons["Delete"].tap()
         app.buttons["Done"].tap()
-        XCTAssertTrue(app.buttons["Mark as Cooked Today"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Mark cooked today"].waitForExistence(timeout: 5))
     }
 
     func testIngredientTapKeepsSheetOpen() {
@@ -102,7 +102,7 @@ final class CookModeUITests: XCTestCase {
         XCTAssertTrue(recipe.waitForExistence(timeout: 10))
         recipe.tap()
         app.buttons["Cook"].tap()
-        let sheetTitle = app.staticTexts["All Ingredients"]
+        let sheetTitle = app.staticTexts["All ingredients"]
         XCTAssertTrue(sheetTitle.waitForExistence(timeout: 5))
         let instruction = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Heat the oven to 425")).firstMatch
         XCTAssertTrue(instruction.waitForExistence(timeout: 5))
@@ -149,9 +149,9 @@ final class CookModeUITests: XCTestCase {
         XCTAssertTrue(firstStep.exists)
         XCTAssertFalse(app.staticTexts["Listening"].exists, "Cook Mode doesn't listen until voice commands are enabled")
 
-        app.buttons["Voice Commands"].tap()
+        app.buttons["Voice commands"].tap()
         // The explanation appears before the first activation only.
-        let turnOn = app.alerts.buttons["Turn On"]
+        let turnOn = app.alerts.buttons["Turn on voice commands"]
         if turnOn.waitForExistence(timeout: 2) {
             XCTAssertTrue(app.alerts.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "a TV")).firstMatch.exists)
             turnOn.tap()
@@ -172,12 +172,11 @@ final class CookModeUITests: XCTestCase {
         screenshot.lifetime = .keepAlways
         add(screenshot)
 
-        app.buttons["Next Step"].tap()
+        app.buttons["Next step"].tap()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Step 2 of")).firstMatch.waitForExistence(timeout: 5), "Touch navigation keeps working")
-        app.buttons["Previous Step"].tap()
+        app.buttons["Previous step"].tap()
         XCTAssertTrue(firstStep.waitForExistence(timeout: 5))
-        if app.buttons["Stop Voice Commands"].exists { app.buttons["Stop Voice Commands"].tap() }
-        else if app.buttons["Turn Off Voice Commands"].exists { app.buttons["Turn Off Voice Commands"].tap() }
+        if app.buttons["Turn off voice commands"].exists { app.buttons["Turn off voice commands"].tap() }
         XCTAssertFalse(app.staticTexts["Listening"].exists, "Stopping ends listening")
         app.buttons["Close"].firstMatch.tap()
     }

@@ -288,13 +288,13 @@ nonisolated enum RecipeLinkImporter {
         return result
     }
 
-    private enum ImportError: LocalizedError {
+    enum ImportError: LocalizedError {
         case unavailable
         case noRecipe
         var errorDescription: String? {
             switch self {
             case .unavailable: "Couldn’t read this page. Check the link and try again."
-            case .noRecipe: "Couldn’t get a recipe from this link."
+            case .noRecipe: "Couldn’t find a written recipe at this link. Paste the ingredients or instructions instead."
             }
         }
     }

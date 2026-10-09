@@ -24,6 +24,12 @@ struct GroceryImportReviewTests {
         plannedReview.toggleRecipe(candidates[0].id)
         precondition(plannedReview.sections(groceries: [], units: .original)[1].allSelected,
             "Different saved versions have independent review selections")
+        let repeated = GroceryImportCandidate.planned([planned, planned, later])
+        precondition(repeated[0].plannedOccurrences == 2 && repeated[1].plannedOccurrences == 1,
+            "Only identical saved versions are disclosed as repeated meals")
+        let repeatedSections = GroceryImportReview(candidates: repeated).sections(groceries: [], units: .original)
+        precondition(repeatedSections[0].plannedOccurrences == 2 && repeatedSections[0].servings == 4,
+            "Review discloses repeat count while preserving the largest single-meal serving count")
         let salad = recipe("Salad", ingredients: ["1 cucumber"])
         let milk = GroceryItem(name: "9 cups MILK", amount: "", source: "Soup", position: 3)
         var carrots = GroceryItem(name: "2 carrots", amount: "", source: "Soup", position: 7)

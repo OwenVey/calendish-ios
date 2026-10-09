@@ -34,7 +34,7 @@ struct SettingsView: View {
                 }
             }
             // Sort, grouping, and show-completed live in each screen's own menus, which remember the choice.
-            Section("General") {
+            Section {
                 NavigationLink { AppearanceSettingsView() } label: {
                     LabeledContent {
                         Text(appearance.title)
@@ -45,7 +45,7 @@ struct SettingsView: View {
                 Picker(selection: $weekStart) {
                     ForEach(WeekStart.allCases) { Text($0.title).tag($0) }
                 } label: {
-                    SettingsLabel("Week Starts On", systemImage: "calendar", color: .red)
+                    SettingsLabel("Week starts on", systemImage: "calendar", color: .red)
                 }
                 .tint(.secondary)
                 Picker(selection: $units) {
@@ -54,13 +54,17 @@ struct SettingsView: View {
                     SettingsLabel("Units", systemImage: "ruler.fill", color: .indigo)
                 }
                 .tint(.secondary)
+            } header: {
+                Text("General")
+            } footer: {
+                Text("Units convert supported quantities and temperatures. Saved recipe text stays unchanged.")
             }
-            Section("Recipes") {
+            Section {
                 HStack {
-                    SettingsLabel("Default Servings", systemImage: "person.2.fill", color: .pink)
+                    SettingsLabel("Default servings", systemImage: "person.2.fill", color: .pink)
                     Spacer()
                     Text(defaultServings, format: .number).foregroundStyle(.secondary)
-                    Stepper("Default Servings", value: $defaultServings, in: 1...20)
+                    Stepper("Default servings", value: $defaultServings, in: 1...20)
                         .labelsHidden()
                         .fixedSize()
                 }
@@ -68,23 +72,28 @@ struct SettingsView: View {
                 NavigationLink { CookingSettingsView() } label: {
                     SettingsLabel("Cooking", systemImage: "frying.pan.fill", color: .purple)
                 }
+            } header: {
+                Text("Recipes")
+            } footer: {
+                Text("Default servings are used for new recipes when no serving count is given.")
             }
             Section {
                 Picker(selection: $groceryAutoClear) {
                     ForEach(GroceryAutoClear.allCases) { Text($0.title).tag($0) }
                 } label: {
-                    SettingsLabel("Clear Checked Items", systemImage: "checklist.checked", color: .green)
+                    SettingsLabel("Clear checked items", systemImage: "checklist.checked", color: .green)
                 }
                 .tint(.secondary)
             } header: {
                 Text("Groceries")
             } footer: {
-                Text("Checked items are removed from the list for everyone in your household.")
+                Text(groceryAutoClear.explanation)
             }
             Section("About") {
                 Link(destination: AppLinks.feedback) {
-                    SettingsLinkLabel("Send Feedback", systemImage: "envelope.fill", color: .blue)
+                    SettingsLinkLabel("Report an issue", systemImage: "envelope.fill", color: .blue)
                 }
+                .accessibilityHint("Opens GitHub. A GitHub account may be needed.")
                 if let review = AppLinks.writeReview {
                     Link(destination: review) {
                         SettingsLinkLabel("Rate on the App Store", systemImage: "star.fill", color: .yellow)
@@ -92,12 +101,12 @@ struct SettingsView: View {
                 }
                 if let privacy = AppLinks.privacyPolicy {
                     Link(destination: privacy) {
-                        SettingsLinkLabel("Privacy Policy", systemImage: "hand.raised.fill", color: .blue)
+                        SettingsLinkLabel("Privacy policy", systemImage: "hand.raised.fill", color: .blue)
                     }
                 }
                 if let terms = AppLinks.terms {
                     Link(destination: terms) {
-                        SettingsLinkLabel("Terms of Use", systemImage: "doc.text.fill", color: .gray)
+                        SettingsLinkLabel("Terms of use", systemImage: "doc.text.fill", color: .gray)
                     }
                 }
                 LabeledContent {
@@ -175,6 +184,11 @@ struct ProfileSettingsView: View {
     @State private var confirmDeleteAccount = false
     @State private var deletingAccount = false
     @State private var deleteAccountError: String?
+    private var accountDeletionExplanation: String {
+        store.members.count > 1
+            ? "Permanently deletes your account and personal recipes. Your household keeps the recipes you shared with it."
+            : "Permanently deletes your account, personal recipes, and household, including its recipes, meal plan, and groceries."
+    }
     var body: some View {
         Form {
             Section {
@@ -199,39 +213,37 @@ struct ProfileSettingsView: View {
                 }
             }
             Section {
-                Button("Sign Out", role: .destructive) { confirmSignOut = true }
+                Button("Sign out", role: .destructive) { confirmSignOut = true }
                     .frame(maxWidth: .infinity)
                     .confirmationDialog("Sign out of Calendish?", isPresented: $confirmSignOut, titleVisibility: .visible) {
-                        Button("Sign Out", role: .destructive) { Task { await store.signOut() } }
+                        Button("Sign out", role: .destructive) { Task { await store.signOut() } }
                     }
             }
             Section {
                 Button(role: .destructive) { confirmDeleteAccount = true } label: {
-                    if deletingAccount { ProgressView("Deleting Account…") }
-                    else { Text("Delete Account") }
+                    if deletingAccount { ProgressView("Deleting account…") }
+                    else { Text("Delete account") }
                 }
                 .frame(maxWidth: .infinity)
                 .disabled(deletingAccount)
             } footer: {
-                Text("Permanently deletes your account and personal recipes. Your household keeps the recipes you shared with it.")
+                Text(accountDeletionExplanation)
             }
         }
         .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { memberName = store.currentMember?.displayName ?? "" }
         .onDisappear { saveName() }
-        .calendishAlert("Delete Account?", isPresented: $confirmDeleteAccount) {
-            Button("Delete Account", role: .destructive) { deleteAccount() }
+        .calendishAlert("Delete account?", isPresented: $confirmDeleteAccount) {
+            Button("Delete account", role: .destructive) { deleteAccount() }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text(store.members.count > 1
-                ? "This permanently deletes your account and personal recipes. Your household keeps the recipes you shared with it. This can’t be undone."
-                : "This permanently deletes your account, your household, and all of its recipes, meal plans, and groceries. This can’t be undone.")
+            Text(accountDeletionExplanation + " This can’t be undone.")
         }
-        .calendishAlert("Couldn’t Delete Account", isPresented: Binding(get: { deleteAccountError != nil }, set: { if !$0 { deleteAccountError = nil } })) {
+        .calendishAlert("Couldn’t confirm account deletion", isPresented: Binding(get: { deleteAccountError != nil }, set: { if !$0 { deleteAccountError = nil } })) {
             Button("OK") { }
         } message: {
-            Text("Your account wasn’t deleted. \(deleteAccountError ?? "")")
+            Text(deleteAccountError ?? "")
         }
     }
     private func saveName() { store.renameMember(to: memberName.trimmingCharacters(in: .whitespaces)) }
@@ -239,7 +251,9 @@ struct ProfileSettingsView: View {
         deletingAccount = true
         Task {
             defer { deletingAccount = false }
-            do { try await store.deleteAccount() } catch { deleteAccountError = error.localizedDescription }
+            do { try await store.deleteAccount() } catch {
+                deleteAccountError = "Check your account before trying again. If you can still sign in, open Profile to review your account."
+            }
         }
     }
 }
@@ -278,8 +292,8 @@ struct HouseholdSettingsView: View {
                         Spacer()
                         if store.isOwner && member.role != "owner" {
                             Menu {
-                                Button("Make Owner", systemImage: "person.badge.key") { memberToOwn = member }
-                                Button("Remove Member", systemImage: "person.badge.minus", role: .destructive) { memberToRemove = member }
+                                Button("Make owner", systemImage: "person.badge.key") { memberToOwn = member }
+                                Button("Remove member", systemImage: "person.badge.minus", role: .destructive) { memberToRemove = member }
                             } label: {
                                 Image(systemName: "ellipsis")
                                     .foregroundStyle(Color.secondary)
@@ -293,9 +307,9 @@ struct HouseholdSettingsView: View {
                 if let code = store.household?.inviteCode {
                     Menu {
                         ShareLink(item: "Join my household on Calendish: \(HouseholdInvite.link(for: code).absoluteString)\nInvite code: \(code)") {
-                            Label("Share Invitation", systemImage: "square.and.arrow.up")
+                            Label("Share invitation", systemImage: "square.and.arrow.up")
                         }
-                        Button("Copy Code", systemImage: "doc.on.doc") { copyInviteCode(code) }
+                        Button("Copy code", systemImage: "doc.on.doc") { copyInviteCode(code) }
                     } label: {
                         LabeledContent {
                             HStack(spacing: 8) {
@@ -307,12 +321,12 @@ struct HouseholdSettingsView: View {
                             }
                             .foregroundStyle(.secondary)
                         } label: {
-                            Label("Invite Members", systemImage: "person.badge.plus")
+                            Label("Invite members", systemImage: "person.badge.plus")
                                 .foregroundStyle(Color.accentColor)
                         }
                     }
                     .accessibilityIdentifier("household-invitation")
-                    .accessibilityLabel("Invite Members")
+                    .accessibilityLabel("Invite members")
                     .accessibilityValue(copiedCode ? "Code copied" : code)
                     .accessibilityHint("Share an invitation or copy the invite code")
                     .sensoryFeedback(.success, trigger: copiedCode) { _, new in new }
@@ -323,25 +337,25 @@ struct HouseholdSettingsView: View {
                 Text("Share an invitation or copy the code.")
             }
             Section {
-                Button("Join Household", systemImage: "person.2.badge.plus") { householdChange = .join }
-                Button("Leave Household", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) { householdChange = .leave }
+                Button("Join household", systemImage: "person.2.badge.plus") { householdChange = .join }
+                Button("Leave household", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) { householdChange = .leave }
                     // Form row icons use list-item tint separately from the button's destructive title.
                     .listItemTint(.red)
             } header: {
-                Text("Change Household")
+                Text("Change household")
             } footer: {
                 Text("Your personal recipes stay with you.")
             }
             if store.isOwner {
                 Section {
                     Button(role: .destructive) { confirmDelete = true } label: {
-                        if deleting { ProgressView("Deleting Household Data…") }
-                        else { Label("Delete Household Data", systemImage: "trash") }
+                        if deleting { ProgressView("Deleting household data…") }
+                        else { Label("Delete household data", systemImage: "trash") }
                     }
                     .listItemTint(.red)
                     .disabled(deleting)
                 } header: {
-                    Text("Household Data")
+                    Text("Household data")
                 } footer: {
                     Text("Deletes household-owned recipes, meal plans, and groceries. Personal recipes, members, and the invite code stay.")
                 }
@@ -352,32 +366,32 @@ struct HouseholdSettingsView: View {
         .onAppear { householdName = store.household?.name ?? "" }
         .onChange(of: store.household?.id) { _, _ in householdName = store.household?.name ?? "" }
         .onDisappear { saveName() }
-        .calendishAlert("Delete Household Data?", isPresented: $confirmDelete) {
-            Button("Delete Household Data", role: .destructive) { deleteAllData() }
+        .calendishAlert("Delete household data?", isPresented: $confirmDelete) {
+            Button("Delete household data", role: .destructive) { deleteAllData() }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("This permanently removes household-owned recipes, meal plans, and groceries. Everyone’s personal recipes stay. This can’t be undone.")
         }
         .calendishAlert("Remove \(memberToRemove?.displayName ?? "Member")?", isPresented: Binding(get: { memberToRemove != nil }, set: { if !$0 { memberToRemove = nil } }), presenting: memberToRemove) { member in
-            Button("Remove", role: .destructive) { store.removeMember(member) }
+            Button("Remove member", role: .destructive) { store.removeMember(member) }
             Button("Cancel", role: .cancel) { }
         } message: { _ in
-            Text("They keep their personal recipes and receive a fresh solo household. Their shared recipes remain here as independent household copies. Your invite code will change.")
+            Text("They keep their personal recipes and start a new household. Your household keeps separate copies of their shared recipes. Your invite code will change.")
         }
         .sheet(item: $householdChange) { change in
             HouseholdMoveView(leaving: change == .leave)
         }
-        .calendishAlert("Transfer Ownership?", isPresented: Binding(get: { memberToOwn != nil }, set: { if !$0 { memberToOwn = nil } }), presenting: memberToOwn) { member in
-            Button("Make Owner", role: .confirm) { store.transferOwnership(to: member); memberToOwn = nil }
+        .calendishAlert("Make \(memberToOwn?.displayName ?? "this member") the owner?", isPresented: Binding(get: { memberToOwn != nil }, set: { if !$0 { memberToOwn = nil } }), presenting: memberToOwn) { member in
+            Button("Make owner", role: .confirm) { store.transferOwnership(to: member); memberToOwn = nil }
                 .keyboardShortcut(.defaultAction)
             Button("Cancel", role: .cancel) { memberToOwn = nil }
         } message: { member in
             Text("\(member.displayName) will manage membership. You’ll remain a member and can still edit household recipes, groceries, and meals.")
         }
-        .calendishAlert("Couldn’t Delete Data", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+        .calendishAlert("Couldn’t confirm deletion", isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
             Button("OK") { }
         } message: {
-            Text("Nothing was deleted. \(deleteError ?? "")")
+            Text(deleteError ?? "")
         }
     }
     private func saveName() { store.renameHousehold(to: householdName.trimmingCharacters(in: .whitespaces)) }
@@ -396,7 +410,10 @@ struct HouseholdSettingsView: View {
         deleting = true
         Task {
             defer { deleting = false }
-            do { try await store.deleteAllHouseholdData() } catch { deleteError = error.localizedDescription }
+            do { try await store.deleteAllHouseholdData() } catch {
+                await store.refresh()
+                deleteError = "Check the household’s recipes, meal plan, and groceries before trying again."
+            }
         }
     }
 }
@@ -431,12 +448,12 @@ struct CookingSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Keep Screen Awake", isOn: $keepScreenAwake)
+                Toggle("Keep screen awake", isOn: $keepScreenAwake)
             } footer: {
                 Text("Your screen stays on while cook mode is open.")
             }
             Section {
-                Toggle("Show Ingredients", isOn: $showIngredients)
+                Toggle("Show ingredients", isOn: $showIngredients)
             } footer: {
                 Text("Open the ingredient list alongside the steps when you start cooking.")
             }
@@ -448,7 +465,7 @@ struct CookingSettingsView: View {
             Section {
                 Toggle("Live Activity", isOn: $liveActivity)
                 if liveActivity && !activitiesAllowed {
-                    Button("Open Calendish Settings") {
+                    Button("Open Calendish settings") {
                         if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                     }
                 }
@@ -464,25 +481,25 @@ struct CookingSettingsView: View {
                 .tint(.secondary)
                 if timerAlert == .alarm {
                     if alarms == .notDetermined {
-                        Button("Allow Alarms") {
+                        Button("Allow alarms") {
                             Task { alarms = (try? await AlarmManager.shared.requestAuthorization()) ?? AlarmManager.shared.authorizationState }
                         }
                     } else if alarms == .denied {
-                        Button("Open Calendish Settings") {
+                        Button("Open Calendish settings") {
                             if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                         }
                     }
                 } else if let notifications {
                     LabeledContent("Notifications", value: notificationsAllowed ? "On" : "Off")
                     if notifications == .notDetermined {
-                        Button("Allow Notifications") {
+                        Button("Allow notifications") {
                             Task {
                                 _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
                                 await loadNotificationStatus()
                             }
                         }
                     } else {
-                        Button("Open Notification Settings") {
+                        Button("Open notification settings") {
                             if let url = URL(string: UIApplication.openNotificationSettingsURLString) { openURL(url) }
                         }
                     }
@@ -505,11 +522,13 @@ struct CookingSettingsView: View {
     }
     private var timerFooter: String {
         switch timerAlert {
+        case .alarm where alarms == .notDetermined:
+            "Allow alarms so timers can ring even when your iPhone is on silent or in a Focus."
         case .alarm where alarms == .denied:
-            "Alarms are turned off for Calendish in the Settings app, so timers use notifications instead."
+            "Alarms are off. Timers use notifications when allowed."
         case .alarm: "Timers ring like the Clock app, even when your iPhone is on silent or in a Focus."
         case .notification: "Timers play a sound and show a notification. They alert you outside Calendish only when notifications are on."
-        case .silent: "Timers show a notification without a sound."
+        case .silent: "Timers show notifications without sound when notifications are allowed."
         }
     }
     private func loadNotificationStatus() async {

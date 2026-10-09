@@ -132,19 +132,19 @@ struct PhotoSourceMenu<Label: View>: View {
         Menu {
             Section {
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button("Take Photo", systemImage: "camera") { showCamera = true }
+                    Button("Take photo", systemImage: "camera") { showCamera = true }
                 }
-                Button("Choose from Library", systemImage: "photo.on.rectangle") { showLibrary = true }
-                Button("Choose File", systemImage: "folder") { showFiles = true }
+                Button("Choose a photo", systemImage: "photo.on.rectangle") { showLibrary = true }
+                Button("Choose file", systemImage: "folder") { showFiles = true }
                 if UIPasteboard.general.hasImages {
-                    Button("Paste Photo", systemImage: "doc.on.clipboard") {
+                    Button("Paste photo", systemImage: "doc.on.clipboard") {
                         if let image = UIPasteboard.general.image { onPick(image) }
                     }
                 }
             }
             if hasPhoto {
                 Section {
-                    Button("Remove Photo", systemImage: "trash", role: .destructive, action: onRemove)
+                    Button("Remove photo", systemImage: "trash", role: .destructive, action: onRemove)
                 }
             }
         } label: { label }

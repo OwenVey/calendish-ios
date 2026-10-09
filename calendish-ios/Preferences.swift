@@ -40,11 +40,11 @@ enum RecipeSort: String, CaseIterable, Identifiable {
     var id: Self { self }
     var title: String {
         switch self {
-        case .recent: "Recently Added"
+        case .recent: "Recently added"
         case .title: "Title A–Z"
-        case .rating: "Highest Rated"
-        case .recentlyCooked: "Recently Cooked"
-        case .leastRecentlyCooked: "Least Recently Cooked"
+        case .rating: "Highest rated"
+        case .recentlyCooked: "Recently cooked or planned"
+        case .leastRecentlyCooked: "Least recently cooked or planned"
         }
     }
     var showsLastCooked: Bool { self == .recentlyCooked || self == .leastRecentlyCooked }
@@ -94,9 +94,9 @@ enum GroceryAutoClear: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .never: "Never"
-        case .hour: "After an Hour"
-        case .day: "After a Day"
-        case .week: "After a Week"
+        case .hour: "After an hour"
+        case .day: "After a day"
+        case .week: "After a week"
         }
     }
     var interval: TimeInterval? {
@@ -105,6 +105,14 @@ enum GroceryAutoClear: String, CaseIterable, Identifiable {
         case .hour: 3600
         case .day: 86_400
         case .week: 604_800
+        }
+    }
+    var explanation: String {
+        switch self {
+        case .never: "Checked items stay on the list until you clear them."
+        case .hour: "Removes items an hour after they’re checked off, for everyone in your household."
+        case .day: "Removes items a day after they’re checked off, for everyone in your household."
+        case .week: "Removes items a week after they’re checked off, for everyone in your household."
         }
     }
     static var current: GroceryAutoClear {

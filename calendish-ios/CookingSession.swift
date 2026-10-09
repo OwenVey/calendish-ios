@@ -64,7 +64,7 @@ final class CookingSession {
             return
         }
         guard ActivityAuthorizationInfo().areActivitiesEnabled else {
-            activityWarning = "Live Activities are off. You can enable them for Calendish in Settings."
+            activityWarning = "Live Activities are off. Allow them for Calendish in the Settings app."
             return
         }
         guard let snapshot else { return }

@@ -25,7 +25,7 @@ final class GrocerySearchUITests: XCTestCase {
             if cycle == 1 {
                 app.searchFields.firstMatch.typeText("olive")
             } else if cycle == 2 {
-                app.buttons["Completed"].tap()
+                app.buttons["Checked"].tap()
             }
             let cancel = app.buttons.matching(NSPredicate(format: "label ==[c] %@ OR label ==[c] %@", "close", "cancel")).firstMatch
             XCTAssertTrue(cancel.waitForExistence(timeout: 3), app.debugDescription)
@@ -35,7 +35,7 @@ final class GrocerySearchUITests: XCTestCase {
             afterClose.lifetime = .keepAlways
             add(afterClose)
             let closed = NSPredicate { _, _ in
-                !app.keyboards.firstMatch.exists && !app.buttons["Completed"].exists
+                !app.keyboards.firstMatch.exists && !app.buttons["Checked"].exists
             }
             expectation(for: closed, evaluatedWith: nil)
             waitForExpectations(timeout: 5)

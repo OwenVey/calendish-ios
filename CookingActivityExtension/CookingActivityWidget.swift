@@ -69,7 +69,7 @@ private struct CookingActivityCard: View {
                         timer
                         Spacer(minLength: 0)
                         Button(intent: CookingStepIntent(sessionID: context.attributes.sessionID, stepIndex: context.state.stepIndex)) {
-                            Label(isLastStep ? "Finish" : "Next", systemImage: isLastStep ? "checkmark" : "arrow.right")
+                            Label(isLastStep ? "Finish cooking" : "Next", systemImage: isLastStep ? "checkmark" : "arrow.right")
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundStyle(.primary)
                                 .frame(minHeight: 20)
@@ -80,7 +80,7 @@ private struct CookingActivityCard: View {
                         .tint(showsHeader ? .primary : .white)
                         .frame(minHeight: 44)
                         .contentShape(.rect)
-                        .accessibilityLabel(isLastStep ? "Finish Cooking" : "Next Step")
+                        .accessibilityLabel(isLastStep ? "Finish cooking" : "Next step")
                     }
                 }
             }
@@ -126,7 +126,7 @@ private struct CookingActivityCard: View {
             .buttonStyle(.glassProminent).buttonBorderShape(.capsule).tint(.orange)
             .frame(minHeight: 44)
             .contentShape(.rect)
-            .accessibilityLabel("Start Timer")
+            .accessibilityLabel("Start timer")
         } else {
             Label("Cooking", systemImage: "fork.knife")
                 .font(.caption).foregroundStyle(.secondary)

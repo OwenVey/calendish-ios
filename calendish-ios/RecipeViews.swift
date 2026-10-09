@@ -101,19 +101,19 @@ struct RecipeBookView: View {
 
     @ViewBuilder private func actions(for recipe: Recipe) -> some View {
         Section {
-            Button("Plan Meal", systemImage: "calendar.badge.plus") {
+            Button("Plan a meal", systemImage: "calendar.badge.plus") {
                 planning = MealSelection(recipeID: recipe.id)
             }
-            Button("Add to Groceries", systemImage: "basket") { groceryRecipe = recipe }
+            Button("Add to groceries", systemImage: "basket") { groceryRecipe = recipe }
         }
         Section {
-            Button(recipe.isFavorite ? "Remove from Favorites" : "Add to Favorites", systemImage: recipe.isFavorite ? "star.slash" : "star") {
+            Button(recipe.isFavorite ? "Remove from favorites" : "Add to favorites", systemImage: recipe.isFavorite ? "star.slash" : "star") {
                 store.toggleFavorite(recipe)
             }
         }
         if store.canEdit(recipe) {
             Section {
-                Button("Delete Recipe", systemImage: "trash", role: .destructive) {
+                Button("Delete recipe", systemImage: "trash", role: .destructive) {
                     recipeToDelete = recipe
                     confirmDelete = true
                 }
@@ -131,35 +131,35 @@ struct RecipeBookView: View {
         .overlay {
             if filteredRecipes.isEmpty {
                 if store.recipes.isEmpty {
-                    ContentUnavailableView("Your recipe book starts here", systemImage: "book.closed", description: Text("Save something you love to cook."))
+                    ContentUnavailableView("Your recipe book starts here", systemImage: "book.closed", description: Text("Add a recipe or import one from a link, text, photo, or PDF."))
                 } else if favoritesOnly && search.isEmpty && !store.recipes.contains(where: \.isFavorite) {
-                    ContentUnavailableView("No favorites yet", systemImage: "star", description: Text("Choose Add to Favorites from a recipe’s More menu to save it here."))
+                    ContentUnavailableView("No favorites yet", systemImage: "star", description: Text("Open a recipe’s actions menu and choose Add to favorites."))
                 } else {
-                    ContentUnavailableView("No matching recipes", systemImage: "book.closed", description: Text("Try another search or tag."))
+                    ContentUnavailableView("No matching recipes", systemImage: "book.closed", description: Text("Try another search or change the filters."))
                 }
             }
         }
         .navigationTitle("Recipes")
         .tabRootStyle()
         .navigationSubtitle(subtitle)
-        .searchable(text: $search, prompt: "Recipes, ingredients, and more")
+        .searchable(text: $search, prompt: "Search recipes and ingredients")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Section("View As") {
-                        Picker("View As", selection: $layout) {
+                    Section("View as") {
+                        Picker("View as", selection: $layout) {
                             ForEach(RecipeLayout.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) }
                         }
                     }
-                    Section("Sort By") {
-                        Picker("Sort By", selection: $sort) {
+                    Section("Sort by") {
+                        Picker("Sort by", selection: $sort) {
                             ForEach(RecipeSort.allCases) { Text($0.title).tag($0) }
                         }
                     }
                     Section("Filter") {
-                        Toggle("Favorites Only", systemImage: "star", isOn: $favoritesOnly)
+                        Toggle("Favorites only", systemImage: "star", isOn: $favoritesOnly)
                         Picker("Filter", selection: $selectedTag) {
-                            Text("All Recipes").tag("All recipes")
+                            Text("All recipes").tag("All recipes")
                             ForEach(store.recipeTags, id: \.self) { Text($0).tag($0) }
                         }
                     }
@@ -169,24 +169,24 @@ struct RecipeBookView: View {
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button("Add Manually", systemImage: "square.and.pencil") { sheet = .manual }
+                    Button("Write a recipe", systemImage: "square.and.pencil") { sheet = .manual }
                     Section {
-                        Button("Import from Link", systemImage: "link") { sheet = .importing(.link) }
-                        Button("Paste Recipe Text", systemImage: "doc.on.clipboard") { sheet = .importing(.text) }
+                        Button("Import from link", systemImage: "link") { sheet = .importing(.link) }
+                        Button("Paste recipe text", systemImage: "doc.on.clipboard") { sheet = .importing(.text) }
                     }
                     Section {
                         if VNDocumentCameraViewController.isSupported {
-                            Button("Scan with Camera", systemImage: "doc.viewfinder") { showScanner = true }
+                            Button("Scan with camera", systemImage: "doc.viewfinder") { showScanner = true }
                         }
-                        Button("Choose from Photos", systemImage: "photo.on.rectangle") { showPhotoPicker = true }
-                        Button("Choose File", systemImage: "folder") { showFilePicker = true }
+                        Button("Choose photos", systemImage: "photo.on.rectangle") { showPhotoPicker = true }
+                        Button("Choose file", systemImage: "folder") { showFilePicker = true }
                     }
-                } label: { Label("New Recipe", systemImage: "plus") }
+                } label: { Label("New recipe", systemImage: "plus") }
             }
         }
         .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }
         .calendishAlert("Delete “\(recipeToDelete?.title ?? "recipe")”?", isPresented: $confirmDelete, presenting: recipeToDelete) { recipe in
-            Button("Delete Recipe", role: .destructive) {
+            Button("Delete recipe", role: .destructive) {
                 store.deleteRecipe(recipe)
                 recipeToDelete = nil
             }
@@ -224,10 +224,10 @@ struct RecipeBookView: View {
                 }
                 if let item = RecipeImport.combined(items) { sheet = .importing(.content(item)) }
             } catch {
-                fileError = error.localizedDescription
+                fileError = InterfaceCopy.failure(error, action: "open the file", recovery: "Choose another file and try again.")
             }
         }
-        .calendishAlert("Couldn’t Open File", isPresented: Binding(get: { fileError != nil }, set: { if !$0 { fileError = nil } })) {
+        .calendishAlert("Couldn’t open file", isPresented: Binding(get: { fileError != nil }, set: { if !$0 { fileError = nil } })) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(fileError ?? "")
@@ -273,7 +273,7 @@ private struct RecipeCard: View {
                     Text("\(recipe.minutes) min")
                     if let rating = stats?.averageRating {
                         Image(systemName: "star.fill").font(.caption2).padding(.leading, 4).accessibilityHidden(true)
-                        Text(RecipeRow.formatted(rating)).accessibilityLabel("Rated \(RecipeRow.formatted(rating)) stars")
+                        Text(RecipeRow.formatted(rating)).accessibilityLabel(InterfaceCopy.rating(RecipeRow.formatted(rating)))
                     }
                     if store.isMine(recipe) && recipe.owner?.isShared == false {
                         Image(systemName: "lock.fill").font(.caption2).accessibilityLabel("Only me")
@@ -355,7 +355,7 @@ struct RecipeDetailView: View {
                     .overlay(alignment: .bottomTrailing) {
                         if recipe.imagePath == nil && plannedMeal == nil && store.canEdit(recipe) {
                             PhotoSourceMenu(hasPhoto: false, onPick: { store.saveRecipe(recipe, photo: .replace($0)) }, onRemove: {}) {
-                                Label("Add Photo", systemImage: "camera")
+                                Label("Add photo", systemImage: "camera")
                                     .font(.subheadline.weight(.semibold))
                                     .padding(.horizontal, 14).padding(.vertical, 10)
                                     .glassEffect(.regular.interactive(), in: .capsule)
@@ -375,12 +375,14 @@ struct RecipeDetailView: View {
                         Text(owner + (store.isMine(recipe) ? (recipe.owner?.isShared == true ? " · Shared with household" : " · Only me") : ""))
                             .font(.subheadline).foregroundStyle(.secondary)
                     }
-                    if plannedMeal != nil { Text("Saved version for this planned meal").font(.subheadline).foregroundStyle(.secondary) }
+                    if plannedMeal != nil { Text("Recipe version saved with this meal").font(.subheadline).foregroundStyle(.secondary) }
                     Text(recipe.summary).foregroundStyle(.secondary)
                     FlowLayout(spacing: 16) {
                         Label("Prep: \(recipe.prepMinutes) min", systemImage: "clock")
+                            .accessibilityLabel("Preparation time: \(InterfaceCopy.minutes(recipe.prepMinutes))")
                         Label("Cook: \(recipe.cookMinutes) min", systemImage: "flame")
-                        Label("\(recipe.servings) servings", systemImage: "person.2")
+                            .accessibilityLabel("Cooking time: \(InterfaceCopy.minutes(recipe.cookMinutes))")
+                        Label(InterfaceCopy.servings(recipe.servings), systemImage: "person.2")
                         if let yieldText = recipe.yieldText { Label("Makes \(yieldText)", systemImage: "square.grid.2x2") }
                     }.font(.subheadline).foregroundStyle(.secondary)
                     if !recipe.tags.isEmpty {
@@ -438,47 +440,51 @@ struct RecipeDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Section {
-                        Button(plannedMeal == nil ? "Plan Meal" : "Edit Planned Meal", systemImage: "calendar.badge.plus") {
+                        Button(plannedMeal == nil ? "Plan a meal" : "Edit planned meal", systemImage: "calendar.badge.plus") {
                             if let plannedMeal {
                                 planning = MealSelection(date: plannedMeal.date, meal: plannedMeal)
                                 return
                             }
                             planning = MealSelection(recipeID: recipe.id)
                         }
-                        Button("Add to Groceries", systemImage: "basket") { showImportOutline = true }
+                        Button("Add to groceries", systemImage: "basket") { showImportOutline = true }
                         if let link = recipe.recipeLink, let url = RecipeLinkImporter.validatedURL(link) {
-                            Button("Visit Source", systemImage: "safari") { sourceToVisit = RecipeSource(url: url) }
+                            Button("Visit source", systemImage: "safari") { sourceToVisit = RecipeSource(url: url) }
                         }
                     }
                     Section {
                         if plannedMeal == nil {
-                        Button(recipe.isFavorite ? "Remove from Favorites" : "Add to Favorites", systemImage: recipe.isFavorite ? "star.slash" : "star") {
+                        Button(recipe.isFavorite ? "Remove from favorites" : "Add to favorites", systemImage: recipe.isFavorite ? "star.slash" : "star") {
                             store.toggleFavorite(recipe)
                         }
                         }
                         if plannedMeal == nil && !store.isMine(recipe) {
-                            Button("Save to My Collection", systemImage: "square.and.arrow.down") {
+                            Button("Save to my collection", systemImage: "square.and.arrow.down") {
                                 savingCopy = true
                                 Task {
                                     defer { savingCopy = false }
                                     do { savedCopy = try await store.saveCopy(of: recipe) }
-                                    catch { store.errorMessage = error.localizedDescription }
+                                    catch {
+                                        store.errorTitle = "Couldn’t save a recipe copy"
+                                        store.errorMessage = InterfaceCopy.recoveryMessage(error, fallback: "Check your collection before trying again.")
+                                    }
                                 }
                             }.disabled(savingCopy)
                         }
                         if let plannedMeal, store.latestRecipe(for: plannedMeal) != nil {
-                            Button("Update to Latest Recipe", systemImage: "arrow.clockwise") {
+                            Button("Use latest recipe version", systemImage: "arrow.clockwise") {
                                 store.updateMealToLatest(plannedMeal)
                                 dismiss()
                             }.disabled(!store.hasNewerVersion(plannedMeal))
+                                .accessibilityHint("Replaces this meal’s saved ingredients and instructions")
                         }
                         if plannedMeal == nil && store.isMine(recipe) {
-                            Button(recipe.owner?.isShared == true ? "Make Only Me" : "Share with Household", systemImage: "person.2") { confirmSharing = true }
+                            Button(recipe.owner?.isShared == true ? "Make private" : "Share with household", systemImage: "person.2") { confirmSharing = true }
                         }
                     }
                     if plannedMeal == nil && store.canEdit(recipe) {
                         Section {
-                            Button("Delete Recipe", systemImage: "trash", role: .destructive) { confirmDelete = true }
+                            Button("Delete recipe", systemImage: "trash", role: .destructive) { confirmDelete = true }
                         }
                     }
                 } label: {
@@ -486,7 +492,7 @@ struct RecipeDetailView: View {
                 }
                 .sensoryFeedback(.selection, trigger: recipe.isFavorite)
                 .confirmationDialog("Delete “\(recipe.title)”?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                    Button("Delete Recipe", role: .destructive) {
+                    Button("Delete recipe", role: .destructive) {
                         store.deleteRecipe(recipe)
                         dismiss()
                     }
@@ -497,7 +503,7 @@ struct RecipeDetailView: View {
             }
             if plannedMeal == nil && store.canEdit(recipe) {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Edit Recipe", systemImage: "pencil") { showEditor = true }
+                    Button("Edit recipe", systemImage: "pencil") { showEditor = true }
                         .labelStyle(.iconOnly).toolbarGlyph()
                 }
             }
@@ -511,15 +517,15 @@ struct RecipeDetailView: View {
             }
 
         }
-        .confirmationDialog(recipe.owner?.isShared == true ? "Make Only Me?" : "Share with Household?", isPresented: $confirmSharing, titleVisibility: .visible) {
-            Button(recipe.owner?.isShared == true ? "Make Only Me" : "Share with Household") {
+        .confirmationDialog(recipe.owner?.isShared == true ? "Make private?" : "Share with household?", isPresented: $confirmSharing, titleVisibility: .visible) {
+            Button(recipe.owner?.isShared == true ? "Make private" : "Share with household") {
                 store.setSharing(recipe, shared: recipe.owner?.isShared != true)
             }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text(recipe.owner?.isShared == true
-                 ? "Your household keeps an independent copy of what you shared. Only me stops access to your original and future edits; it doesn’t retract prior sharing."
-                 : "Your household can use your original. If you stop sharing, delete it, or leave, the household keeps an independent copy. Only you can edit your original.")
+                 ? "Your household keeps a separate copy of this recipe. Only you can access your original and future edits."
+                 : "Your household can see and cook this recipe. Only you can edit your original. If you stop sharing, delete it, or leave, the household keeps a separate copy.")
         }
         .sheet(item: $savedCopy) { copy in NavigationStack { RecipeDetailView(recipe: copy) } }
         .sheet(isPresented: $showEditor) { RecipeEditorView(recipe: recipe) }
@@ -539,24 +545,24 @@ extension RecipeDetailView {
     private var ingredientsSubtitle: String {
         guard isScaled else { return "Check things off as you cook." }
         let scaledYield = recipe.yieldText.map { " · Makes \(Ingredient.scale($0, by: scale))" } ?? ""
-        return "Scaled from \(recipe.servings) servings\(scaledYield)."
+        return "Scaled from \(InterfaceCopy.servings(recipe.servings))\(scaledYield)."
     }
 
     private var servingsStepper: some View {
         HStack(spacing: 12) {
             Label {
-                Text("\(servings) servings").monospacedDigit().contentTransition(.numericText(value: Double(servings)))
+                Text(InterfaceCopy.servings(servings)).monospacedDigit().contentTransition(.numericText(value: Double(servings)))
             } icon: { Image(systemName: "person.2") }
             if isScaled {
                 Button("Reset") { scaledServings = nil }
                     .font(.subheadline)
-                    .accessibilityLabel("Reset to \(recipe.servings) servings")
+                    .accessibilityLabel("Reset to \(InterfaceCopy.servings(recipe.servings))")
                     .transition(.opacity)
             }
             Spacer()
             Stepper("Servings", value: Binding(get: { servings }, set: { scaledServings = $0 }), in: 1...100)
                 .labelsHidden()
-                .accessibilityValue("\(servings) servings")
+                .accessibilityValue(InterfaceCopy.servings(servings))
         }
         .padding(.vertical, 6)
         .animation(reduceMotion ? nil : .snappy, value: servings)
@@ -590,12 +596,18 @@ struct RecipeEditorView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
     @State private var editing: RecipeDraftEditing
+    private let isImported: Bool
+    private let importedWithoutIngredients: Bool
+    private let importedWithoutInstructions: Bool
     @State private var discardChanges = false
     @FocusState private var isTagFieldFocused: Bool
     @FocusState private var focusedIngredient: Ingredient.ID?
     @FocusState private var focusedStep: RecipeDraftEditing.Step.ID?
 
     init(recipe: Recipe? = nil, imported: ImportedRecipe? = nil) {
+        isImported = imported != nil
+        importedWithoutIngredients = imported?.recipe.ingredients.isEmpty == true
+        importedWithoutInstructions = imported?.recipe.steps.isEmpty == true
         _editing = State(initialValue: RecipeDraftEditing(recipe: recipe, imported: imported,
             defaultServings: PreferenceKey.servingsForNewRecipes))
     }
@@ -603,8 +615,19 @@ struct RecipeEditorView: View {
         @Bindable var editing = editing
         NavigationStack {
             Form {
+                if isImported {
+                    Section {
+                        Text("Check the ingredients, steps, and servings before saving.")
+                        if importedWithoutIngredients && !editing.fields.ingredients.contains(where: { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+                            Text("No ingredients were imported.")
+                        }
+                        if importedWithoutInstructions && !editing.fields.steps.contains(where: { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+                            Text("No instructions were imported.")
+                        }
+                    }
+                }
                 Section {
-                    TextField("Recipe Title", text: $editing.fields.title)
+                    TextField("Recipe title", text: $editing.fields.title)
                         .font(.title3.weight(.semibold))
                     ServingsField(servings: $editing.fields.servings)
                     RecipeDurationField(title: "Prep time", minutes: $editing.fields.prepMinutes)
@@ -627,14 +650,14 @@ struct RecipeEditorView: View {
                             }
                             .frame(width: 56, height: 56)
                             .clipShape(.rect(cornerRadius: 10))
-                            Text(editing.hasPhoto ? "Edit Photo" : "Add Photo")
+                            Text(editing.hasPhoto ? "Edit photo" : "Add photo")
                                 .foregroundStyle(CalendishStyle.accent)
                             Spacer(minLength: 0)
                         }
                         .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(editing.hasPhoto ? "Edit Photo" : "Add Photo")
+                    .accessibilityLabel(editing.hasPhoto ? "Edit photo" : "Add photo")
                 }
                 Section {
                     ForEach($editing.fields.ingredients) { $ingredient in
@@ -650,13 +673,13 @@ struct RecipeEditorView: View {
                         editing.fields.ingredients.remove(atOffsets: offsets)
                     }
 
-                    Button("Add Ingredient", systemImage: "plus.circle.fill") {
+                    Button("Add ingredient", systemImage: "plus.circle.fill") {
                         addIngredient(after: editing.fields.ingredients.last?.id)
                     }
                 } header: {
                     Text("Ingredients")
                 } footer: {
-                    Text("At least one entry is required. Drag the handles to reorder.")
+                    Text("Add ingredients here. Drag the handles to reorder.")
                 }
                 Section {
                     ForEach($editing.fields.steps) { $step in
@@ -675,7 +698,7 @@ struct RecipeEditorView: View {
                         editing.fields.steps.remove(atOffsets: offsets)
                     }
 
-                    Button("Add Step", systemImage: "plus.circle.fill") {
+                    Button("Add step", systemImage: "plus.circle.fill") {
                         let step = RecipeDraftEditing.Step()
                         editing.fields.steps.append(step)
                         focusedStep = step.id
@@ -683,13 +706,13 @@ struct RecipeEditorView: View {
                 } header: {
                     Text("Instructions")
                 } footer: {
-                    Text("At least one entry is required. Drag the handles to reorder.")
+                    Text("Add cooking steps here. Drag the handles to reorder.")
                 }
                 Section("Details") {
                     LabeledFormField("Description") {
                         TextField("A little about this recipe", text: $editing.fields.summary, axis: .vertical)
                     }
-                    LabeledFormField("Source Link") {
+                    LabeledFormField("Source link") {
                         TextField("https://", text: $editing.fields.sourceLink)
                             .keyboardType(.URL)
                             .textInputAutocapitalization(.never)
@@ -702,7 +725,7 @@ struct RecipeEditorView: View {
                         }
                     }
                     .tint(.secondary)
-                    LabeledFormField("Yield") {
+                    LabeledFormField("Makes") {
                         TextField("24 cookies", text: $editing.fields.yieldText)
                     }
                 }
@@ -714,7 +737,7 @@ struct RecipeEditorView: View {
                                     TagPill(tag: tag, systemImage: "xmark").frame(minHeight: 44)
                                 }
                                 .buttonStyle(.plain)
-                                .accessibilityLabel("Remove \(tag)")
+                                .accessibilityLabel("Remove tag \(tag)")
                             }
                         }
                         .padding(.vertical, 6)
@@ -733,7 +756,7 @@ struct RecipeEditorView: View {
                                 ForEach(tagSuggestions, id: \.self) { tag in
                                     Button { addTag(tag) } label: { TagPill(tag: tag, systemImage: "plus", muted: true).frame(minHeight: 44) }
                                         .buttonStyle(.plain)
-                                        .accessibilityLabel("Add \(tag)")
+                                        .accessibilityLabel("Add tag \(tag)")
                                 }
                             }
                             .padding(.horizontal, 20)
@@ -748,21 +771,21 @@ struct RecipeEditorView: View {
                 }
                 if editing.isNew {
                     Section {
-                        Toggle("Share with Household", isOn: $editing.fields.isShared)
+                        Toggle("Share with household", isOn: $editing.fields.isShared)
                     } footer: {
-                        Text(editing.fields.isShared ? "Your household can see and cook this recipe. Only you can edit it." : "Only you can see this recipe.")
+                        Text(editing.fields.isShared ? "Your household will be able to see and cook this recipe. Only you will be able to edit it." : "This recipe will be private.")
                     }
                 }
             }
             // Always editing, so ingredient and step rows show the delete control and drag handle.
             .environment(\.editMode, .constant(.active))
-            .navigationTitle(editing.isNew ? "New Recipe" : "Edit Recipe").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(isImported ? "Review recipe" : editing.isNew ? "New recipe" : "Edit recipe").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { if editing.isDirty { discardChanges = true } else { dismiss() } }.toolbarGlyph()
-                        .confirmationDialog("Discard Recipe Changes?", isPresented: $discardChanges, titleVisibility: .visible) {
-                            Button("Discard Changes", role: .destructive) { editing.discard(); dismiss() }
-                            Button("Keep Editing") { }
+                        .confirmationDialog("Discard recipe changes?", isPresented: $discardChanges, titleVisibility: .visible) {
+                            Button("Discard changes", role: .destructive) { editing.discard(); dismiss() }
+                            Button("Keep editing") { }
                         } message: { Text("Your draft stays on this device until you save or discard it.") }
                 }
                 ToolbarItem(placement: .confirmationAction) {

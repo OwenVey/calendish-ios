@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// The share sheet entry point. It saves what was shared to the inbox and closes; the app imports it next time it's open.
+/// Saves shared source material to the inbox; the app imports it next time it's open.
 final class ShareViewController: UIViewController {
     private let status = ShareStatus()
 
@@ -17,11 +17,16 @@ final class ShareViewController: UIViewController {
 
         let providers = (extensionContext?.inputItems as? [NSExtensionItem] ?? []).flatMap { $0.attachments ?? [] }
         Task {
+            let item: RecipeImport
             do {
-                try SharedInbox.save(try await Self.item(from: providers))
+                item = try await Self.item(from: providers)
+            } catch {
+                status.state = .unsupported
+                return
+            }
+            do {
+                try SharedInbox.save(item)
                 status.state = .saved
-                try? await Task.sleep(for: .seconds(1.5))
-                finish()
             } catch {
                 status.state = .failed
             }
@@ -51,7 +56,7 @@ final class ShareViewController: UIViewController {
 
 @Observable
 final class ShareStatus {
-    enum State { case saving, saved, failed }
+    enum State { case saving, saved, unsupported, failed }
     var state = State.saving
 }
 
@@ -63,16 +68,18 @@ private struct ShareView: View {
         VStack(spacing: 12) {
             switch status.state {
             case .saving:
-                ProgressView()
-                Text("Saving to Calendish…").font(.headline)
+                ProgressView("Sending to Calendish…").font(.headline)
             case .saved:
                 Image(systemName: "checkmark.circle.fill").font(.system(size: 44)).foregroundStyle(.tint)
-                Text("Saved to Calendish").font(.headline)
+                Text("Ready to import").font(.headline)
                 Text("Open Calendish to review and save the recipe.").font(.subheadline).foregroundStyle(.secondary)
-            case .failed:
+            case .unsupported, .failed:
                 Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 44)).foregroundStyle(.secondary)
-                Text("Couldn’t Save to Calendish").font(.headline)
-                Text("Try sharing a link, text, photos, or a PDF.").font(.subheadline).foregroundStyle(.secondary)
+                Text("Couldn’t send to Calendish").font(.headline)
+                Text(status.state == .unsupported
+                    ? "Share a recipe link, recipe text, photos, or a PDF."
+                    : "Open Calendish and try importing the recipe there.")
+                    .font(.subheadline).foregroundStyle(.secondary)
             }
             if status.state != .saving {
                 Button("Done", action: onDone).buttonStyle(.glass).padding(.top, 8)

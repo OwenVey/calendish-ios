@@ -15,7 +15,7 @@ final class HouseholdUITests: XCTestCase {
         let addPhoto = app.buttons["Add profile photo"]
         XCTAssertTrue(addPhoto.waitForExistence(timeout: 5))
         addPhoto.tap()
-        app.buttons["Choose from Library"].tap()
+        app.buttons["Choose a photo"].tap()
         XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
         app.buttons["Cancel"].tap()
         XCTAssertTrue(addPhoto.waitForExistence(timeout: 5))
@@ -31,13 +31,13 @@ final class HouseholdUITests: XCTestCase {
         app.buttons["Settings"].tap()
         app.cells.containing(.staticText, identifier: "Owen").firstMatch.tap()
         app.buttons["Add profile photo"].tap()
-        app.buttons["Choose from Library"].tap()
+        app.buttons["Choose a photo"].tap()
         let photo = app.images.matching(NSPredicate(format: "label BEGINSWITH %@", "Photo,")).firstMatch
         XCTAssertTrue(photo.waitForExistence(timeout: 5), app.debugDescription)
         photo.tap()
-        let use = app.buttons["Use Photo"]
+        let use = app.buttons["Use photo"]
         XCTAssertTrue(use.waitForExistence(timeout: 5))
-        app.sliders["Photo Zoom"].adjust(toNormalizedSliderPosition: 0.4)
+        app.sliders["Photo zoom"].adjust(toNormalizedSliderPosition: 0.4)
         let crop = XCTAttachment(screenshot: app.screenshot())
         crop.name = "Circular profile photo crop"
         crop.lifetime = .keepAlways
@@ -46,14 +46,14 @@ final class HouseholdUITests: XCTestCase {
         let change = app.buttons["Change profile photo"]
         XCTAssertTrue(change.waitForExistence(timeout: 5))
         change.tap()
-        app.buttons["Remove Photo"].tap()
+        app.buttons["Remove photo"].tap()
         XCTAssertTrue(app.buttons["Add profile photo"].waitForExistence(timeout: 5))
     }
 
     func testOnboardingOnlyAsksForName() {
         let app = launch("--ui-setup")
         XCTAssertTrue(app.textFields["Your name"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Continue"].exists)
+        XCTAssertTrue(app.buttons["Start household"].exists)
         XCTAssertFalse(app.buttons["Create Household"].exists)
         XCTAssertFalse(app.textFields["Household name"].exists)
         XCTAssertFalse(app.textFields["Invite code"].exists)
@@ -70,24 +70,24 @@ final class HouseholdUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Blueberry overnight oats"].exists)
         XCTAssertFalse(app.staticTexts["Crispy chickpea salad"].exists)
         app.staticTexts["Roasted vegetable bowls"].tap()
-        XCTAssertFalse(app.buttons["Edit Recipe"].exists)
+        XCTAssertFalse(app.buttons["Edit recipe"].exists)
         app.buttons["More recipe actions"].tap()
-        XCTAssertTrue(app.buttons["Save to My Collection"].waitForExistence(timeout: 3))
-        XCTAssertFalse(app.buttons["Delete Recipe"].exists)
+        XCTAssertTrue(app.buttons["Save to my collection"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["Delete recipe"].exists)
     }
     func testSharingAndDeletionExplainRetainedContent() {
         let app = launch()
         app.staticTexts["Lemon & herb orzo"].tap()
-        XCTAssertTrue(app.buttons["Edit Recipe"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Edit recipe"].waitForExistence(timeout: 5))
         app.buttons["More recipe actions"].tap()
-        app.buttons["Make Only Me"].tap()
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "doesn’t retract prior sharing")).firstMatch.waitForExistence(timeout: 3))
+        app.buttons["Make private"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "keeps a separate copy")).firstMatch.waitForExistence(timeout: 3))
         if app.buttons["Cancel"].exists { app.buttons["Cancel"].tap() }
         else { app.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.55)).tap() }
         app.buttons["More recipe actions"].tap()
-        app.buttons["Delete Recipe"].tap()
+        app.buttons["Delete recipe"].tap()
         XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Planned meals keep their saved versions")).firstMatch.waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "independent copy")).firstMatch.exists)
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "separate copy")).firstMatch.exists)
         if app.buttons["Cancel"].exists { app.buttons["Cancel"].tap() }
         else { app.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.55)).tap() }
     }
@@ -117,13 +117,13 @@ final class HouseholdUITests: XCTestCase {
         let member = app.cells.containing(.staticText, identifier: "Sam").firstMatch
         XCTAssertTrue(member.waitForExistence(timeout: 5))
         member.swipeLeft()
-        XCTAssertFalse(app.buttons["Make Owner"].exists)
-        XCTAssertFalse(app.buttons["Remove"].exists)
+        XCTAssertFalse(app.buttons["Make owner"].exists)
+        XCTAssertFalse(app.buttons["Remove member"].exists)
         app.buttons["Actions for Sam"].tap()
-        app.buttons["Make Owner"].tap()
-        XCTAssertTrue(app.alerts["Transfer Ownership?"].waitForExistence(timeout: 3))
-        app.alerts.buttons["Make Owner"].tap()
-        XCTAssertFalse(app.buttons["Delete Household Data"].exists)
+        app.buttons["Make owner"].tap()
+        XCTAssertTrue(app.alerts["Make Sam the owner?"].waitForExistence(timeout: 3))
+        app.alerts.buttons["Make owner"].tap()
+        XCTAssertFalse(app.buttons["Delete household data"].exists)
     }
     func testInvitationRowOffersSharingAndCopying() {
         let app = launch()
@@ -132,9 +132,9 @@ final class HouseholdUITests: XCTestCase {
         let invitation = app.buttons["household-invitation"]
         XCTAssertTrue(invitation.waitForExistence(timeout: 5))
         invitation.tap()
-        XCTAssertTrue(app.buttons["Share Invitation"].waitForExistence(timeout: 3))
-        app.buttons["Copy Code"].tap()
-        XCTAssertFalse(app.buttons["Copy Code"].exists)
+        XCTAssertTrue(app.buttons["Share invitation"].waitForExistence(timeout: 3))
+        app.buttons["Copy code"].tap()
+        XCTAssertFalse(app.buttons["Copy code"].exists)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Combined invitation row"
         screenshot.lifetime = .keepAlways
@@ -144,47 +144,47 @@ final class HouseholdUITests: XCTestCase {
         let app = launch()
         app.buttons["Settings"].tap()
         app.cells.containing(.staticText, identifier: "Household").firstMatch.tap()
-        let delete = app.buttons["Delete Household Data"]
+        let delete = app.buttons["Delete household data"]
         XCTAssertTrue(delete.waitForExistence(timeout: 5))
         if !delete.isHittable { app.swipeUp() }
         delete.tap()
-        let alert = app.alerts["Delete Household Data?"]
+        let alert = app.alerts["Delete household data?"]
         XCTAssertTrue(alert.waitForExistence(timeout: 3))
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Delete household confirmation"
         screenshot.lifetime = .keepAlways
         add(screenshot)
         XCTAssertEqual(try colorCounts(in: alert.buttons["Cancel"].screenshot()).green, 0)
-        XCTAssertGreaterThan(try colorCounts(in: alert.buttons["Delete Household Data"].screenshot()).red, 20)
+        XCTAssertGreaterThan(try colorCounts(in: alert.buttons["Delete household data"].screenshot()).red, 20)
         alert.buttons["Cancel"].tap()
-        XCTAssertTrue(app.buttons["Delete Household Data"].exists)
+        XCTAssertTrue(app.buttons["Delete household data"].exists)
     }
     func testOwnershipConfirmationAppearance() throws {
         let app = launch()
         app.buttons["Settings"].tap()
         app.cells.containing(.staticText, identifier: "Household").firstMatch.tap()
         app.buttons["Actions for Sam"].tap()
-        app.buttons["Make Owner"].tap()
-        let alert = app.alerts["Transfer Ownership?"]
+        app.buttons["Make owner"].tap()
+        let alert = app.alerts["Make Sam the owner?"]
         XCTAssertTrue(alert.waitForExistence(timeout: 3))
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "Ownership confirmation"
         screenshot.lifetime = .keepAlways
         add(screenshot)
         XCTAssertEqual(try colorCounts(in: alert.buttons["Cancel"].screenshot()).green, 0)
-        XCTAssertGreaterThan(try colorCounts(in: alert.buttons["Make Owner"].screenshot()).green, 20)
+        XCTAssertGreaterThan(try colorCounts(in: alert.buttons["Make owner"].screenshot()).green, 20)
         alert.buttons["Cancel"].tap()
-        XCTAssertTrue(app.buttons["Delete Household Data"].exists)
+        XCTAssertTrue(app.buttons["Delete household data"].exists)
     }
     func testGroceryConfirmationUsesNeutralCancel() throws {
         let app = launch()
         app.buttons["Groceries"].tap()
         app.buttons["List options"].tap()
-        app.buttons["Clear All"].tap()
-        let alert = app.alerts["Clear the Entire Grocery List?"]
+        app.buttons["Clear grocery list"].tap()
+        let alert = app.alerts["Clear the entire grocery list?"]
         XCTAssertTrue(alert.waitForExistence(timeout: 3))
         XCTAssertEqual(try colorCounts(in: alert.buttons["Cancel"].screenshot()).green, 0)
-        XCTAssertGreaterThan(try colorCounts(in: alert.buttons["Clear All Items"].screenshot()).red, 20)
+        XCTAssertGreaterThan(try colorCounts(in: alert.buttons["Clear grocery list"].screenshot()).red, 20)
         alert.buttons["Cancel"].tap()
         XCTAssertTrue(app.buttons["List options"].exists)
     }
@@ -192,7 +192,7 @@ final class HouseholdUITests: XCTestCase {
         let app = launch()
         app.buttons["Settings"].tap()
         app.cells.containing(.staticText, identifier: "Household").firstMatch.tap()
-        for title in ["Leave Household", "Delete Household Data"] {
+        for title in ["Leave household", "Delete household data"] {
             let button = app.buttons[title]
             XCTAssertTrue(button.waitForExistence(timeout: 5))
             if !button.isHittable { app.swipeUp() }
@@ -226,9 +226,9 @@ final class HouseholdUITests: XCTestCase {
     }
     func testPlannedMealOpensSavedVersion() {
         let app = launch()
-        app.buttons["Meal Plan"].tap()
+        app.buttons["Meal plan"].tap()
         app.staticTexts["Lemon & herb orzo"].tap()
-        XCTAssertTrue(app.staticTexts["Saved version for this planned meal"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.buttons["Edit Recipe"].exists)
+        XCTAssertTrue(app.staticTexts["Recipe version saved with this meal"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Edit recipe"].exists)
     }
 }

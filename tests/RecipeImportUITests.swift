@@ -6,7 +6,7 @@ final class RecipeImportUITests: XCTestCase {
 
     func testIngredientsOnlyImportCanBeSaved() {
         importText("Weeknight Garlic Noodles\nIngredients:\n200g noodles\n4 cloves garlic\n")
-        XCTAssertEqual(app.textFields["Recipe Title"].value as? String, "Weeknight Garlic Noodles")
+        XCTAssertEqual(app.textFields["Recipe title"].value as? String, "Weeknight Garlic Noodles")
         XCTAssertTrue(app.textFields.matching(NSPredicate(format: "value == %@", "200g noodles")).firstMatch.exists)
         XCTAssertTrue(app.textFields.matching(NSPredicate(format: "value == %@", "4 cloves garlic")).firstMatch.exists)
         XCTAssertTrue(saveButton.isEnabled, "A title and ingredients are enough to save")
@@ -15,22 +15,24 @@ final class RecipeImportUITests: XCTestCase {
 
     func testInstructionsOnlyImportCanBeSaved() {
         importText("Lemon Butter Pasta\nMethod:\n1. Boil the pasta in salted water.\n2. Toss it with lemon zest and butter.\n")
-        XCTAssertEqual(app.textFields["Recipe Title"].value as? String, "Lemon Butter Pasta")
+        XCTAssertEqual(app.textFields["Recipe title"].value as? String, "Lemon Butter Pasta")
         // Multiline SwiftUI fields can be exposed as TextField or TextView across simulator versions.
         let step = app.descendants(matching: .any).matching(NSPredicate(format: "value == %@", "Boil the pasta in salted water.")).firstMatch
+        if !step.exists { app.swipeUp() }
         XCTAssertTrue(step.waitForExistence(timeout: 5), "The imported instruction remains editable")
         XCTAssertTrue(saveButton.isEnabled, "A title and instructions are enough to save")
 
         // Without a title, there's nothing to save it as.
-        let title = app.textFields["Recipe Title"]
+        app.swipeDown()
+        let title = app.textFields["Recipe title"]
         title.tap()
         title.press(forDuration: 1.2)
         if app.menuItems["Select All"].waitForExistence(timeout: 2) { app.menuItems["Select All"].tap() }
         title.typeText(XCUIKeyboardKey.delete.rawValue)
         XCTAssertFalse(saveButton.isEnabled, "A recipe needs a title")
         app.buttons["Cancel"].firstMatch.tap()
-        if app.buttons["Discard Changes"].waitForExistence(timeout: 3) { app.buttons["Discard Changes"].tap() }
-        XCTAssertTrue(app.buttons["New Recipe"].waitForExistence(timeout: 5))
+        if app.buttons["Discard changes"].waitForExistence(timeout: 3) { app.buttons["Discard changes"].tap() }
+        XCTAssertTrue(app.buttons["New recipe"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["Lemon Butter Pasta"].exists)
     }
 
@@ -41,15 +43,15 @@ final class RecipeImportUITests: XCTestCase {
         let recipesTab = app.tabBars.buttons["Recipes"].firstMatch
         XCTAssertTrue(recipesTab.waitForExistence(timeout: 10))
         if !recipesTab.isSelected { recipesTab.tap() }
-        XCTAssertTrue(app.buttons["New Recipe"].waitForExistence(timeout: 10))
-        app.buttons["New Recipe"].tap()
-        app.buttons["Paste Recipe Text"].tap()
+        XCTAssertTrue(app.buttons["New recipe"].waitForExistence(timeout: 10))
+        app.buttons["New recipe"].tap()
+        app.buttons["Paste recipe text"].tap()
         let field = app.textViews["Recipe text"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         field.tap()
         field.typeText(text)
         app.buttons["Import"].tap()
-        XCTAssertTrue(app.textFields["Recipe Title"].waitForExistence(timeout: 60), "The imported draft opens in the editor")
+        XCTAssertTrue(app.textFields["Recipe title"].waitForExistence(timeout: 60), "The imported draft opens in the editor")
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.lifetime = .keepAlways
         add(screenshot)
@@ -57,8 +59,8 @@ final class RecipeImportUITests: XCTestCase {
 
     private func cancelAndCheckNothingSaved(_ title: String) {
         app.buttons["Cancel"].firstMatch.tap()
-        if app.buttons["Discard Changes"].waitForExistence(timeout: 3) { app.buttons["Discard Changes"].tap() }
-        XCTAssertTrue(app.buttons["New Recipe"].waitForExistence(timeout: 5))
+        if app.buttons["Discard changes"].waitForExistence(timeout: 3) { app.buttons["Discard changes"].tap() }
+        XCTAssertTrue(app.buttons["New recipe"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts[title].exists, "Cancelling doesn't save the recipe")
     }
 }

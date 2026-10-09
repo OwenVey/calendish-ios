@@ -45,18 +45,18 @@ struct ProfilePhotoControl: View {
     var body: some View {
         VStack(spacing: 4) {
             Menu {
-                Button("Choose from Library", systemImage: "photo.on.rectangle") { showLibrary = true }
+                Button("Choose a photo", systemImage: "photo.on.rectangle") { showLibrary = true }
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button("Take Photo", systemImage: "camera") { showCamera = true }
+                    Button("Take photo", systemImage: "camera") { showCamera = true }
                 }
                 if hasPhoto {
-                    Button("Remove Photo", systemImage: "trash", role: .destructive) {
+                    Button("Remove photo", systemImage: "trash", role: .destructive) {
                         working = true
                         error = nil
                         Task {
                             defer { working = false }
                             do { try await store.setProfilePhoto(nil) }
-                            catch { self.error = "Couldn’t remove your photo. \(error.localizedDescription)" }
+                            catch { self.error = InterfaceCopy.failure(error, action: "confirm photo removal", recovery: "Check your profile photo before trying again.") }
                         }
                     }
                 }
@@ -79,7 +79,7 @@ struct ProfilePhotoControl: View {
             .accessibilityLabel(hasPhoto ? "Change profile photo" : "Add profile photo")
             .accessibilityHint("Choose a photo or take one with the camera")
             .disabled(working)
-            if working { ProgressView("Updating Photo…").font(.footnote) }
+            if working { ProgressView("Updating photo…").font(.footnote) }
             if let error { Text(error).font(.footnote).foregroundStyle(.red).multilineTextAlignment(.center) }
         }
         .photosPicker(isPresented: $showLibrary, selection: $selection, matching: .images, preferredItemEncoding: .compatible)
@@ -100,7 +100,7 @@ struct ProfilePhotoControl: View {
                 draft = ProfilePhotoDraft(image: UIImage(cgImage: cgImage))
                 self.selection = nil
             } catch is CancellationError { }
-            catch { self.error = "Couldn’t load that photo. Try choosing it again. \(error.localizedDescription)" }
+            catch { self.error = InterfaceCopy.failure(error, action: "load the photo", recovery: "Choose the photo again.") }
         }
         .fullScreenCover(isPresented: $showCamera, onDismiss: {
             if let captured { draft = ProfilePhotoDraft(image: captured); self.captured = nil }
@@ -157,13 +157,13 @@ private struct ProfilePhotoEditor: View {
                                 })
                             .accessibilityLabel("Profile photo preview")
                             .accessibilityHint("Use the movement actions to position your photo")
-                            .accessibilityAction(named: "Move Photo Left") { offset = boundedOffset(side: side, proposed: CGSize(width: offset.width - 20, height: offset.height)) }
-                            .accessibilityAction(named: "Move Photo Right") { offset = boundedOffset(side: side, proposed: CGSize(width: offset.width + 20, height: offset.height)) }
-                            .accessibilityAction(named: "Move Photo Up") { offset = boundedOffset(side: side, proposed: CGSize(width: offset.width, height: offset.height - 20)) }
-                            .accessibilityAction(named: "Move Photo Down") { offset = boundedOffset(side: side, proposed: CGSize(width: offset.width, height: offset.height + 20)) }
+                            .accessibilityAction(named: "Move photo left") { offset = boundedOffset(side: side, proposed: CGSize(width: offset.width - 20, height: offset.height)) }
+                            .accessibilityAction(named: "Move photo right") { offset = boundedOffset(side: side, proposed: CGSize(width: offset.width + 20, height: offset.height)) }
+                            .accessibilityAction(named: "Move photo up") { offset = boundedOffset(side: side, proposed: CGSize(width: offset.width, height: offset.height - 20)) }
+                            .accessibilityAction(named: "Move photo down") { offset = boundedOffset(side: side, proposed: CGSize(width: offset.width, height: offset.height + 20)) }
                         Text("Drag to position your photo.").foregroundStyle(.secondary)
                         Slider(value: $zoom, in: 1...3) {
-                            Text("Photo Zoom")
+                            Text("Photo zoom")
                         } minimumValueLabel: {
                             Image(systemName: "minus.magnifyingglass")
                         } maximumValueLabel: {
@@ -171,7 +171,7 @@ private struct ProfilePhotoEditor: View {
                         }
                         .onChange(of: zoom) { _, _ in offset = boundedOffset(side: side) }
                         .accessibilityValue("\(Int(zoom * 100)) percent")
-                        if working { ProgressView("Saving Photo…") }
+                        if working { ProgressView("Saving photo…") }
                         if let error { Text(error).font(.callout).foregroundStyle(.red) }
                     }
                     .padding(24)
@@ -183,7 +183,7 @@ private struct ProfilePhotoEditor: View {
                         Button("Cancel") { dismiss() }.disabled(working)
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Use Photo") {
+                        Button("Use photo") {
                             let position = boundedOffset(side: side)
                             let scale = 512 / min(draft.image.size.width, draft.image.size.height) * zoom
                             let size = CGSize(width: draft.image.size.width * scale, height: draft.image.size.height * scale)
@@ -200,14 +200,14 @@ private struct ProfilePhotoEditor: View {
                             Task {
                                 defer { working = false }
                                 do { try await store.setProfilePhoto(image); dismiss() }
-                                catch { self.error = "Couldn’t save your photo. \(error.localizedDescription)" }
+                                catch { self.error = InterfaceCopy.failure(error, action: "confirm the photo save", recovery: "Check your profile photo before trying again.") }
                             }
                         }
                         .disabled(working)
                     }
                 }
             }
-            .navigationTitle("Profile Photo")
+            .navigationTitle("Profile photo")
             .navigationBarTitleDisplayMode(.inline)
         }
         .interactiveDismissDisabled(working)
