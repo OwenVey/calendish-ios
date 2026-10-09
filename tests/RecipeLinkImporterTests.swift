@@ -24,9 +24,15 @@ struct RecipeLinkImporterTests {
         precondition(recipe.summary == "Warm & tasty")
         precondition(recipe.prepMinutes == 15 && recipe.cookMinutes == 65)
         precondition(recipe.servings == 6)
-        precondition(recipe.category == "Dinner" && recipe.tags == ["French", "Soup"])
+        precondition(recipe.category == .dinner && recipe.tags == ["French", "Soup"])
         precondition(recipe.ingredients.map(\.text) == ["2 cups stock", "1 onion"])
         precondition(recipe.steps == ["Chop the onion.", "Simmer & serve."])
+        for (categories, expected) in [("\"Main Course\"", nil), ("[\"Cakes\",\"desserts\"]", RecipeCategory.dessert)] {
+            let categorized = RecipeLinkImporter.parse(html: """
+            <script type="application/ld+json">{"@type":"Recipe","recipeCategory":\(categories)}</script>
+            """).recipe
+            precondition(categorized.category == expected, categories)
+        }
         let fallback = RecipeLinkImporter.parse(html: """
         <script type="application/ld+json">broken json</script>
         <meta content="A recipe" property="og:title">

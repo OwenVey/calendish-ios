@@ -53,7 +53,8 @@ enum RecipeLinkImporter {
                             symbol: "fork.knife",
                             ingredients: strings(object["recipeIngredient"]).map { clean($0) }.filter { !$0.isEmpty }.map { Ingredient(text: $0) },
                             steps: instructions(object["recipeInstructions"]),
-                            category: categories.isEmpty ? nil : categories.joined(separator: ", "),
+                            // Sites use their own labels, like "Main Course"; keep only the ones that are a category here.
+                            category: categories.lazy.compactMap(RecipeCategory.init(matching:)).first,
                             yieldText: yieldText(object["recipeYield"]))
         return ImportedRecipe(recipe: recipe)
     }

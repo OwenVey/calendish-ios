@@ -36,7 +36,7 @@ struct RecipeBookView: View {
             scope.includes(recipe, person: store.userID) &&
             (selectedTag == "All recipes" || recipe.tags.contains { $0.caseInsensitiveCompare(selectedTag) == .orderedSame }) &&
             (!favoritesOnly || recipe.isFavorite) &&
-            (search.isEmpty || ([recipe.title, recipe.summary, recipe.category ?? ""] + recipe.tags + recipe.ingredients.map(\.text)).contains { $0.localizedCaseInsensitiveContains(search) })
+            (search.isEmpty || ([recipe.title, recipe.summary, recipe.category?.title ?? ""] + recipe.tags + recipe.ingredients.map(\.text)).contains { $0.localizedCaseInsensitiveContains(search) })
         }
         return sort == .title ? recipes.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending } : recipes
     }
@@ -346,8 +346,9 @@ struct RecipeDetailView: View {
                     }
                 VStack(alignment: .leading, spacing: 12) {
                     if let category = recipe.category {
-                        Text(category.uppercased()).font(.footnote.weight(.semibold)).foregroundStyle(CalendishStyle.accent)
-                            .accessibilityLabel("Category: \(category)")
+                        Label(category.title.uppercased(), systemImage: category.systemImage)
+                            .font(.footnote.weight(.semibold)).foregroundStyle(CalendishStyle.accent)
+                            .accessibilityLabel("Category: \(category.title)")
                     }
                     Text(recipe.title).font(.largeTitle.bold())
                         .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named("recipeContent")).maxY } action: { titleBottom = $0 }
@@ -575,7 +576,7 @@ struct RecipeEditorView: View {
     @State private var title: String
     @State private var summary: String
     @State private var sourceLink: String
-    @State private var category: String
+    @State private var category: RecipeCategory?
     @State private var servings: Int
     @State private var yieldText: String
     @State private var prepMinutes: Int
@@ -598,7 +599,7 @@ struct RecipeEditorView: View {
     @State private var restoredDraft = false
     private var draftKey: String { "recipeDraft.\(store.userID?.uuidString ?? "preview").\(original?.id.uuidString ?? importedDraftID?.uuidString ?? "new")" }
     private var draft: RecipeDraft {
-        RecipeDraft(id: draftID, title: title, summary: summary, recipeLink: sourceLink, category: category, servings: servings,
+        RecipeDraft(id: draftID, title: title, summary: summary, recipeLink: sourceLink, category: category?.rawValue, servings: servings,
                     yieldText: yieldText, prepMinutes: prepMinutes,
                     cookMinutes: cookMinutes, tags: tags, newTag: newTag, ingredients: ingredients,
                     steps: steps.map(\.text), photo: draftPhoto, removesPhoto: removesPhoto, isShared: shareNewRecipe)
@@ -619,7 +620,7 @@ struct RecipeEditorView: View {
             draftID = saved.id
             shareNewRecipe = saved.isShared ?? true
             title = saved.title; summary = saved.summary; sourceLink = saved.recipeLink ?? ""; servings = saved.servings
-            category = saved.category ?? ""; yieldText = saved.yieldText ?? ""
+            category = saved.category.flatMap(RecipeCategory.init(matching:)); yieldText = saved.yieldText ?? ""
             prepMinutes = saved.prepMinutes; cookMinutes = saved.cookMinutes
             tags = saved.tags; newTag = saved.newTag; ingredients = saved.ingredients
             steps = saved.steps.map { StepDraft(text: $0) }
@@ -643,7 +644,7 @@ struct RecipeEditorView: View {
         _title = State(initialValue: recipe?.title ?? "")
         _summary = State(initialValue: recipe?.summary ?? "")
         _sourceLink = State(initialValue: recipe?.recipeLink ?? "")
-        _category = State(initialValue: recipe?.category ?? "")
+        _category = State(initialValue: recipe?.category)
         _servings = State(initialValue: recipe?.servings ?? PreferenceKey.servingsForNewRecipes)
         _yieldText = State(initialValue: recipe?.yieldText ?? "")
         _prepMinutes = State(initialValue: recipe?.prepMinutes ?? 10)
@@ -752,9 +753,13 @@ struct RecipeEditorView: View {
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     }
-                    LabeledFormField("Category") {
-                        TextField("Dinner or Dessert", text: $category)
+                    Picker("Category", selection: $category) {
+                        Text("None").tag(RecipeCategory?.none)
+                        ForEach(RecipeCategory.allCases) { category in
+                            Label(category.title, systemImage: category.systemImage).tag(Optional(category))
+                        }
                     }
+                    .tint(.secondary)
                     LabeledFormField("Yield") {
                         TextField("24 cookies", text: $yieldText)
                     }
@@ -832,8 +837,7 @@ struct RecipeEditorView: View {
                         recipe.summary = summary
                         let link = sourceLink.trimmingCharacters(in: .whitespacesAndNewlines)
                         recipe.recipeLink = link.isEmpty ? nil : link
-                        let trimmedCategory = category.trimmingCharacters(in: .whitespacesAndNewlines)
-                        recipe.category = trimmedCategory.isEmpty ? nil : trimmedCategory
+                        recipe.category = category
                         let trimmedYield = yieldText.trimmingCharacters(in: .whitespacesAndNewlines)
                         recipe.yieldText = trimmedYield.isEmpty ? nil : trimmedYield
                         recipe.prepMinutes = prepMinutes

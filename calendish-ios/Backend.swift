@@ -165,13 +165,13 @@ extension Recipe {
                   prepMinutes: row.prepMinutes ?? 0, cookMinutes: row.cookMinutes ?? row.minutes, servings: row.servings,
                   tags: row.tags, symbol: row.symbol, ingredients: row.ingredients, steps: row.steps,
                   isFavorite: favorites.contains(row.id), imagePath: row.imagePath, recipeLink: row.recipeLink,
-                  category: row.category, yieldText: row.yieldText,
+                  category: row.category.flatMap(RecipeCategory.init(matching:)), yieldText: row.yieldText,
                   owner: row.ownerID.map { .person($0, shared: row.isShared ?? false) } ?? (row.householdID == nil ? nil : .household))
     }
     var content: RecipeContentRecord {
         RecipeContentRecord(title: title, summary: summary, minutes: minutes, prepMinutes: prepMinutes, cookMinutes: cookMinutes,
                             servings: servings, tags: tags, symbol: symbol, ingredients: ingredients, steps: steps,
-                            imagePath: imagePath, recipeLink: recipeLink, category: category, yieldText: yieldText)
+                            imagePath: imagePath, recipeLink: recipeLink, category: category?.rawValue, yieldText: yieldText)
     }
 }
 
