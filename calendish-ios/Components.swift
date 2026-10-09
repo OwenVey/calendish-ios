@@ -142,7 +142,7 @@ struct RecipeRow: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                if let caption = caption ?? (showsLastCooked ? Self.lastCookedText(stats) : nil) {
+                if let caption = caption ?? (showsLastCooked ? CookedHistory.lastCookedText(stats?.history) : nil) {
                     Text(caption).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
                 }
                 if !recipe.tags.isEmpty {
@@ -162,10 +162,6 @@ extension RecipeRow {
     /// An average rating like "4.5", or "4" when whole.
     static func formatted(_ rating: Double) -> String {
         rating.formatted(.number.precision(.fractionLength(0...1)))
-    }
-
-    static func lastCookedText(_ stats: RecipeStats?) -> String {
-        stats?.lastCooked.map { "Last cooked \(RecipeStats.cookedAgo($0))" } ?? "Not cooked yet"
     }
 }
 

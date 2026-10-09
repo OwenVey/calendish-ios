@@ -152,6 +152,7 @@ final class HouseholdStore {
     @discardableResult
     private func resetHouseholdData() async -> UUID {
         phase = .loading
+        FinishedCooks.shared.stopRecording()
         let session = UUID()
         syncSession = session
         for task in savingTasks.values { task.cancel() }
@@ -321,6 +322,9 @@ final class HouseholdStore {
         try await reload()
         guard session == syncSession else { throw CancellationError() }
         phase = .ready
+        if let userID {
+            FinishedCooks.shared.record(for: userID) { [weak self] cook in self?.markCooked(cook.recipeID, on: cook.day) }
+        }
         syncAvatar()
         // An invitation opened before signing in to an account that already had a household.
         if let pendingInvite {
@@ -827,11 +831,6 @@ final class HouseholdStore {
         return RecipeStats.make(reviews: reviews.filter { people.contains($0.userID) }, cooks: cooks, meals: meals)
     }
 
-    /// Well-liked recipes the household hasn't cooked lately or planned yet.
-    func suggestedRecipes(limit: Int = 5) -> [Recipe] {
-        RecipeStats.suggestions(from: recipes, stats: recipeStats, meals: meals, limit: limit)
-    }
-
     /// The person's own rating and note for a recipe, if they've left one.
     func myReview(of recipeID: UUID) -> RecipeReview? {
         reviews.first { $0.recipeID == recipeID && $0.userID == userID }
@@ -868,7 +867,8 @@ final class HouseholdStore {
         }
     }
 
-    /// Records that the household cooked a recipe on a day. Marking the same day twice changes nothing.
+    /// Records that the household cooked a recipe on a day. Marking the same day twice changes nothing,
+    /// nor does marking a recipe no longer in the person's recipe book.
     func markCooked(_ recipeID: UUID, on date: Date = .now) {
         guard let householdID = household?.id, recipes.contains(where: { $0.id == recipeID }) else { return }
         let day = Calendar.current.startOfDay(for: date)
@@ -880,11 +880,6 @@ final class HouseholdStore {
                 .upsert(record, onConflict: "household_id,recipe_id,cooked_on", returning: .minimal, ignoreDuplicates: true)
                 .execute()
         }
-    }
-
-    /// Whether a cooked day was marked by hand, rather than coming from a past planned meal, so it can be removed.
-    func isMarkedCooked(_ recipeID: UUID, on day: Date) -> Bool {
-        cooks.contains { $0.recipeID == recipeID && Calendar.current.isDate($0.date, inSameDayAs: day) }
     }
 
     func removeCooked(_ recipeID: UUID, on day: Date) {

@@ -13,6 +13,8 @@ final class CookingSession {
         var servings: Int
         var stepIndex = 0
         var startedAt = Date.now
+        /// The recipe in the person's recipe book that finishing counts toward in cooked history.
+        var cookedRecipeID: UUID?
     }
 
     private(set) var snapshot: Snapshot?
@@ -21,6 +23,7 @@ final class CookingSession {
     @ObservationIgnored private var photoLoad: Task<Void, Never>?
     @ObservationIgnored private var pendingUpdate: Task<Void, Never>?
     private let storageKey = "cookingSession"
+    private let accountKey = "cookingSessionAccountID"
 
     private init() {
         if let data = UserDefaults.standard.data(forKey: storageKey),
@@ -33,20 +36,19 @@ final class CookingSession {
 
     /// Preserve an ongoing session across launches, while clearing private photos on account changes.
     func setAccount(_ accountID: UUID?) {
-        let key = "cookingSessionAccountID"
         let account = accountID?.uuidString
-        guard account == nil || UserDefaults.standard.string(forKey: key) != account else { return }
+        guard account == nil || UserDefaults.standard.string(forKey: accountKey) != account else { return }
         end()
         CookingActivityPhoto.clear()
-        if let account { UserDefaults.standard.set(account, forKey: key) }
-        else { UserDefaults.standard.removeObject(forKey: key) }
+        if let account { UserDefaults.standard.set(account, forKey: accountKey) }
+        else { UserDefaults.standard.removeObject(forKey: accountKey) }
     }
 
-    func begin(recipe: Recipe, servings: Int) {
+    func begin(recipe: Recipe, servings: Int, cookedRecipeID: UUID? = nil) {
         guard !recipe.steps.isEmpty else { return }
         if snapshot?.recipe.id != recipe.id {
             end()
-            snapshot = Snapshot(recipe: recipe, servings: servings)
+            snapshot = Snapshot(recipe: recipe, servings: servings, cookedRecipeID: cookedRecipeID)
         }
         snapshot?.servings = servings
         persist()
@@ -138,6 +140,11 @@ final class CookingSession {
         let activities = Activity<CookingActivityAttributes>.activities
         snapshot = nil
         persist()
+        // Every way of finishing, in the app or from the Live Activity, counts toward cooked history.
+        if finished, let previous, let recipeID = previous.cookedRecipeID {
+            FinishedCooks.shared.add(FinishedCook(recipeID: recipeID, startedAt: previous.startedAt,
+                accountID: UserDefaults.standard.string(forKey: accountKey).flatMap(UUID.init)))
+        }
         activityWarning = nil
         enqueue {
             for activity in activities {

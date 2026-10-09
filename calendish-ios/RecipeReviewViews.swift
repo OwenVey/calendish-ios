@@ -114,9 +114,9 @@ struct RecipeNotesSection: View {
             Button { showHistory = true } label: {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(stats?.lastCooked.map { "Last cooked \(RecipeStats.cookedAgo($0))" } ?? "Not cooked yet")
+                        Text(CookedHistory.lastCookedText(stats?.history))
                             .foregroundStyle(.primary)
-                        if let count = stats?.cookedDays.count, count > 0 {
+                        if let count = stats?.history.days.count, count > 0 {
                             Text(count == 1 ? "Cooked once" : "Cooked \(count) times").font(.subheadline).foregroundStyle(.secondary)
                         }
                     }
@@ -128,7 +128,7 @@ struct RecipeNotesSection: View {
             }
             .buttonStyle(.plain)
             .accessibilityHint("Shows cooked history")
-            if store.isMarkedCooked(recipeID, on: .now) {
+            if cookedToday {
                 Label("Cooked Today", systemImage: "checkmark")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -140,8 +140,10 @@ struct RecipeNotesSection: View {
                     .accessibilityLabel("Mark as Cooked Today")
             }
         }
-        .sensoryFeedback(.success, trigger: store.isMarkedCooked(recipeID, on: .now)) { _, cooked in cooked }
+        .sensoryFeedback(.success, trigger: cookedToday) { _, cooked in cooked }
     }
+
+    private var cookedToday: Bool { stats?.history.isMarked(on: .now) == true }
 }
 
 /// Edits the person's own note on a recipe.
@@ -212,7 +214,7 @@ private struct CookedHistoryView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(WeekStart.storageKey) private var weekStart = WeekStart.system
     @State private var day = Date.now
-    private var days: [Date] { store.recipeStats[recipeID]?.cookedDays ?? [] }
+    private var history: CookedHistory { store.recipeStats[recipeID]?.history ?? CookedHistory() }
 
     var body: some View {
         NavigationStack {
@@ -221,21 +223,22 @@ private struct CookedHistoryView: View {
                     DatePicker("Day", selection: $day, in: ...Date.now, displayedComponents: .date)
                         .environment(\.calendar, weekStart.calendar)
                     Button("Mark as Cooked", systemImage: "checkmark") { store.markCooked(recipeID, on: day) }
-                        .disabled(days.contains { Calendar.current.isDate($0, inSameDayAs: day) })
+                        .disabled(history.contains(day))
                 }
                 Section {
-                    ForEach(days, id: \.self) { cooked in
+                    ForEach(history.days, id: \.date) { cooked in
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(cooked.formatted(date: .complete, time: .omitted))
-                            Text(store.isMarkedCooked(recipeID, on: cooked) ? "Marked as cooked" : "Planned meal")
+                            Text(cooked.date.formatted(date: .complete, time: .omitted))
+                            Text(cooked.isMarked ? "Marked as cooked" : "Planned meal")
                                 .font(.subheadline).foregroundStyle(.secondary)
                         }
-                        .deleteDisabled(!store.isMarkedCooked(recipeID, on: cooked))
+                        .deleteDisabled(!cooked.isMarked)
                     }
                     .onDelete { offsets in
-                        for index in offsets { store.removeCooked(recipeID, on: days[index]) }
+                        let days = history.days
+                        for index in offsets { store.removeCooked(recipeID, on: days[index].date) }
                     }
-                    if days.isEmpty {
+                    if history.days.isEmpty {
                         Text("Not cooked yet").foregroundStyle(.secondary)
                     }
                 } header: {

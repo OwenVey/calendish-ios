@@ -7,9 +7,9 @@ import Observation
 /// Full-screen, adaptive step-by-step view for cooking a recipe.
 struct CookModeView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(HouseholdStore.self) private var store
     let recipe: Recipe
-    /// The recipe to mark as cooked on finishing, when it's in the person's recipe book.
+    /// The recipe that finishing counts toward in cooked history, when it's in the person's recipe book.
+    /// A resumed session keeps the one it started with.
     var cookedRecipeID: UUID?
     /// The servings chosen on the recipe page; ingredient quantities scale to match.
     var servings: Int
@@ -150,7 +150,7 @@ struct CookModeView: View {
             Text("Say “next”, “back”, or “start timer” without touching your phone. Calendish listens only while Cook Mode is open, and speech stays on this iPhone.\n\nAnyone nearby, or a TV, saying a command can trigger it too.")
         }
         .onAppear {
-            session.begin(recipe: recipe, servings: servings)
+            session.begin(recipe: recipe, servings: servings, cookedRecipeID: cookedRecipeID)
             timerStore.isCooking = true
             updateScreenAwake()
         }
@@ -320,7 +320,6 @@ struct CookModeView: View {
                 if isLastStep {
                     Button {
                         session.end(finished: true)
-                        if let cookedRecipeID { store.markCooked(cookedRecipeID) }
                         dismiss()
                     } label: { OnAccentLabel(title: "Finish", systemImage: "checkmark") }
                         .controlSize(.large)

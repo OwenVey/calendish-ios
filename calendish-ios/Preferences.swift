@@ -62,7 +62,7 @@ enum RecipeSort: String, CaseIterable, Identifiable {
             }.map(\.element)
         case .recentlyCooked, .leastRecentlyCooked:
             return recipes.enumerated().sorted { a, b in
-                let da = stats[a.element.id]?.lastCooked ?? .distantPast, db = stats[b.element.id]?.lastCooked ?? .distantPast
+                let da = stats[a.element.id]?.history.lastCooked ?? .distantPast, db = stats[b.element.id]?.history.lastCooked ?? .distantPast
                 guard da != db else { return a.offset < b.offset }
                 return self == .recentlyCooked ? da > db : da < db
             }.map(\.element)

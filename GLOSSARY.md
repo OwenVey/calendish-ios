@@ -35,7 +35,10 @@ One grocery row for the same food needed by several reviewed lines or recipes, s
 One member's star rating and note on a recipe, such as "Use half the salt". Each member has their own; the household sees all current members' reviews on recipes they can see.
 
 **Cooked history**:
-The days a household cooked a recipe: days marked as cooked, including finishing Cook Mode, plus past planned meals. It drives "Last cooked", cooked-based sorting, and meal suggestions.
+The days a household cooked a recipe: marked cooks plus past planned meals. It drives "Last cooked", cooked-based sorting, and meal suggestions.
+
+**Marked cook**:
+A day recorded as cooked by a member, either by hand or by finishing Cook Mode from the app or its Live Activity. A finished cook counts for the day cooking started. Only marked cooks can be removed from Cooked history; a past planned meal leaves it only when removed from the meal plan.
 
 **Hands-free cook mode**:
 An option within Cook Mode for moving between recipe steps and starting cooking timers through spoken commands.

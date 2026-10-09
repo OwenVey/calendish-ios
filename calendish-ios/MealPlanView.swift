@@ -442,7 +442,7 @@ struct MealPickerView: View {
     /// Why a recipe is suggested, such as "Rated 4.5 · Last cooked 2 months ago".
     private func suggestionReason(_ recipe: Recipe, stats: RecipeStats?) -> String {
         let liked = stats?.averageRating.map { "Rated \(RecipeRow.formatted($0))" } ?? "Favorite"
-        return "\(liked) · \(RecipeRow.lastCookedText(stats))"
+        return "\(liked) · \(CookedHistory.lastCookedText(stats?.history))"
     }
 
     @ViewBuilder private var suggestions: some View {

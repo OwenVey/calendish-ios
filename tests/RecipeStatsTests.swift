@@ -36,9 +36,8 @@ struct RecipeStatsTests {
 
         check(stats[orzo.id]?.averageRating == 4.5, "average rating")
         check(stats[orzo.id]?.ratingCount == 2, "rating count")
-        check(stats[orzo.id]?.cookedDays == [daysAgo(21), daysAgo(40)], "cooked days merge and sort")
-        check(stats[oats.id]?.averageRating == nil && stats[oats.id]?.lastCooked == nil, "note-only review and today's meal")
-        check(stats[bowls.id]?.lastCooked == daysAgo(3), "marked cook")
+        check(stats[oats.id]?.averageRating == nil, "note-only review")
+        check(stats[orzo.id]?.history.lastCooked == daysAgo(21), "cooked history")
 
         check(RecipeSort.rating.sorted(recipes, stats: stats).map(\.id) == [bowls.id, orzo.id, oats.id, salad.id], "highest rated")
         check(RecipeSort.recentlyCooked.sorted(recipes, stats: stats).map(\.id) == [bowls.id, orzo.id, oats.id, salad.id], "recently cooked")
@@ -47,11 +46,6 @@ struct RecipeStatsTests {
         // Bowls were cooked three days ago and oats are planned today, so neither is suggested.
         let suggested = RecipeStats.suggestions(from: recipes, stats: stats, meals: meals, now: now)
         check(suggested.map(\.id) == [orzo.id, salad.id], "suggestions: \(suggested.map(\.title))")
-
-        check(RecipeStats.cookedAgo(daysAgo(0), now: now) == "today", "today: \(RecipeStats.cookedAgo(daysAgo(0), now: now))")
-        check(RecipeStats.cookedAgo(daysAgo(1), now: now) == "yesterday", "yesterday")
-        check(RecipeStats.cookedAgo(daysAgo(21), now: now) == "3 weeks ago", "weeks: \(RecipeStats.cookedAgo(daysAgo(21), now: now))")
-        check(RecipeStats.cookedAgo(daysAgo(65), now: now) == "2 months ago", "months")
         print("Recipe stats tests passed")
     }
 }

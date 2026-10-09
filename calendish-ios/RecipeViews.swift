@@ -282,7 +282,7 @@ private struct RecipeCard: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 if showsLastCooked {
-                    Text(RecipeRow.lastCookedText(stats)).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                    Text(CookedHistory.lastCookedText(stats?.history)).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
                 }
             }
             .padding(.horizontal, 2)
@@ -345,8 +345,7 @@ struct RecipeDetailView: View {
     /// The recipe in the person's book that ratings, notes, and cooked history belong to. A planned meal's
     /// saved version uses its source recipe, while that still exists.
     private var reviewedRecipeID: UUID? {
-        let id = plannedMeal == nil ? recipe.id : plannedMeal?.recipeID
-        return id.flatMap { id in store.recipes.contains { $0.id == id } ? id : nil }
+        CookedHistory.recipeID(cooking: recipe, plannedMeal: plannedMeal, in: store.recipes)
     }
     var body: some View {
         ScrollView {

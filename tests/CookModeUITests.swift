@@ -9,6 +9,7 @@ final class CookModeUITests: XCTestCase {
         let recipe = app.staticTexts["Sheet pan lemon chicken"]
         XCTAssertTrue(recipe.waitForExistence(timeout: 10))
         recipe.tap()
+        clearCookedToday(app)
         app.buttons["Cook"].tap()
         XCTAssertTrue(app.buttons["cook-ingredients-close"].waitForExistence(timeout: 5))
         app.buttons["cook-ingredients-close"].tap()
@@ -69,7 +70,28 @@ final class CookModeUITests: XCTestCase {
         app.activate()
         XCTAssertTrue(app.buttons["Cancel"].waitForExistence(timeout: 5))
         app.buttons["Cancel"].tap()
-        app.buttons["Close"].tap()
+
+        // Finishing from the Live Activity, with no tap in the app, still counts toward cooked history.
+        while !app.staticTexts["Step 5 of 5"].exists { app.buttons["Next Step"].tap() }
+        XCUIDevice.shared.press(.home)
+        springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.03)).press(forDuration: 1.5)
+        let finish = springboard.buttons["Finish Cooking"]
+        XCTAssertTrue(finish.waitForExistence(timeout: 5), springboard.debugDescription)
+        finish.tap()
+        app.activate()
+        XCTAssertTrue(app.staticTexts["Cooked Today"].waitForExistence(timeout: 10))
+    }
+
+    /// Removes a mark from earlier today so finishing has something to record.
+    private func clearCookedToday(_ app: XCUIApplication) {
+        guard app.staticTexts["Cooked Today"].waitForExistence(timeout: 3) else { return }
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Last cooked")).firstMatch.tap()
+        let marked = app.staticTexts["Marked as cooked"].firstMatch
+        XCTAssertTrue(marked.waitForExistence(timeout: 5))
+        marked.swipeLeft()
+        app.buttons["Delete"].tap()
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["Mark as Cooked Today"].waitForExistence(timeout: 5))
     }
 
     func testIngredientTapKeepsSheetOpen() {
