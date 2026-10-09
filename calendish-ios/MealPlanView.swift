@@ -53,8 +53,11 @@ struct MealPlanView: View {
             ScrollView {
                 LazyVStack(spacing: 10) {
                     Button("Show Earlier Weeks", systemImage: "chevron.up") {
-                        firstDay = calendar.date(byAdding: .weekOfYear, value: -1, to: firstDay)!
-                        weekCount += 1
+                        // Slide the earlier week in under the button instead of snapping the list down a screen.
+                        withAnimation(reduceMotion ? nil : .snappy) {
+                            firstDay = calendar.date(byAdding: .weekOfYear, value: -1, to: firstDay)!
+                            weekCount += 1
+                        }
                     }
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(.secondary)
@@ -151,8 +154,15 @@ private struct MealPlanDay: View {
         VStack(alignment: .leading, spacing: 4) {
             header
             if meals.isEmpty && isThisWeek {
-                Text("No recipes").foregroundStyle(.tertiary)
-                    .padding(.horizontal, 14).padding(.vertical, 12)
+                Button(action: add) {
+                    Text("No recipes — tap to add")
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 14).padding(.vertical, 12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add Recipe")
             } else {
                 ForEach(meals) { meal in
                     NavigationLink { RecipeDetailView(recipe: meal.recipe, plannedMeal: meal) } label: {
@@ -214,17 +224,20 @@ private struct MealPlanDay: View {
                 .labelStyle(.iconOnly)
                 .frame(width: 44, height: 44)
                 .contentShape(.rect)
-            Menu("More for \(day.formatted(.dateTime.weekday(.wide)))", systemImage: "ellipsis") {
+            Menu {
                 Button("Add to Groceries", systemImage: "basket", action: addToGroceries)
                     .disabled(meals.isEmpty)
                 if !meals.isEmpty {
                     Button("Remove All Meals", systemImage: "trash", role: .destructive) { remove(meals) }
                 }
+            } label: {
+                // A Menu only hit-tests its label, so the 44pt target has to live inside it.
+                Label("More for \(day.formatted(.dateTime.weekday(.wide)))", systemImage: "ellipsis")
+                    .labelStyle(.iconOnly)
+                    .frame(width: 44, height: 44)
+                    .contentShape(.rect)
             }
-            .labelStyle(.iconOnly)
             .menuStyle(CalendishMenuStyle())
-            .frame(width: 44, height: 44)
-            .contentShape(.rect)
         }
         .font(.body.weight(.semibold))
         .foregroundStyle(.primary)
