@@ -589,116 +589,37 @@ struct RecipeEditorView: View {
     @Environment(HouseholdStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
-    /// The recipe being edited, or nil when writing a new one.
-    private let original: Recipe?
-    private let importedDraftID: UUID?
-    @State private var draftID = UUID()
-    @State private var title: String
-    @State private var summary: String
-    @State private var sourceLink: String
-    @State private var category: RecipeCategory?
-    @State private var servings: Int
-    @State private var yieldText: String
-    @State private var prepMinutes: Int
-    @State private var cookMinutes: Int
-    @State private var tags: [String]
-    @State private var newTag = ""
-    @FocusState private var isTagFieldFocused: Bool
-    @State private var ingredients: [Ingredient]
-    @FocusState private var focusedIngredient: Ingredient.ID?
-    @State private var steps: [StepDraft]
-    @FocusState private var focusedStep: StepDraft.ID?
-    /// A photo picked in this session, saved along with the recipe.
-    @State private var newPhoto: UIImage?
-    @State private var draftPhoto: Data?
-    @State private var saving = false
-    @State private var shareNewRecipe = true
-    @State private var removesPhoto = false
+    @State private var editing: RecipeDraftEditing
     @State private var discardChanges = false
-    @State private var initialDraft: Data?
-    @State private var restoredDraft = false
-    private var draftKey: String { "recipeDraft.\(store.userID?.uuidString ?? "preview").\(original?.id.uuidString ?? importedDraftID?.uuidString ?? "new")" }
-    private var draft: RecipeDraft {
-        RecipeDraft(id: draftID, title: title, summary: summary, recipeLink: sourceLink, category: category?.rawValue, servings: servings,
-                    yieldText: yieldText, prepMinutes: prepMinutes,
-                    cookMinutes: cookMinutes, tags: tags, newTag: newTag, ingredients: ingredients,
-                    steps: steps.map(\.text), photo: draftPhoto, removesPhoto: removesPhoto, isShared: shareNewRecipe)
-    }
-    private var draftData: Data? {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        return try? encoder.encode(draft)
-    }
-    private var isDirty: Bool { initialDraft != nil && draftData != initialDraft }
-    private func clearDraft() { UserDefaults.standard.removeObject(forKey: draftKey) }
-    private func restoreDraft() {
-        guard !restoredDraft else { return }
-        restoredDraft = true
-        initialDraft = draftData
-        if let data = UserDefaults.standard.data(forKey: draftKey),
-           let saved = try? JSONDecoder().decode(RecipeDraft.self, from: data) {
-            draftID = saved.id
-            shareNewRecipe = saved.isShared ?? true
-            title = saved.title; summary = saved.summary; sourceLink = saved.recipeLink ?? ""; servings = saved.servings
-            category = saved.category.flatMap(RecipeCategory.init(matching:)); yieldText = saved.yieldText ?? ""
-            prepMinutes = saved.prepMinutes; cookMinutes = saved.cookMinutes
-            tags = saved.tags; newTag = saved.newTag; ingredients = saved.ingredients
-            steps = saved.steps.map { StepDraft(text: $0) }
-            draftPhoto = saved.photo
-            newPhoto = saved.photo.flatMap(UIImage.init(data:)); removesPhoto = saved.removesPhoto
-        }
-    }
-    private var keptPhotoPath: String? { removesPhoto ? nil : original?.imagePath }
-    private var hasPhoto: Bool { newPhoto != nil || keptPhotoPath != nil }
-    private var photoChange: HouseholdStore.PhotoChange {
-        if let newPhoto { return .replace(newPhoto) }
-        return removesPhoto ? .remove : .keep
-    }
+    @FocusState private var isTagFieldFocused: Bool
+    @FocusState private var focusedIngredient: Ingredient.ID?
+    @FocusState private var focusedStep: RecipeDraftEditing.Step.ID?
+
     init(recipe: Recipe? = nil, imported: ImportedRecipe? = nil) {
-        original = recipe
-        importedDraftID = imported?.recipe.id
-        let recipe = recipe ?? imported?.recipe
-        _newPhoto = State(initialValue: imported?.photo.flatMap(UIImage.init(data:)))
-        _draftPhoto = State(initialValue: imported?.photo.flatMap(UIImage.init(data:)).flatMap { RecipePhotos.uploadData(for: $0) })
-        _draftID = State(initialValue: recipe?.id ?? UUID())
-        _title = State(initialValue: recipe?.title ?? "")
-        _summary = State(initialValue: recipe?.summary ?? "")
-        _sourceLink = State(initialValue: recipe?.recipeLink ?? "")
-        _category = State(initialValue: recipe?.category)
-        _servings = State(initialValue: recipe?.servings ?? PreferenceKey.servingsForNewRecipes)
-        _yieldText = State(initialValue: recipe?.yieldText ?? "")
-        _prepMinutes = State(initialValue: recipe?.prepMinutes ?? 10)
-        _cookMinutes = State(initialValue: recipe?.cookMinutes ?? 20)
-        _tags = State(initialValue: recipe?.tags ?? [])
-        _ingredients = State(initialValue: recipe.map { $0.ingredients.isEmpty ? [Ingredient(text: "")] : $0.ingredients } ?? [Ingredient(text: "")])
-        _steps = State(initialValue: recipe.map { $0.steps.isEmpty ? [StepDraft()] : $0.steps.map { StepDraft(text: $0) } } ?? [StepDraft()])
-    }
-    /// A recipe needs a title and something to cook from: ingredients, instructions, or both.
-    private var canSave: Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        (ingredients.contains { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ||
-         steps.contains { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+        _editing = State(initialValue: RecipeDraftEditing(recipe: recipe, imported: imported,
+            defaultServings: PreferenceKey.servingsForNewRecipes))
     }
     var body: some View {
+        @Bindable var editing = editing
         NavigationStack {
             Form {
                 Section {
-                    TextField("Recipe Title", text: $title)
+                    TextField("Recipe Title", text: $editing.fields.title)
                         .font(.title3.weight(.semibold))
-                    ServingsField(servings: $servings)
-                    RecipeDurationField(title: "Prep time", minutes: $prepMinutes)
-                    RecipeDurationField(title: "Cook time", minutes: $cookMinutes)
+                    ServingsField(servings: $editing.fields.servings)
+                    RecipeDurationField(title: "Prep time", minutes: $editing.fields.prepMinutes)
+                    RecipeDurationField(title: "Cook time", minutes: $editing.fields.cookMinutes)
                 } footer: {
-                    if !canSave { Text("To save, add a title and at least one ingredient or instruction.") }
+                    if !editing.canSave { Text("To save, add a title and at least one ingredient or instruction.") }
                 }
                 Section {
-                    PhotoSourceMenu(hasPhoto: hasPhoto, onPick: { newPhoto = $0; draftPhoto = RecipePhotos.uploadData(for: $0) }, onRemove: { newPhoto = nil; draftPhoto = nil; removesPhoto = true }) {
+                    PhotoSourceMenu(hasPhoto: editing.hasPhoto, onPick: editing.setPhoto, onRemove: { editing.setPhoto(nil) }) {
                         HStack(spacing: 14) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 10).fill(Color(.tertiarySystemFill))
-                                if let newPhoto {
+                                if let newPhoto = editing.photo {
                                     Image(uiImage: newPhoto).resizable().scaledToFill()
-                                } else if let keptPhotoPath {
+                                } else if let keptPhotoPath = editing.keptPhotoPath {
                                     RecipePhoto(path: keptPhotoPath)
                                 } else {
                                     Image(systemName: "camera").font(.title3).foregroundStyle(.secondary)
@@ -706,31 +627,31 @@ struct RecipeEditorView: View {
                             }
                             .frame(width: 56, height: 56)
                             .clipShape(.rect(cornerRadius: 10))
-                            Text(hasPhoto ? "Edit Photo" : "Add Photo")
+                            Text(editing.hasPhoto ? "Edit Photo" : "Add Photo")
                                 .foregroundStyle(CalendishStyle.accent)
                             Spacer(minLength: 0)
                         }
                         .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel(hasPhoto ? "Edit Photo" : "Add Photo")
+                    .accessibilityLabel(editing.hasPhoto ? "Edit Photo" : "Add Photo")
                 }
                 Section {
-                    ForEach($ingredients) { $ingredient in
+                    ForEach($editing.fields.ingredients) { $ingredient in
                         TextField("e.g. 2 cups flour", text: $ingredient.text)
                             .focused($focusedIngredient, equals: ingredient.id)
                             .submitLabel(.next)
                             .onSubmit { addIngredient(after: ingredient.id) }
                     }
                     .onMove { source, destination in
-                        ingredients.move(fromOffsets: source, toOffset: destination)
+                        editing.fields.ingredients.move(fromOffsets: source, toOffset: destination)
                     }
                     .onDelete { offsets in
-                        ingredients.remove(atOffsets: offsets)
+                        editing.fields.ingredients.remove(atOffsets: offsets)
                     }
 
                     Button("Add Ingredient", systemImage: "plus.circle.fill") {
-                        addIngredient(after: ingredients.last?.id)
+                        addIngredient(after: editing.fields.ingredients.last?.id)
                     }
                 } header: {
                     Text("Ingredients")
@@ -738,9 +659,9 @@ struct RecipeEditorView: View {
                     Text("At least one entry is required. Drag the handles to reorder.")
                 }
                 Section {
-                    ForEach($steps) { $step in
+                    ForEach($editing.fields.steps) { $step in
                         HStack(alignment: .top, spacing: 12) {
-                            Text("\((steps.firstIndex { $0.id == step.id } ?? 0) + 1).")
+                            Text("\((editing.fields.steps.firstIndex { $0.id == step.id } ?? 0) + 1).")
                                 .monospacedDigit().foregroundStyle(.secondary)
                             TextField("Describe this step", text: $step.text, axis: .vertical)
                                 .lineLimit(3...8)
@@ -748,15 +669,15 @@ struct RecipeEditorView: View {
                         }
                     }
                     .onMove { source, destination in
-                        steps.move(fromOffsets: source, toOffset: destination)
+                        editing.fields.steps.move(fromOffsets: source, toOffset: destination)
                     }
                     .onDelete { offsets in
-                        steps.remove(atOffsets: offsets)
+                        editing.fields.steps.remove(atOffsets: offsets)
                     }
 
                     Button("Add Step", systemImage: "plus.circle.fill") {
-                        let step = StepDraft()
-                        steps.append(step)
+                        let step = RecipeDraftEditing.Step()
+                        editing.fields.steps.append(step)
                         focusedStep = step.id
                     }
                 } header: {
@@ -766,15 +687,15 @@ struct RecipeEditorView: View {
                 }
                 Section("Details") {
                     LabeledFormField("Description") {
-                        TextField("A little about this recipe", text: $summary, axis: .vertical)
+                        TextField("A little about this recipe", text: $editing.fields.summary, axis: .vertical)
                     }
                     LabeledFormField("Source Link") {
-                        TextField("https://", text: $sourceLink)
+                        TextField("https://", text: $editing.fields.sourceLink)
                             .keyboardType(.URL)
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
                     }
-                    Picker("Category", selection: $category) {
+                    Picker("Category", selection: $editing.fields.category) {
                         Text("None").tag(RecipeCategory?.none)
                         ForEach(RecipeCategory.allCases) { category in
                             Label(category.title, systemImage: category.systemImage).tag(Optional(category))
@@ -782,14 +703,14 @@ struct RecipeEditorView: View {
                     }
                     .tint(.secondary)
                     LabeledFormField("Yield") {
-                        TextField("24 cookies", text: $yieldText)
+                        TextField("24 cookies", text: $editing.fields.yieldText)
                     }
                 }
                 Section {
-                    if !tags.isEmpty {
+                    if !editing.fields.tags.isEmpty {
                         FlowLayout {
-                            ForEach(tags, id: \.self) { tag in
-                                Button { withAnimation(reduceMotion ? nil : .default) { tags.removeAll { $0 == tag } } } label: {
+                            ForEach(editing.fields.tags, id: \.self) { tag in
+                                Button { withAnimation(reduceMotion ? nil : .default) { editing.fields.tags.removeAll { $0 == tag } } } label: {
                                     TagPill(tag: tag, systemImage: "xmark").frame(minHeight: 44)
                                 }
                                 .buttonStyle(.plain)
@@ -798,12 +719,12 @@ struct RecipeEditorView: View {
                         }
                         .padding(.vertical, 6)
                     }
-                    TextField("Add a tag", text: $newTag)
+                    TextField("Add a tag", text: $editing.fields.newTag)
                         .focused($isTagFieldFocused)
                         .textInputAutocapitalization(.words)
                         .submitLabel(.done)
                         .onSubmit {
-                            guard addTag(newTag) else { return }
+                            guard addTag(editing.fields.newTag) else { return }
                             isTagFieldFocused = true
                         }
                     if !tagSuggestions.isEmpty {
@@ -823,101 +744,51 @@ struct RecipeEditorView: View {
                 } header: {
                     Text("Tags")
                 } footer: {
-                    if !tags.isEmpty { Text("Tap a tag to remove it.") }
+                    if !editing.fields.tags.isEmpty { Text("Tap a tag to remove it.") }
                 }
-                if original == nil {
+                if editing.isNew {
                     Section {
-                        Toggle("Share with Household", isOn: $shareNewRecipe)
+                        Toggle("Share with Household", isOn: $editing.fields.isShared)
                     } footer: {
-                        Text(shareNewRecipe ? "Your household can see and cook this recipe. Only you can edit it." : "Only you can see this recipe.")
+                        Text(editing.fields.isShared ? "Your household can see and cook this recipe. Only you can edit it." : "Only you can see this recipe.")
                     }
                 }
             }
             // Always editing, so ingredient and step rows show the delete control and drag handle.
             .environment(\.editMode, .constant(.active))
-            .navigationTitle(original == nil ? "New Recipe" : "Edit Recipe").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(editing.isNew ? "New Recipe" : "Edit Recipe").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { if isDirty { discardChanges = true } else { dismiss() } }.toolbarGlyph()
+                    Button("Cancel") { if editing.isDirty { discardChanges = true } else { dismiss() } }.toolbarGlyph()
                         .confirmationDialog("Discard Recipe Changes?", isPresented: $discardChanges, titleVisibility: .visible) {
-                            Button("Discard Changes", role: .destructive) { saving = true; clearDraft(); dismiss() }
+                            Button("Discard Changes", role: .destructive) { editing.discard(); dismiss() }
                             Button("Keep Editing") { }
                         } message: { Text("Your draft stays on this device until you save or discard it.") }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button {
-                        let savedIngredients = ingredients.compactMap { ingredient -> Ingredient? in
-                            var ingredient = ingredient
-                            ingredient.text = ingredient.text.trimmingCharacters(in: .whitespacesAndNewlines)
-                            return ingredient.text.isEmpty ? nil : ingredient
-                        }
-                        let savedSteps = steps.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-                        var recipe = original ?? Recipe(id: draftID, title: "", summary: "", prepMinutes: 0, cookMinutes: 0, servings: 0, tags: [], symbol: "fork.knife", ingredients: [], steps: [])
-                        if original == nil, let userID = store.userID { recipe.owner = .person(userID, shared: shareNewRecipe) }
-                        recipe.title = title.trimmingCharacters(in: .whitespacesAndNewlines)
-                        recipe.summary = summary
-                        let link = sourceLink.trimmingCharacters(in: .whitespacesAndNewlines)
-                        recipe.recipeLink = link.isEmpty ? nil : link
-                        recipe.category = category
-                        let trimmedYield = yieldText.trimmingCharacters(in: .whitespacesAndNewlines)
-                        recipe.yieldText = trimmedYield.isEmpty ? nil : trimmedYield
-                        recipe.prepMinutes = prepMinutes
-                        recipe.cookMinutes = cookMinutes
-                        recipe.servings = servings
-                        addTag(newTag)
-                        recipe.tags = tags
-                        recipe.ingredients = savedIngredients
-                        recipe.steps = savedSteps
-                        saving = true
-                        let key = draftKey
-                        let savedDraft = draftData
-                        UserDefaults.standard.set(savedDraft, forKey: key)
-                        store.saveRecipe(recipe, photo: photoChange) {
-                            // A later edit must not be cleared by an earlier save completing.
-                            if UserDefaults.standard.data(forKey: key) == savedDraft {
-                                UserDefaults.standard.removeObject(forKey: key)
-                            }
-                        }
-                        dismiss()
+                        if editing.save(knownTags: store.recipeTags, using: { recipe, photo, onSaved in
+                            store.saveRecipe(recipe, photo: photo, onSaved: onSaved)
+                        }) { dismiss() }
                     } label: { OnAccentLabel(title: "Save") }
-                    .disabled(!canSave)
+                    .disabled(!editing.canSave)
                     .modifier(GlassActionStyle(prominent: true))
                 }
             }
         }
-        .background { DraftDismissalGuard(isDirty: isDirty && !saving) { discardChanges = true } }
-        .onAppear(perform: restoreDraft)
-        .onChange(of: draftData) { _, data in
-            guard restoredDraft, !saving else { return }
-            if isDirty { UserDefaults.standard.set(data, forKey: draftKey) }
-            else { clearDraft() }
-        }
+        .background { DraftDismissalGuard(isDirty: editing.isDirty && !editing.isClosing) { discardChanges = true } }
+        .onAppear { editing.open(accountID: store.userID) }
+        .onChange(of: store.userID) { _, account in editing.open(accountID: account) }
     }
-    /// Tags from the rest of the recipe book that this recipe doesn't have yet, narrowed by what's typed.
-    private var tagSuggestions: [String] {
-        let typed = newTag.trimmingCharacters(in: .whitespacesAndNewlines)
-        return store.recipeTags.filter { suggestion in
-            !tags.contains { $0.caseInsensitiveCompare(suggestion) == .orderedSame } &&
-            (typed.isEmpty || suggestion.localizedCaseInsensitiveContains(typed))
-        }
-    }
-    /// Adds a tag, reusing the spelling of a matching tag elsewhere in the recipe book. Returns false when there was nothing to add.
+    private var tagSuggestions: [String] { editing.tagSuggestions(in: store.recipeTags) }
+
     @discardableResult
     private func addTag(_ text: String) -> Bool {
-        let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        newTag = ""
-        guard !typed.isEmpty else { return false }
-        let tag = store.recipeTags.first { $0.caseInsensitiveCompare(typed) == .orderedSame } ?? typed
-        if !tags.contains(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) {
-            withAnimation(reduceMotion ? nil : .default) { tags.append(tag) }
-        }
-        return true
+        withAnimation(reduceMotion ? nil : .default) { editing.addTag(text, knownTags: store.recipeTags) }
     }
+
     private func addIngredient(after id: Ingredient.ID?) {
-        let index = ingredients.firstIndex { $0.id == id }.map { $0 + 1 } ?? ingredients.endIndex
-        let ingredient = Ingredient(text: "")
-        ingredients.insert(ingredient, at: index)
-        focusedIngredient = ingredient.id
+        focusedIngredient = editing.addIngredient(after: id)
     }
 }
 
@@ -993,29 +864,4 @@ private struct RecipeDurationPicker: UIViewRepresentable {
             minutes.wrappedValue = Int((picker.countDownDuration / 60).rounded())
         }
     }
-}
-
-private struct StepDraft: Identifiable {
-    let id = UUID()
-    var text = ""
-}
-
-
-private struct RecipeDraft: Codable {
-    var id: UUID
-    var title: String
-    var summary: String
-    var recipeLink: String?
-    var category: String?
-    var servings: Int
-    var yieldText: String?
-    var prepMinutes: Int
-    var cookMinutes: Int
-    var tags: [String]
-    var newTag: String
-    var ingredients: [Ingredient]
-    var steps: [String]
-    var photo: Data?
-    var removesPhoto: Bool
-    var isShared: Bool?
 }

@@ -16,8 +16,9 @@ final class RecipeImportUITests: XCTestCase {
     func testInstructionsOnlyImportCanBeSaved() {
         importText("Lemon Butter Pasta\nMethod:\n1. Boil the pasta in salted water.\n2. Toss it with lemon zest and butter.\n")
         XCTAssertEqual(app.textFields["Recipe Title"].value as? String, "Lemon Butter Pasta")
-        let step = app.textViews.matching(NSPredicate(format: "value == %@", "Boil the pasta in salted water.")).firstMatch
-        XCTAssertTrue(step.exists)
+        // Multiline SwiftUI fields can be exposed as TextField or TextView across simulator versions.
+        let step = app.descendants(matching: .any).matching(NSPredicate(format: "value == %@", "Boil the pasta in salted water.")).firstMatch
+        XCTAssertTrue(step.waitForExistence(timeout: 5), "The imported instruction remains editable")
         XCTAssertTrue(saveButton.isEnabled, "A title and instructions are enough to save")
 
         // Without a title, there's nothing to save it as.
@@ -37,7 +38,9 @@ final class RecipeImportUITests: XCTestCase {
 
     private func importText(_ text: String) {
         app.launch()
-        app.buttons["Recipes"].tap()
+        let recipesTab = app.tabBars.buttons["Recipes"].firstMatch
+        XCTAssertTrue(recipesTab.waitForExistence(timeout: 10))
+        if !recipesTab.isSelected { recipesTab.tap() }
         XCTAssertTrue(app.buttons["New Recipe"].waitForExistence(timeout: 10))
         app.buttons["New Recipe"].tap()
         app.buttons["Paste Recipe Text"].tap()

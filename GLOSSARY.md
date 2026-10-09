@@ -47,5 +47,8 @@ _Avoid_: Voice assistant, Siri mode
 **Social recipe import**:
 Recovering available recipe content from a social post through its link for a person to review before saving.
 
+**Recipe draft**:
+A recipe being written or edited, kept on the device until it is saved or discarded.
+
 **Imported recipe draft**:
 A recipe recovered from an outside source for a person to review before saving to their collection.
