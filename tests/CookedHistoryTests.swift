@@ -66,7 +66,7 @@ struct CookedHistoryTests {
         finished.add(FinishedCook(recipeID: bowls.id, startedAt: now, accountID: someoneElse))
         check(FinishedCooks(defaults: defaults).pending.count == 2, "pending cooks survive relaunch")
         var recorded: [UUID] = []
-        finished.record(for: me) { recorded.append($0.recipeID) }
+        finished.record(for: me) { cook, acknowledge in recorded.append(cook.recipeID); acknowledge(true) }
         check(recorded == [orzo.id], "records own cooks, drops another account's: \(recorded)")
         check(finished.pending.isEmpty, "drained")
         finished.add(FinishedCook(recipeID: bowls.id, startedAt: now, accountID: me))
@@ -74,6 +74,33 @@ struct CookedHistoryTests {
         finished.stopRecording()
         finished.add(FinishedCook(recipeID: oats.id, startedAt: now, accountID: me))
         check(recorded.count == 2 && finished.pending.count == 1, "waits again after the household unloads")
+        // Delivery is not acknowledgment: failures and process interruption keep the cook durable.
+        var acknowledge: ((Bool) -> Void)?
+        finished.record(for: me) { _, completion in acknowledge = completion }
+        check(finished.pending.count == 1, "in-flight cook remains durable")
+        acknowledge?(false)
+        check(FinishedCooks(defaults: defaults).pending.count == 1, "failed delivery survives relaunch")
+        finished.retry()
+        let staleAcknowledgment = acknowledge
+        finished.stopRecording()
+        finished.record(for: me) { _, completion in acknowledge = completion }
+        staleAcknowledgment?(true)
+        check(finished.pending.count == 1, "old session cannot acknowledge current delivery")
+        acknowledge?(true)
+        check(finished.pending.isEmpty, "acknowledged delivery drains")
+
+        let cook = FinishedCook(recipeID: orzo.id, startedAt: now, accountID: me)
+        finished.record(for: me) { _, completion in acknowledge = completion }
+        finished.add(cook); finished.add(cook)
+        check(finished.pending.count == 1, "duplicate pending cook is retained only once")
+        acknowledge?(true)
+        // Repeating a completion must not affect the next delivery.
+        let repeatedAcknowledgment = acknowledge
+        finished.add(FinishedCook(recipeID: bowls.id, startedAt: now, accountID: me))
+        repeatedAcknowledgment?(true)
+        check(finished.pending.count == 1, "repeated acknowledgment cannot drain next cook")
+        acknowledge?(true)
+        check(finished.pending.isEmpty, "next cook acknowledged independently")
         print("Cooked history tests passed")
     }
 }

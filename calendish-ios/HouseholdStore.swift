@@ -36,6 +36,7 @@ final class HouseholdStore {
 
     private static let pendingInviteKey = "pendingHouseholdInvite"
     private let backend: any HouseholdBackend
+    private let finishedCooks: FinishedCooks
     private var subscription: (any HouseholdSubscription)?
     private var realtimeTasks: [Task<Void, Never>] = []
     private var reloadTask: Task<Void, Never>?
@@ -54,7 +55,10 @@ final class HouseholdStore {
     /// Replaced whenever the account or household changes, so older work can't publish into the new one.
     private var syncSession = UUID()
 
-    init(backend: (any HouseholdBackend)? = nil) { self.backend = backend ?? SupabaseHouseholdBackend() }
+    init(backend: (any HouseholdBackend)? = nil, finishedCooks: FinishedCooks = .shared) {
+        self.backend = backend ?? SupabaseHouseholdBackend()
+        self.finishedCooks = finishedCooks
+    }
 
     /// Sample content with no account or network, for SwiftUI previews.
     static func preview() -> HouseholdStore {
@@ -141,7 +145,7 @@ final class HouseholdStore {
     @discardableResult
     private func resetHouseholdData() async -> UUID {
         phase = .loading
-        FinishedCooks.shared.stopRecording()
+        finishedCooks.stopRecording()
         let session = UUID()
         syncSession = session
         for task in savingTasks.values { task.cancel() }
@@ -260,7 +264,10 @@ final class HouseholdStore {
         guard session == syncSession else { throw CancellationError() }
         phase = .ready
         if let userID {
-            FinishedCooks.shared.record(for: userID) { [weak self] cook in self?.markCooked(cook.recipeID, on: cook.day) }
+            finishedCooks.record(for: userID) { [weak self] cook, acknowledge in
+                guard let self else { acknowledge(false); return }
+                self.recordFinishedCook(cook, acknowledge: acknowledge)
+            }
         }
         syncAvatar()
         // An invitation opened before signing in to an account that already had a household.
@@ -459,6 +466,7 @@ final class HouseholdStore {
             await startRealtime()
         }
         await refresh()
+        finishedCooks.retry()
         groceries.clearExpired()
     }
 
@@ -654,11 +662,26 @@ final class HouseholdStore {
     /// Records that the household cooked a recipe on a day. Marking the same day twice changes nothing,
     /// nor does marking a recipe no longer in the person's recipe book.
     func markCooked(_ recipeID: UUID, on date: Date = .now) {
-        guard let householdID = household?.id, recipes.contains(where: { $0.id == recipeID }) else { return }
+        recordCook(recipeID, on: date)
+    }
+
+    /// Finished cooks stay durable until the idempotent household write is acknowledged.
+    private func recordFinishedCook(_ cook: FinishedCook, acknowledge: @escaping (Bool) -> Void) {
+        guard cook.accountID == userID else { acknowledge(false); return }
+        recordCook(cook.recipeID, on: cook.day, acknowledge: acknowledge)
+    }
+
+    private func recordCook(_ recipeID: UUID, on date: Date, acknowledge: ((Bool) -> Void)? = nil) {
+        guard let householdID = household?.id else { acknowledge?(false); return }
+        // A recipe no longer available cannot receive a marked cook, matching manual marking.
+        guard recipes.contains(where: { $0.id == recipeID }) else { acknowledge?(true); return }
         let day = Calendar.current.startOfDay(for: date)
-        guard !cooks.contains(where: { $0.recipeID == recipeID && Calendar.current.isDate($0.date, inSameDayAs: day) }) else { return }
-        cooks.append(RecipeCook(recipeID: recipeID, date: day, cookedBy: userID))
-        save(.markCooked(household: householdID, recipe: recipeID, day: day))
+        let alreadyMarked = cooks.contains { $0.recipeID == recipeID && Calendar.current.isDate($0.date, inSameDayAs: day) }
+        if !alreadyMarked {
+            cooks.append(RecipeCook(recipeID: recipeID, date: day, cookedBy: userID))
+        } else if acknowledge == nil { return }
+        // Even an optimistic duplicate needs a persistence acknowledgment before leaving the durable queue.
+        save(.markCooked(household: householdID, recipe: recipeID, day: day), onCompletion: acknowledge)
     }
 
     func removeCooked(_ recipeID: UUID, on day: Date) {
@@ -771,22 +794,26 @@ final class HouseholdStore {
     // MARK: Saving
 
     /// Waits for writes already queued, including their authoritative refresh.
-    func waitForSaves() async { await writeTask?.value }
+    func waitForSaves() async {
+        repeat { await writeTask?.value } while pendingWrites > 0
+    }
 
     /// Runs a write in the background. On failure, shows the error and refetches so the screen matches the server.
-    private func save(_ mutation: HouseholdMutation, onSuccess: (() -> Void)? = nil) {
+    private func save(_ mutation: HouseholdMutation, onSuccess: (() -> Void)? = nil, onCompletion: ((Bool) -> Void)? = nil) {
         let session = syncSession
         let token = UUID()
         let previous = writeTask
         pendingWrites += 1
         writeRevision &+= 1
         writeTask = Task { [weak self] in
+            var acknowledged = false
+            defer { onCompletion?(acknowledged) }
             await previous?.value
             guard let self, !Task.isCancelled, session == syncSession else { return }
             defer { savingTasks[token] = nil }
             do {
                 try await backend.write(mutation)
-                if session == syncSession { onSuccess?() }
+                if session == syncSession { acknowledged = true; onSuccess?() }
             } catch { if session == syncSession { report(error) } }
             guard session == syncSession else { return }
             pendingWrites -= 1

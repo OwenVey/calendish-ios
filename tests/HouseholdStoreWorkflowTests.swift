@@ -48,7 +48,9 @@ struct HouseholdWorkflowApp: App {
         UserDefaults.standard.removeObject(forKey: "pendingHouseholdInvite")
         defer { UserDefaults.standard.removeObject(forKey: "pendingHouseholdInvite") }
         let backend = InMemoryHouseholdBackend()
-        let store = HouseholdStore(backend: backend)
+        let defaults = UserDefaults(suiteName: "finished-cook-workflow-\(UUID().uuidString)")!
+        let finishedCooks = FinishedCooks(defaults: defaults)
+        let store = HouseholdStore(backend: backend, finishedCooks: finishedCooks)
         let session = Task { await store.start() }
         defer { session.cancel() }
         try await until { store.phase == .signedOut }
@@ -117,6 +119,40 @@ struct HouseholdWorkflowApp: App {
         await store.waitForSaves()
         try expect(store.myReview(of: original.id)?.rating == 5 && store.myReview(of: original.id)?.note == "Nice" && store.cooks.count == 1,
             "Review normalization and cooked-day deduplication survive reload")
+        // Exercise the complete durable handoff, not just a callback or a manual marked cook.
+        let finishedDay = Calendar.current.date(byAdding: .day, value: -2, to: .now)!
+        let finishedCook = FinishedCook(recipeID: original.id, startedAt: finishedDay, accountID: backend.identity.id)
+        backend.beforeWrite = { _ in throw URLError(.notConnectedToInternet) }
+        finishedCooks.add(finishedCook)
+        await store.waitForSaves()
+        try expect(FinishedCooks(defaults: defaults).pending == [finishedCook], "Failed household write retains durable finished cook across relaunch")
+        try expect(!store.cooks.contains { Calendar.current.isDate($0.date, inSameDayAs: finishedDay) }, "Failed completion removes optimistic marked cook")
+        backend.beforeWrite = nil
+        await store.resumeSync()
+        await store.waitForSaves()
+        try expect(finishedCooks.pending.isEmpty && store.cooks.filter { Calendar.current.isDate($0.date, inSameDayAs: finishedDay) }.count == 1,
+            "Resume retries and acknowledges exactly one marked cook")
+        finishedCooks.add(finishedCook)
+        await store.waitForSaves()
+        try expect(finishedCooks.pending.isEmpty && store.cooks.filter { Calendar.current.isDate($0.date, inSameDayAs: finishedDay) }.count == 1,
+            "Already persisted completion is idempotently acknowledged")
+
+        let completionGate = OperationGate()
+        backend.beforeWrite = { _ in await completionGate.wait() }
+        let interruptedCook = FinishedCook(recipeID: original.id, startedAt: Calendar.current.date(byAdding: .day, value: -3, to: .now)!, accountID: backend.identity.id)
+        finishedCooks.add(interruptedCook)
+        try await until { completionGate.entered }
+        try expect(finishedCooks.pending == [interruptedCook], "Pending cook stays durable while write is in flight")
+        await store.signOut()
+        try await until { store.phase == .signedOut }
+        completionGate.release()
+        backend.beforeWrite = nil
+        try await store.signIn(email: "fixture@example.com", password: "fixture-password")
+        try await until { store.phase == .ready }
+        await store.waitForSaves()
+        try expect(finishedCooks.pending.isEmpty && store.cooks.filter { Calendar.current.isDate($0.date, inSameDayAs: interruptedCook.day) }.count == 1,
+            "Interrupted completion survives account reset and is replayed without duplicates")
+
         store.saveReview(of: original.id, rating: nil, note: "")
         await store.waitForSaves()
         try expect(store.myReview(of: original.id) == nil, "Clearing a review deletes it")
