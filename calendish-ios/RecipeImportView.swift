@@ -34,6 +34,8 @@ struct RecipeImportView: View {
     @State private var phase: Phase
     @State private var composeError: String?
     @State private var task: Task<Void, Never>?
+    /// Text shared or pasted along with the link in the link form, such as a post's caption, kept for trying again.
+    @State private var linkText: (url: URL, text: String)?
 
     init(start: Start, drafts: Binding<RecipeImportDrafts>) {
         self.start = start
@@ -85,8 +87,8 @@ struct RecipeImportView: View {
             do {
                 let imported: ImportedRecipe
                 switch content {
-                case .link(let url):
-                    imported = try await RecipeLinkImporter.fetch(url)
+                case .link(let url, let text):
+                    imported = try await RecipeLinkImporter.fetch(url, sharedText: text)
                 case .text(let text):
                     imported = try await RecipeTextImporter.parse(text)
                 case .images(let images):
@@ -101,8 +103,9 @@ struct RecipeImportView: View {
             } catch {
                 guard !Task.isCancelled else { return }
                 switch content {
-                case .link(let url):
+                case .link(let url, let text):
                     drafts.link = url.absoluteString
+                    linkText = text.map { (url, $0) }
                     composeError = error.localizedDescription
                     phase = .link
                 case .text(let text):
@@ -134,7 +137,7 @@ struct RecipeImportView: View {
 
     private func progressMessage(for content: RecipeImport) -> String {
         switch content {
-        case .link: "Reading recipe page…"
+        case .link(let url, _): SocialPost.Platform(url) == nil ? "Reading recipe page…" : "Reading post…"
         case .text: "Reading recipe…"
         case .images(let images): images.count == 1 ? "Reading image…" : "Reading \(images.count) images…"
         case .pdf: "Reading PDF…"
@@ -155,7 +158,7 @@ struct RecipeImportView: View {
         } header: {
             Text("Recipe Link")
         } footer: {
-            Text("Paste a link to a recipe page.")
+            Text("Paste a link to a recipe page, or to an Instagram, TikTok, or YouTube post.")
         }
     }
 
@@ -176,14 +179,19 @@ struct RecipeImportView: View {
         } header: {
             Text("Recipe Text")
         } footer: {
-            Text("Copy a recipe from a website, note, or message, including its ingredients and instructions.")
+            Text("Copy a recipe from a website, note, or message, including its ingredients or instructions.")
         }
     }
 
     /// Either form takes either kind of input: a link pasted as text is still imported as a link.
     private func importDraft(_ draft: String) {
         guard !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        read(.from(text: draft))
+        let content = RecipeImport.from(text: draft)
+        if case .link(let url, nil) = content, let linkText, linkText.url == url {
+            read(.link(url, text: linkText.text))
+        } else {
+            read(content)
+        }
     }
 
     private func composeForm(title: String, draft: Binding<String>, @ViewBuilder field: () -> some View,
@@ -248,8 +256,9 @@ struct RecipeImportView: View {
         guard let item = RecipeImport.combined(items) else { return }
         composeError = nil
         switch item {
-        case .link(let url):
+        case .link(let url, let text):
             drafts.link = url.absoluteString
+            linkText = text.map { (url, $0) }
             phase = .link
         case .text(let text):
             drafts.text = text

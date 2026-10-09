@@ -5,7 +5,8 @@ import UniformTypeIdentifiers
 /// Something a recipe can be imported from. Transferable, so the same type loads from paste, drag and drop,
 /// and the share extension, whichever form the other app offers.
 nonisolated enum RecipeImport: Sendable {
-    case link(URL)
+    /// A link, with any text shared along with it, such as a post's caption.
+    case link(URL, text: String? = nil)
     case text(String)
     case images([Data])
     case pdf(Data)
@@ -21,12 +22,16 @@ nonisolated enum RecipeImport: Sendable {
     }
 
     /// The most useful of several items shared together: a PDF, then images (in order, up to 10),
-    /// then a link over plain text, since apps often share a page's link along with its title.
+    /// then a link over plain text. Apps often share a link along with a page's title or a post's caption,
+    /// so that text comes along with the link.
     static func combined(_ items: [RecipeImport]) -> RecipeImport? {
         if let pdf = items.first(where: { if case .pdf = $0 { true } else { false } }) { return pdf }
         let images = items.flatMap { item -> [Data] in if case .images(let images) = item { images } else { [] } }
         if !images.isEmpty { return .images(Array(images.prefix(10))) }
-        if let link = items.first(where: { if case .link = $0 { true } else { false } }) { return link }
+        let texts = items.compactMap { item -> String? in if case .text(let text) = item { text } else { nil } }
+        if let url = items.lazy.compactMap({ item -> URL? in if case .link(let url, _) = item { url } else { nil } }).first {
+            return .link(url, text: texts.isEmpty ? nil : texts.joined(separator: "\n\n"))
+        }
         return items.first
     }
 }

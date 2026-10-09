@@ -674,10 +674,11 @@ struct RecipeEditorView: View {
         _ingredients = State(initialValue: recipe.map { $0.ingredients.isEmpty ? [Ingredient(text: "")] : $0.ingredients } ?? [Ingredient(text: "")])
         _steps = State(initialValue: recipe.map { $0.steps.isEmpty ? [StepDraft()] : $0.steps.map { StepDraft(text: $0) } } ?? [StepDraft()])
     }
+    /// A recipe needs a title and something to cook from: ingredients, instructions, or both.
     private var canSave: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        ingredients.contains { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } &&
-        steps.contains { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        (ingredients.contains { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } ||
+         steps.contains { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
     }
     var body: some View {
         NavigationStack {
@@ -689,7 +690,7 @@ struct RecipeEditorView: View {
                     RecipeDurationField(title: "Prep time", minutes: $prepMinutes)
                     RecipeDurationField(title: "Cook time", minutes: $cookMinutes)
                 } footer: {
-                    if !canSave { Text("To save, add a title, at least one ingredient, and one instruction.") }
+                    if !canSave { Text("To save, add a title and at least one ingredient or instruction.") }
                 }
                 Section {
                     PhotoSourceMenu(hasPhoto: hasPhoto, onPick: { newPhoto = $0; draftPhoto = RecipePhotos.uploadData(for: $0) }, onRemove: { newPhoto = nil; draftPhoto = nil; removesPhoto = true }) {

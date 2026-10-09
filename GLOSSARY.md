@@ -40,3 +40,9 @@ The days a household cooked a recipe: days marked as cooked, including finishing
 **Hands-free cook mode**:
 An option within Cook Mode for moving between recipe steps and starting cooking timers through spoken commands.
 _Avoid_: Voice assistant, Siri mode
+
+**Social recipe import**:
+Recovering available recipe content from a social post through its link for a person to review before saving.
+
+**Imported recipe draft**:
+A recipe recovered from an outside source for a person to review before saving to their collection.

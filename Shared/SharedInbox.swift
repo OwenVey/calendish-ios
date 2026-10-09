@@ -8,6 +8,8 @@ nonisolated enum SharedInbox {
     private struct Manifest: Codable {
         var kind: String
         var value: String?
+        /// Text shared along with a link.
+        var text: String?
         var fileCount = 0
     }
 
@@ -23,7 +25,7 @@ nonisolated enum SharedInbox {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let manifest: Manifest
         switch item {
-        case .link(let url): manifest = Manifest(kind: "link", value: url.absoluteString)
+        case .link(let url, let text): manifest = Manifest(kind: "link", value: url.absoluteString, text: text)
         case .text(let text): manifest = Manifest(kind: "text", value: text)
         case .images(let images):
             for (index, image) in images.enumerated() { try image.write(to: folder.appending(path: "\(index)")) }
@@ -46,7 +48,7 @@ nonisolated enum SharedInbox {
             guard let manifest = try? JSONDecoder().decode(Manifest.self, from: data) else { remove(id); continue }
             let files = (0..<manifest.fileCount).compactMap { try? Data(contentsOf: folder.appending(path: "\($0)")) }
             switch manifest.kind {
-            case "link": if let url = manifest.value.flatMap(URL.init(string:)) { return (id, .link(url)) }
+            case "link": if let url = manifest.value.flatMap(URL.init(string:)) { return (id, .link(url, text: manifest.text)) }
             case "text": if let text = manifest.value { return (id, .text(text)) }
             case "images": if !files.isEmpty { return (id, .images(files)) }
             case "pdf": if let pdf = files.first { return (id, .pdf(pdf)) }

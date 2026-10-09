@@ -1,0 +1,3 @@
+# Keep social recipe import processing on device
+
+Social recipe import must acquire and interpret source content on the device, without a retrieval proxy or server AI fallback, because the user explicitly chose an on-device boundary over a hybrid backend. We accept reduced automatic coverage when social platforms do not expose useful content through a link; unsuccessful imports show a simple error rather than asking for additional input or silently switching to remote processing. The first release reads written captions/descriptions and linked recipe pages; audio transcription, subtitle extraction, and video-frame OCR are deferred.
