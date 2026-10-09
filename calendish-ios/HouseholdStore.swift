@@ -818,6 +818,12 @@ final class HouseholdStore {
         save { [client] in try await client.rpc("save_planned_meal", params: parameters).execute() }
     }
 
+    /// Moves a planned meal to another day, keeping its saved recipe version and servings.
+    func moveMeal(_ meal: PlannedMeal, to day: Date) {
+        guard !Calendar.current.isDate(meal.date, inSameDayAs: day) else { return }
+        saveMeal(date: day, recipe: meal.recipe, servings: meal.servings, editing: meal, keepVersion: true)
+    }
+
     /// Replaces a planned meal's saved version with its recipe's latest. Groceries already added stay as they are.
     func updateMealToLatest(_ meal: PlannedMeal) {
         guard let latest = latestRecipe(for: meal), let index = meals.firstIndex(where: { $0.id == meal.id }) else { return }

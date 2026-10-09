@@ -1,4 +1,18 @@
 import SwiftUI
+import UniformTypeIdentifiers
+
+extension UTType {
+    /// A planned meal dragged between days. Declared in Info.plist so drags stay within Calendish.
+    nonisolated static let plannedMeal = UTType(exportedAs: "owenvey.calendish-ios.planned-meal")
+}
+
+/// A planned meal being dragged to another day.
+nonisolated struct PlannedMealDrag: Codable, Transferable {
+    let mealID: UUID
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .plannedMeal)
+    }
+}
 
 struct MealSelection: Identifiable {
     let id = UUID()
@@ -54,6 +68,10 @@ struct MealPlanView: View {
                                             add: { selection = MealSelection(date: day) },
                                             edit: { selection = MealSelection(date: day, meal: $0) },
                                             remove: { removing = $0 },
+                                            move: { ids in
+                                                let moving = store.meals.filter { ids.contains($0.id) }
+                                                withAnimation(reduceMotion ? nil : .snappy) { moving.forEach { store.moveMeal($0, to: day) } }
+                                            },
                                             addToGroceries: { groceryReview = GroceryReview(meals: meals) })
                                     .id(day)
                             }
@@ -113,6 +131,7 @@ struct MealPlanView: View {
 
 /// One day in the meal plan: a header with actions, then its recipes.
 private struct MealPlanDay: View {
+    @Environment(HouseholdStore.self) private var store
     let day: Date
     let meals: [PlannedMeal]
     /// Days in the current week are solid cards; other weeks recede, and their empty days shrink to a single row.
@@ -120,7 +139,11 @@ private struct MealPlanDay: View {
     let add: () -> Void
     let edit: (PlannedMeal) -> Void
     let remove: ([PlannedMeal]) -> Void
+    /// Moves dropped meals here.
+    let move: ([UUID]) -> Void
     let addToGroceries: () -> Void
+    @State private var isDropTarget = false
+    @State private var dropCount = 0
     private var isToday: Bool { Calendar.current.isDateInToday(day) }
 
     var body: some View {
@@ -139,6 +162,14 @@ private struct MealPlanDay: View {
                     }
                     .buttonStyle(.plain)
                     .padding(.horizontal, 10)
+                    .draggable(PlannedMealDrag(mealID: meal.id)) {
+                        RecipeRow(recipe: meal.recipe, servings: meal.servings)
+                            .padding(10)
+                            .frame(width: 320, alignment: .leading)
+                            .background(CalendishStyle.surface, in: .rect(cornerRadius: 20, style: .continuous))
+                            // Drag previews render outside the view hierarchy, so they don't inherit the environment.
+                            .environment(store)
+                    }
                     .calendishContextMenu {
                         Button("Edit Meal", systemImage: "pencil") { edit(meal) }
                         Button("Remove Meal", systemImage: "trash", role: .destructive) { remove([meal]) }
@@ -152,12 +183,24 @@ private struct MealPlanDay: View {
         .padding(.bottom, meals.isEmpty && !isThisWeek ? 0 : 4)
         .background(isThisWeek ? CalendishStyle.surface : .clear, in: shape)
         .overlay {
-            if isToday {
+            if isDropTarget {
+                shape.fill(CalendishStyle.accent.opacity(0.08))
+                shape.strokeBorder(CalendishStyle.accent, lineWidth: 2)
+            } else if isToday {
                 shape.strokeBorder(CalendishStyle.accent.opacity(0.7), lineWidth: 1.5)
             } else if !isThisWeek {
                 shape.strokeBorder(Color(.separator), lineWidth: 1)
             }
         }
+        .dropDestination(for: PlannedMealDrag.self) { items, _ in
+            let ids = items.map(\.mealID).filter { id in !meals.contains { $0.id == id } }
+            guard !ids.isEmpty else { return false }
+            move(ids)
+            dropCount += 1
+            return true
+        } isTargeted: { isDropTarget = $0 }
+        .animation(.snappy(duration: 0.2), value: isDropTarget)
+        .sensoryFeedback(.success, trigger: dropCount)
     }
 
     private var header: some View {
