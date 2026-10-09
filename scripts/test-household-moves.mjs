@@ -190,15 +190,15 @@ try {
 
   // Planned meals keep their recipe version --------------------------------
   const dinner = await addRecipe(ana, 'Ana dinner');
-  const meal = await rpc(ben, 'save_planned_meal', { target_household: anaHome.id, meal_id: randomUUID(), meal_date: '2099-03-01', meal_slot: 'dinner', meal_recipe: dinner.id, meal_servings: 3 });
+  const meal = await rpc(ben, 'save_planned_meal', { target_household: anaHome.id, meal_id: randomUUID(), meal_date: '2099-03-01', meal_recipe: dinner.id, meal_servings: 3 });
   assert.equal(meal.recipe.title, 'Ana dinner');
-  await rejects(() => rpc(ben, 'save_planned_meal', { target_household: anaHome.id, meal_id: randomUUID(), meal_date: '2099-03-02', meal_slot: 'dinner', meal_recipe: secret.id, meal_servings: 2 }), ['23503']);
-  await rejects(() => rpc(cy, 'save_planned_meal', { target_household: anaHome.id, meal_id: randomUUID(), meal_date: '2099-03-02', meal_slot: 'dinner', meal_recipe: dinner.id, meal_servings: 2 }), ['42501']);
-  await rejects(() => request('/rest/v1/planned_meals', ben.token, 'POST', { household_id: anaHome.id, date: '2099-03-03', slot: 'lunch', recipe_id: dinner.id, servings: 1, recipe: { title: 'Forged' } }), [401, 403]);
+  await rejects(() => rpc(ben, 'save_planned_meal', { target_household: anaHome.id, meal_id: randomUUID(), meal_date: '2099-03-02', meal_recipe: secret.id, meal_servings: 2 }), ['23503']);
+  await rejects(() => rpc(cy, 'save_planned_meal', { target_household: anaHome.id, meal_id: randomUUID(), meal_date: '2099-03-02', meal_recipe: dinner.id, meal_servings: 2 }), ['42501']);
+  await rejects(() => request('/rest/v1/planned_meals', ben.token, 'POST', { household_id: anaHome.id, date: '2099-03-03', recipe_id: dinner.id, servings: 1, recipe: { title: 'Forged' } }), [401, 403]);
   await request(`/rest/v1/recipes?id=eq.${dinner.id}`, ana.token, 'PATCH', { title: 'Ana dinner v2', steps: ['Cook longer.'] });
   let saved = (await rows(ben, `planned_meals?id=eq.${meal.id}`))[0];
   assert.equal(saved.recipe.title, 'Ana dinner', 'Recipe edits do not change a planned meal');
-  const moved = await rpc(ben, 'save_planned_meal', { target_household: anaHome.id, meal_id: randomUUID(), meal_date: '2099-03-04', meal_slot: 'lunch', meal_recipe: null, meal_servings: 5, moving_id: meal.id, keep_version: true });
+  const moved = await rpc(ben, 'save_planned_meal', { target_household: anaHome.id, meal_id: meal.id, meal_date: '2099-03-04', meal_recipe: null, meal_servings: 5, keep_version: true });
   assert.equal(moved.recipe.title, 'Ana dinner', 'Moving a meal keeps its version');
   assert.equal(moved.servings, 5);
   await rpc(ana, 'delete_recipe', { target_recipe: dinner.id });

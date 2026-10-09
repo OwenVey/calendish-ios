@@ -134,13 +134,14 @@ nonisolated struct PlannedMealRecord: Decodable, Sendable {
     var householdID: UUID
     /// A `yyyy-MM-dd` calendar day, so meals land on the same day in every time zone.
     var date: String
-    var slot: String
     var recipeID: UUID?
     var servings: Int
     /// The recipe version saved when the meal was planned.
     var recipe: RecipeRecord
+    /// Meals within a day appear in the order they were planned.
+    var createdAt: Date?
     enum CodingKeys: String, CodingKey {
-        case id, householdID = "household_id", date, slot, recipeID = "recipe_id", servings, recipe
+        case id, householdID = "household_id", date, recipeID = "recipe_id", servings, recipe, createdAt = "created_at"
     }
 }
 
@@ -176,8 +177,8 @@ extension Recipe {
 
 extension PlannedMeal {
     init?(_ row: PlannedMealRecord) {
-        guard let date = DayFormat.date(from: row.date), let slot = MealSlot(rawValue: row.slot) else { return nil }
-        self.init(id: row.id, date: date, slot: slot, recipe: Recipe(row.recipe), recipeID: row.recipeID, servings: row.servings)
+        guard let date = DayFormat.date(from: row.date) else { return nil }
+        self.init(id: row.id, date: date, recipe: Recipe(row.recipe), recipeID: row.recipeID, servings: row.servings)
     }
 }
 
@@ -208,26 +209,22 @@ nonisolated struct SaveMealParameters: Encodable, Sendable {
     var target_household: UUID
     var meal_id: UUID
     var meal_date: String
-    var meal_slot: String
     var meal_recipe: UUID?
     var meal_servings: Int
-    var moving_id: UUID?
-    /// Keeps the moved meal's saved recipe version instead of capturing the recipe's current one.
+    /// Keeps an existing meal's saved recipe version instead of capturing the recipe's current one.
     var keep_version: Bool
 
     enum CodingKeys: String, CodingKey {
-        case target_household, meal_id, meal_date, meal_slot, meal_recipe, meal_servings, moving_id, keep_version
+        case target_household, meal_id, meal_date, meal_recipe, meal_servings, keep_version
     }
     func encode(to encoder: Encoder) throws {
         var values = encoder.container(keyedBy: CodingKeys.self)
         try values.encode(target_household, forKey: .target_household)
         try values.encode(meal_id, forKey: .meal_id)
         try values.encode(meal_date, forKey: .meal_date)
-        try values.encode(meal_slot, forKey: .meal_slot)
-        // The RPC requires this argument even when a moved meal keeps its saved version.
+        // The RPC requires this argument even when an existing meal keeps its saved version.
         try values.encode(meal_recipe, forKey: .meal_recipe)
         try values.encode(meal_servings, forKey: .meal_servings)
-        try values.encode(moving_id, forKey: .moving_id)
         try values.encode(keep_version, forKey: .keep_version)
     }
 }

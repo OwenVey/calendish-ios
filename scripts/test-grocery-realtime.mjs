@@ -166,14 +166,15 @@ try {
   await request('/rest/v1/recipe_favorites', a.access_token, 'POST', { recipe_id: ownRecipe });
   assert.equal((await request(`/rest/v1/recipes?id=eq.${ownRecipe}`, b.access_token))[0].title, 'Test recipe');
 
-  const meal = { target_household: household.id, meal_id: randomUUID(), meal_date: '2099-01-01', meal_slot: 'dinner', meal_recipe: ownRecipe, meal_servings: 2 };
+  const meal = { target_household: household.id, meal_id: randomUUID(), meal_date: '2099-01-01', meal_recipe: ownRecipe, meal_servings: 2 };
   const saved = await request('/rest/v1/rpc/save_planned_meal', a.access_token, 'POST', meal);
   await denied(() => request('/rest/v1/rpc/save_planned_meal', outsider.access_token, 'POST', meal), [403]);
-  await denied(() => request('/rest/v1/rpc/save_planned_meal', a.access_token, 'POST', { ...meal, meal_id: randomUUID(), moving_id: saved.id, meal_date: '2099-01-02', meal_recipe: foreignRecipe }), [403, 404, 409]);
-  assert.equal((await request(`/rest/v1/planned_meals?id=eq.${saved.id}`, a.access_token)).length, 1, 'A failed move must retain the original meal');
+  await denied(() => request('/rest/v1/rpc/save_planned_meal', a.access_token, 'POST', { ...meal, meal_date: '2099-01-02', meal_recipe: foreignRecipe }), [403, 404, 409]);
+  const kept = await request(`/rest/v1/planned_meals?id=eq.${saved.id}`, a.access_token);
+  assert.equal(kept[0].date, '2099-01-01', 'A failed move must retain the original meal');
   await Promise.all([2, 4].map(meal_servings => request('/rest/v1/rpc/save_planned_meal', a.access_token, 'POST', { ...meal, meal_id: randomUUID(), meal_servings })));
-  assert.equal((await request(`/rest/v1/planned_meals?household_id=eq.${household.id}`, a.access_token)).length, 1, 'Concurrent slot saves must resolve atomically');
-  console.log('PASS: meal RPCs enforce household recipe ownership, roll back failed moves, and resolve concurrent saves');
+  assert.equal((await request(`/rest/v1/planned_meals?household_id=eq.${household.id}`, a.access_token)).length, 3, 'A day holds any number of meals');
+  console.log('PASS: meal RPCs enforce household recipe ownership, roll back failed moves, and allow several meals a day');
 
   const item = randomUUID();
   await request('/rest/v1/grocery_items', a.access_token, 'POST', { id: item, household_id: household.id, name: 'Order fixture', is_complete: true, position: 0 });

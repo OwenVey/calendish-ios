@@ -10,10 +10,10 @@ struct GroceryImportReviewTests {
     static func main() {
         let soup = recipe("Soup", ingredients: ["1 cup milk", "2 carrots", "Salt to taste"])
         // A deleted or edited source cannot change the ingredients imported from a saved meal.
-        let planned = PlannedMeal(date: .now, slot: .dinner, recipe: soup, recipeID: soup.id, servings: 4)
+        let planned = PlannedMeal(date: .now, recipe: soup, recipeID: soup.id, servings: 4)
         var changed = soup
         changed.ingredients = [Ingredient(text: "3 cups rice")]
-        let later = PlannedMeal(date: .now, slot: .lunch, recipe: changed, recipeID: soup.id, servings: 2)
+        let later = PlannedMeal(date: .now, recipe: changed, recipeID: soup.id, servings: 2)
         let candidates = GroceryImportCandidate.planned([planned, later])
         precondition(candidates.count == 2 && Set(candidates.map(\.id)).count == 2)
         var plannedReview = GroceryImportReview(candidates: candidates)

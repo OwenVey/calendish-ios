@@ -6,7 +6,7 @@ A shared recipe book, meal planner, and grocery list for your household. Built w
 
 - **Recipes.** A searchable recipe book with photos, favorites, tag filters, sorting, recipe details, a manual recipe form, and a full-screen cook mode with step-by-step instructions, ingredient checkmarks, and timers.
 - **Recipe photos.** Take a photo with the camera, or choose one from the photo library, Files, or the clipboard.
-- **Meal Plan.** A swipeable week strip and calendar with breakfast, lunch, and dinner slots. Pick recipes, set servings, and move or remove meals.
+- **Meal Plan.** A scrolling list of days. Add any number of recipes to a day, set servings, and move or remove meals.
 - **Groceries.** A shared checklist with a remaining-item count, grouping by recipe, reordering, and bulk clearing.
 - **Households.** Sign in with Google or email, then create a household or join one with an invite code. Everyone in the household sees the same data, and changes sync live.
 - **Native design.** Liquid Glass tabs, toolbars, and sheets, with semantic colors for light and dark mode.
@@ -47,7 +47,7 @@ calendish-ios/
 ├── RecipeViews.swift             Recipe book, detail, and forms
 ├── RecipePhotos.swift            Photo picking, uploads, and caching
 ├── CookModeView.swift            Step-by-step cooking view
-├── MealPlanView.swift            Week strip and meal slots
+├── MealPlanView.swift            Scrolling days of planned meals
 ├── GroceryListView.swift         Grocery checklist
 ├── GroceryImportReviewView.swift Review screen for imported groceries
 ├── AccountViews.swift            Sign-in and household setup

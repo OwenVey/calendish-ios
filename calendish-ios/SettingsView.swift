@@ -7,16 +7,11 @@ struct SettingsView: View {
     @Environment(HouseholdStore.self) private var store
     @AppStorage("appearance") private var appearance: AppAppearance = .system
     @AppStorage(WeekStart.storageKey) private var weekStart = WeekStart.system
-    @AppStorage(MealSlot.enabledStorageKey) private var enabledSlots = MealSlot.allEnabled
     @AppStorage(PreferenceKey.recipeSort) private var recipeSort = RecipeSort.recent
     @AppStorage(PreferenceKey.defaultServings) private var defaultServings = 4
     @AppStorage(PreferenceKey.groceryGrouping) private var groceryGrouping = GroceryGrouping.none
     @AppStorage(PreferenceKey.showCompletedGroceries) private var showCompletedGroceries = false
     @AppStorage(MeasurementPreference.storageKey) private var units = MeasurementPreference.original
-    private var mealsSummary: String {
-        let slots = MealSlot.enabled(in: enabledSlots)
-        return slots.count == MealSlot.allCases.count ? "All" : slots.map(\.title).formatted(.list(type: .and))
-    }
     var body: some View {
         Form {
             Section {
@@ -83,13 +78,6 @@ struct SettingsView: View {
                     SettingsLabel("Week Starts On", systemImage: "calendar", color: .red)
                 }
                 .tint(.secondary)
-                NavigationLink { MealSlotSettingsView() } label: {
-                    LabeledContent {
-                        Text(mealsSummary)
-                    } label: {
-                        SettingsLabel("Meals", systemImage: "fork.knife", color: .teal)
-                    }
-                }
             }
             Section("Groceries") {
                 Picker(selection: $groceryGrouping) {
@@ -382,31 +370,6 @@ struct AppearanceSettingsView: View {
             .labelsHidden()
         }
         .navigationTitle("Appearance")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-struct MealSlotSettingsView: View {
-    @AppStorage(MealSlot.enabledStorageKey) private var enabledSlots = MealSlot.allEnabled
-    var body: some View {
-        let enabled = MealSlot.enabled(in: enabledSlots)
-        Form {
-            Section {
-                ForEach(MealSlot.allCases) { slot in
-                    Toggle(isOn: Binding(
-                        get: { enabled.contains(slot) },
-                        set: { isOn in enabledSlots = MealSlot.storage(for: isOn ? enabled + [slot] : enabled.filter { $0 != slot }) }
-                    )) {
-                        Label(slot.title, systemImage: slot.symbol)
-                    }
-                    // Keep at least one meal to plan.
-                    .disabled(enabled == [slot])
-                }
-            } footer: {
-                Text("Choose which meals to plan. A turned-off meal still appears on days where it’s already planned.")
-            }
-        }
-        .navigationTitle("Meals")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

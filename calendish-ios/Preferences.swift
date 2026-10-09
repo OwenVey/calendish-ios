@@ -53,19 +53,3 @@ enum RecipeLayout: String, CaseIterable, Identifiable {
         }
     }
 }
-
-extension MealSlot {
-    static let enabledStorageKey = "enabledMealSlots"
-    static let allEnabled = allCases.map(\.rawValue).joined(separator: ",")
-
-    /// The slots turned on in Settings, in breakfast–lunch–dinner order.
-    static func enabled(in stored: String) -> [MealSlot] {
-        let names = stored.split(separator: ",").map(String.init)
-        let slots = allCases.filter { names.contains($0.rawValue) }
-        return slots.isEmpty ? allCases : slots
-    }
-
-    static func storage(for slots: [MealSlot]) -> String {
-        allCases.filter(slots.contains).map(\.rawValue).joined(separator: ",")
-    }
-}

@@ -26,7 +26,6 @@ final class HouseholdStore {
     var recipes: [Recipe] = []
     var meals: [PlannedMeal] = []
     var groceries: [GroceryItem] { grocerySync.items }
-    var planningDate = Calendar.current.startOfDay(for: Date.now)
     /// The latest failed save or load, shown as an alert.
     var errorMessage: String?
     var needsPasswordReset = false
@@ -76,9 +75,9 @@ final class HouseholdStore {
                          HouseholdMember(userID: partner, displayName: "Sam", role: "member")]
         store.recipes = recipes
         store.meals = [
-            PlannedMeal(date: today, slot: .breakfast, recipe: recipes[2], recipeID: recipes[2].id, servings: 2),
-            PlannedMeal(date: today, slot: .dinner, recipe: recipes[0], recipeID: recipes[0].id, servings: 4),
-            PlannedMeal(date: Calendar.current.date(byAdding: .day, value: 1, to: today)!, slot: .dinner, recipe: recipes[1], recipeID: recipes[1].id, servings: 4)
+            PlannedMeal(date: today, recipe: recipes[2], recipeID: recipes[2].id, servings: 2),
+            PlannedMeal(date: today, recipe: recipes[0], recipeID: recipes[0].id, servings: 4),
+            PlannedMeal(date: Calendar.current.date(byAdding: .day, value: 1, to: today)!, recipe: recipes[1], recipeID: recipes[1].id, servings: 4)
         ]
         store.grocerySync.setHousehold(store.household?.id, items: [
             GroceryItem(name: "Cherry tomatoes", amount: "2 cups", source: "Lemon & herb orzo", position: 0),
@@ -99,8 +98,9 @@ final class HouseholdStore {
         return recipes.flatMap(\.tags).filter { seen.insert($0.lowercased()).inserted }
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
-    func meal(on date: Date, slot: MealSlot) -> PlannedMeal? {
-        meals.first { Calendar.current.isDate($0.date, inSameDayAs: date) && $0.slot == slot }
+    /// A day's meals, in the order they were planned.
+    func meals(on date: Date) -> [PlannedMeal] {
+        meals.filter { Calendar.current.isDate($0.date, inSameDayAs: date) }
     }
 
     // MARK: Session
@@ -519,7 +519,7 @@ final class HouseholdStore {
                 .map { HouseholdMember(userID: $0.userID, displayName: $0.displayName, role: $0.role, avatarURL: $0.avatarURL.flatMap(URL.init)) }
             let favorites = Set(f.map(\.recipeID))
             recipes = r.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }.map { Recipe($0, favorites: favorites) }
-            meals = p.compactMap(PlannedMeal.init)
+            meals = p.sorted { ($0.createdAt ?? .distantPast) < ($1.createdAt ?? .distantPast) }.compactMap(PlannedMeal.init)
         }
     }
 
@@ -798,27 +798,30 @@ final class HouseholdStore {
         latestRecipe(for: meal).map { !$0.hasSameVersion(as: meal.recipe) } ?? false
     }
 
-    /// Plans a recipe in a day's slot, replacing whatever was there, and saves its current version.
-    /// Pass `moving` to relocate an existing meal; with `keepVersion`, it keeps its saved recipe version.
-    func saveMeal(date: Date, slot: MealSlot, recipe: Recipe, servings: Int, moving: PlannedMeal? = nil, keepVersion: Bool = false) {
+    /// Adds a recipe to a day and saves its current version. Pass `editing` to change a meal already in
+    /// the plan; with `keepVersion`, it keeps its saved recipe version.
+    func saveMeal(date: Date, recipe: Recipe, servings: Int, editing: PlannedMeal? = nil, keepVersion: Bool = false) {
         let day = Calendar.current.startOfDay(for: date)
-        let replaced = meal(on: day, slot: slot)
-        let kept = keepVersion ? moving : nil
-        let meal = PlannedMeal(date: day, slot: slot, recipe: kept?.recipe ?? recipe,
+        let kept = keepVersion ? editing : nil
+        let meal = PlannedMeal(id: editing?.id ?? UUID(), date: day, recipe: kept?.recipe ?? recipe,
                                recipeID: kept != nil ? kept?.recipeID : recipe.id, servings: servings)
-        meals.removeAll { $0.id == moving?.id || $0.id == replaced?.id }
-        meals.append(meal)
+        // Meals stay in the order they were first planned, even when moved to another day.
+        if let index = meals.firstIndex(where: { $0.id == editing?.id }) {
+            meals[index] = meal
+        } else {
+            meals.append(meal)
+        }
         guard let id = household?.id else { return }
         let parameters = SaveMealParameters(target_household: id, meal_id: meal.id, meal_date: DayFormat.string(from: day),
-                                            meal_slot: slot.rawValue, meal_recipe: kept == nil ? recipe.id : nil,
-                                            meal_servings: servings, moving_id: moving?.id, keep_version: kept != nil)
+                                            meal_recipe: kept == nil ? recipe.id : nil,
+                                            meal_servings: servings, keep_version: kept != nil)
         save { [client] in try await client.rpc("save_planned_meal", params: parameters).execute() }
     }
 
     /// Replaces a planned meal's saved version with its recipe's latest. Groceries already added stay as they are.
     func updateMealToLatest(_ meal: PlannedMeal) {
         guard let latest = latestRecipe(for: meal), let index = meals.firstIndex(where: { $0.id == meal.id }) else { return }
-        meals[index] = PlannedMeal(id: meal.id, date: meal.date, slot: meal.slot, recipe: latest, recipeID: latest.id, servings: meal.servings)
+        meals[index] = PlannedMeal(id: meal.id, date: meal.date, recipe: latest, recipeID: latest.id, servings: meal.servings)
         save { [client] in try await client.rpc("update_planned_meal_to_latest", params: ["target_meal": meal.id]).execute() }
     }
 

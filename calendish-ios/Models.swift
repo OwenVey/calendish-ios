@@ -279,33 +279,18 @@ enum RecipeScope: String, CaseIterable, Identifiable {
     }
 }
 
-enum MealSlot: String, CaseIterable, Identifiable {
-    case breakfast, lunch, dinner
-    var id: Self { self }
-    var title: String { rawValue.capitalized }
-    var symbol: String {
-        switch self {
-        case .breakfast: "sunrise"
-        case .lunch: "sun.max"
-        case .dinner: "moon"
-        }
-    }
-}
-
 struct PlannedMeal: Identifiable, Hashable {
     var id = UUID()
     var date: Date
-    var slot: MealSlot
     /// The recipe as it was when planned. Later edits or deletion of the source don't change it.
     var recipe: Recipe
     /// The source recipe, while it still exists, for an explicit update to its latest version.
     var recipeID: UUID?
     var servings: Int
 
-    init(id: UUID = UUID(), date: Date, slot: MealSlot, recipe: Recipe, recipeID: UUID?, servings: Int) {
+    init(id: UUID = UUID(), date: Date, recipe: Recipe, recipeID: UUID?, servings: Int) {
         self.id = id
         self.date = date
-        self.slot = slot
         var saved = recipe
         saved.owner = nil
         saved.isFavorite = false
@@ -410,14 +395,5 @@ enum CalendarDays {
     static func week(containing date: Date) -> [Date] {
         let start = startOfWeek(date)
         return (0..<7).map { Calendar.current.date(byAdding: .day, value: $0, to: start)! }
-    }
-
-    /// Two years of weeks on either side of today, for the swipeable week strip.
-    static var plannableWeeks: [Date] {
-        let thisWeek = startOfWeek(.now)
-        return (-104...104).map { Calendar.current.date(byAdding: .weekOfYear, value: $0, to: thisWeek)! }
-    }
-    static var plannableRange: ClosedRange<Date> {
-        plannableWeeks.first!...Calendar.current.date(byAdding: .day, value: 6, to: plannableWeeks.last!)!
     }
 }

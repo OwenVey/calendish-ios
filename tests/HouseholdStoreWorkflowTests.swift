@@ -106,13 +106,14 @@ private actor FixtureServer {
             guard input.keys.contains("meal_recipe") else {
                 return (400, try JSONSerialization.data(withJSONObject: ["code": "PGRST202", "message": "Missing required meal_recipe parameter"]))
             }
+            let existing = meals.first { $0["id"] as? String == input["meal_id"] as? String }
             let source: [String: Any]
-            if input["keep_version"] as? Bool == true {
-                source = meals.first!["recipe"] as! [String: Any]
+            if input["keep_version"] as? Bool == true, let existing {
+                source = existing["recipe"] as! [String: Any]
             } else {
                 source = recipes.first { $0["id"] as? String == input["meal_recipe"] as? String }!
             }
-            meals = [["id": input["meal_id"]!, "household_id": current!.uuidString, "date": input["meal_date"]!, "slot": input["meal_slot"]!, "recipe_id": source["id"]!, "servings": input["meal_servings"]!, "recipe": source]]
+            meals = [["id": input["meal_id"]!, "household_id": current!.uuidString, "date": input["meal_date"]!, "recipe_id": source["id"]!, "servings": input["meal_servings"]!, "recipe": source]]
         default: value = []
         }
         if request.value(forHTTPHeaderField: "Accept")?.contains("vnd.pgrst.object") == true,
@@ -201,7 +202,7 @@ struct HouseholdWorkflowApp: App {
         try expect(store.phase == .ready && store.recipes.first?.title == "Original recipe", "Solo onboarding loads the household and recipes")
         let originalHome = store.household!.id
         let original = store.recipes[0]
-        store.saveMeal(date: .now, slot: .dinner, recipe: original, servings: 6)
+        store.saveMeal(date: .now, recipe: original, servings: 6)
         try await until { store.meals.first?.servings == 6 }
         // Wait for the queued write's authoritative reload before editing the original.
         try await Task.sleep(for: .milliseconds(100))
@@ -211,11 +212,13 @@ struct HouseholdWorkflowApp: App {
         try await Task.sleep(for: .milliseconds(100))
         try expect(store.meals.first?.recipe.steps == ["Cook rice."] && store.meals.first?.servings == 6, "Recipe edits leave saved meal content and servings unchanged")
         let savedMeal = store.meals[0]
-        store.saveMeal(date: savedMeal.date, slot: .lunch, recipe: savedMeal.recipe, servings: 3, moving: savedMeal, keepVersion: true)
+        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: savedMeal.date)!
+        store.saveMeal(date: tomorrow, recipe: savedMeal.recipe, servings: 3, editing: savedMeal, keepVersion: true)
         try await Task.sleep(for: .milliseconds(200))
         await store.refresh()
-        try expect(store.meals.first?.slot == .lunch && store.meals.first?.recipe.steps == ["Cook rice."],
-            "Moving a meal persists its saved version through the Swift RPC encoding")
+        try expect(store.meals.first?.id == savedMeal.id && Calendar.current.isDate(store.meals.first!.date, inSameDayAs: tomorrow)
+            && store.meals.first?.recipe.steps == ["Cook rice."],
+            "Moving a meal keeps its identity and saved version through the Swift RPC encoding")
         let preview = try await store.previewMove(code: "VALID123")
         do {
             try await store.joinHousehold(code: "INVALID", confirmed: preview, saveHouseholdRecipes: false)

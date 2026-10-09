@@ -26,7 +26,6 @@ struct RecipeBookView: View {
     @State private var confirmDelete = false
     @State private var planning: MealSelection?
     @State private var groceryRecipe: Recipe?
-    @AppStorage(MealSlot.enabledStorageKey) private var enabledSlots = MealSlot.allEnabled
     private enum RecipeSheet: Identifiable {
         case manual
         case importing(RecipeImportView.Start)
@@ -98,7 +97,7 @@ struct RecipeBookView: View {
     @ViewBuilder private func actions(for recipe: Recipe) -> some View {
         Section {
             Button("Plan Meal", systemImage: "calendar.badge.plus") {
-                planning = .planning(recipe, store: store, enabledSlots: enabledSlots)
+                planning = MealSelection(recipeID: recipe.id)
             }
             Button("Add to Groceries", systemImage: "basket") { groceryRecipe = recipe }
         }
@@ -307,7 +306,6 @@ struct RecipeDetailView: View {
     /// Servings the cook scaled to, or nil to use the recipe as written.
     @State private var scaledServings: Int?
     @AppStorage(MeasurementPreference.storageKey) private var units = MeasurementPreference.original
-    @AppStorage(MealSlot.enabledStorageKey) private var enabledSlots = MealSlot.allEnabled
     @State private var showImportOutline = false
     @State private var showEditor = false
     @State private var confirmDelete = false
@@ -421,10 +419,10 @@ struct RecipeDetailView: View {
                     Section {
                         Button(plannedMeal == nil ? "Plan Meal" : "Edit Planned Meal", systemImage: "calendar.badge.plus") {
                             if let plannedMeal {
-                                planning = MealSelection(date: plannedMeal.date, slot: plannedMeal.slot, meal: plannedMeal)
+                                planning = MealSelection(date: plannedMeal.date, meal: plannedMeal)
                                 return
                             }
-                            planning = .planning(recipe, store: store, enabledSlots: enabledSlots)
+                            planning = MealSelection(recipeID: recipe.id)
                         }
                         Button("Add to Groceries", systemImage: "basket") { showImportOutline = true }
                         if let link = recipe.recipeLink, let url = RecipeLinkImporter.validatedURL(link) {
