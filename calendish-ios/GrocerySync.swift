@@ -42,7 +42,7 @@ enum GroceryMutation {
     }
 }
 
-/// Owns optimistic groceries and their write/read lifetime for one household.
+/// Owns the household's grocery list, including sync, checked-item expiry, and aisle sorting.
 @MainActor @Observable
 final class GrocerySync {
     private(set) var items: [GroceryItem] = []
@@ -58,20 +58,38 @@ final class GrocerySync {
     private var reloadTask: Task<Void, Error>?
     private var reloadID = UUID()
     private var retryReload = false
+    @ObservationIgnored private let defaults: UserDefaults?
+    @ObservationIgnored private let now: () -> Date
+    @ObservationIgnored private let autoClearInterval: () -> TimeInterval?
+    @ObservationIgnored private let classifyAisles: (([String]) async -> [String: String])?
+    private var checkedAt: [String: Date]
+    private static let checkedAtKey = "groceryCheckedAt"
+    private var aisleTask: Task<Void, Never>?
+    private var sortedNames: [UUID: String] = [:]
 
     init(transport: (any GrocerySyncTransport)?, onChange: @escaping () -> Void = {},
          onError: @escaping (Error) -> Void = { _ in },
-         retryDelay: @escaping () async throws -> Void = { try await Task.sleep(for: .seconds(3)) }) {
+         retryDelay: @escaping () async throws -> Void = { try await Task.sleep(for: .seconds(3)) },
+         defaults: UserDefaults? = nil, now: @escaping () -> Date = { .now },
+         autoClearInterval: @escaping () -> TimeInterval? = { nil },
+         classifyAisles: (([String]) async -> [String: String])? = nil) {
         self.transport = transport
         self.onChange = onChange
         self.onError = onError
         self.retryDelay = retryDelay
+        self.defaults = defaults
+        self.now = now
+        self.autoClearInterval = autoClearInterval
+        self.classifyAisles = classifyAisles
+        checkedAt = defaults?.dictionary(forKey: Self.checkedAtKey) as? [String: Date] ?? [:]
     }
 
     /// Invalidate old work before publishing another household's items.
     func setHousehold(_ id: UUID?, items: [GroceryItem] = []) {
         guard householdID != id || id == nil else { return }
         session = UUID()
+        aisleTask?.cancel(); aisleTask = nil
+        sortedNames = [:]
         cancelReload()
         for task in writes.values { task.cancel() }
         writes.removeAll()
@@ -79,7 +97,60 @@ final class GrocerySync {
         state = GrocerySyncState()
         householdID = id
         self.items = items
+        itemsChanged()
+    }
+
+    var remainingCount: Int { items.filter { !$0.isComplete }.count }
+
+    func clearCompleted() { remove(items.filter(\.isComplete).map(\.id)) }
+
+    func clearAll() { remove(items.map(\.id)) }
+
+    func applyImport(_ changes: GroceryImport) {
+        guard householdID != nil else { return }
+        for (item, original) in changes.updated { update(item, original: original) }
+        insert(changes.added)
+    }
+
+    /// The clock starts when this device first observes a checkmark, including remote checkmarks.
+    func clearExpired() {
+        guard let interval = autoClearInterval() else { return }
+        let cutoff = now().addingTimeInterval(-interval)
+        remove(items.filter { $0.isComplete && checkedAt[$0.id.uuidString].map { $0 <= cutoff } == true }.map(\.id))
+    }
+
+    private func itemsChanged() {
+        let date = now()
+        let checks = Dictionary(items.map { ($0.id.uuidString, $0.isComplete) }, uniquingKeysWith: { first, _ in first })
+        // Missing items may not have loaded yet. Retain their stamps for up to a month.
+        var stamps = checkedAt.filter { id, stamp in checks[id] ?? (date.timeIntervalSince(stamp) < 30 * 86_400) }
+        for (id, checked) in checks where checked && stamps[id] == nil { stamps[id] = date }
+        if stamps != checkedAt {
+            checkedAt = stamps
+            defaults?.set(stamps, forKey: Self.checkedAtKey)
+        }
+        clearExpired()
+        sortIntoAisles()
         onChange()
+    }
+
+    private func sortIntoAisles() {
+        guard aisleTask == nil, householdID != nil, let classifyAisles else { return }
+        let session = session
+        aisleTask = Task { [weak self] in
+            guard let self else { return }
+            defer { if session == self.session { self.aisleTask = nil } }
+            while !Task.isCancelled, session == self.session {
+                let unsorted = self.items.filter { $0.aisle == nil && self.sortedNames[$0.id] != $0.name }
+                guard !unsorted.isEmpty else { return }
+                let aisles = await classifyAisles(Array(Set(unsorted.map(\.name))))
+                guard !Task.isCancelled, session == self.session else { return }
+                // Remember attempted names even if classification omitted one or its save fails.
+                // New or renamed items are picked up by the next batch.
+                for item in unsorted { self.sortedNames[item.id] = item.name }
+                self.assignAisles(aisles)
+            }
+        }
     }
 
     func add(name: String, amount: String = "", source: String = "General") {
@@ -152,7 +223,7 @@ final class GrocerySync {
         let changes = mutation.changes
         for change in changes { change.apply(to: &items) }
         items.sort { $0.position == $1.position ? $0.id.uuidString < $1.id.uuidString : $0.position < $1.position }
-        guard let transport, let householdID else { onChange(); return }
+        guard let transport, let householdID else { itemsChanged(); return }
         let token = state.begin(changes)
         let session = session
         let previous = writeTask
@@ -167,7 +238,7 @@ final class GrocerySync {
             self.requestReload()
         }
         writes[token] = writeTask
-        onChange()
+        itemsChanged()
     }
 
     private func startReload(retrying: Bool) -> Task<Void, Error> {
@@ -190,7 +261,7 @@ final class GrocerySync {
                     guard session == self.session else { return }
                     if revision != self.state.revision { continue }
                     self.items = self.state.merging(serverItems)
-                    self.onChange()
+                    self.itemsChanged()
                     return
                 } catch {
                     guard !Task.isCancelled, session == self.session else { throw CancellationError() }

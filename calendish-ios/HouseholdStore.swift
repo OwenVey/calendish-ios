@@ -30,7 +30,6 @@ final class HouseholdStore {
     var reviews: [RecipeReview] = []
     /// Days the household marked recipes as cooked.
     var cooks: [RecipeCook] = []
-    var groceries: [GroceryItem] { grocerySync.items }
     /// The latest failed save or load, shown as an alert.
     var errorMessage: String?
     var needsPasswordReset = false
@@ -51,17 +50,14 @@ final class HouseholdStore {
     private var savingTasks: [UUID: Task<Void, Never>] = [:]
     private var pendingWrites = 0
     private var writeRevision: UInt64 = 0
-    @ObservationIgnored private lazy var grocerySync = GrocerySync(
+    @ObservationIgnored private(set) lazy var groceries = GrocerySync(
         transport: isPreview ? nil : SupabaseGroceryTransport(client: client),
-        onChange: { [weak self] in self?.sortGroceriesIntoAisles(); self?.noteCheckedGroceries() },
-        onError: { [weak self] error in self?.report(error) })
-    private var aisleTask: Task<Void, Never>?
-    /// When this device first saw each grocery checked off, keyed by item ID. Items don't store it,
-    /// so the clock starts on whichever device notices first.
-    @ObservationIgnored private var checkedAt = UserDefaults.standard.dictionary(forKey: HouseholdStore.checkedAtKey) as? [String: Date] ?? [:]
-    private static let checkedAtKey = "groceryCheckedAt"
-    /// The name each item was last sorted under, so a failed save isn't retried on every refetch.
-    private var sortedNames: [UUID: String] = [:]
+        onError: { [weak self] error in self?.report(error) },
+        defaults: .standard,
+        autoClearInterval: { GroceryAutoClear.current.interval },
+        classifyAisles: isPreview ? nil : { names in
+            await GroceryAisleClassifier.aisles(for: names).mapValues(\.rawValue)
+        })
     /// Replaced whenever the account or household changes, so older work can't publish into the new one.
     private var syncSession = UUID()
 
@@ -98,7 +94,7 @@ final class HouseholdStore {
             RecipeCook(recipeID: recipes[0].id, date: Calendar.current.date(byAdding: .day, value: -21, to: today)!, cookedBy: me),
             RecipeCook(recipeID: recipes[1].id, date: Calendar.current.date(byAdding: .day, value: -45, to: today)!, cookedBy: partner)
         ]
-        store.grocerySync.setHousehold(store.household?.id, items: [
+        store.groceries.setHousehold(store.household?.id, items: [
             GroceryItem(name: "Cherry tomatoes", amount: "2 cups", source: "Lemon & herb orzo", position: 0),
             GroceryItem(name: "Orzo", amount: "1½ cups", source: "Lemon & herb orzo", position: 1),
             GroceryItem(name: "Greek yogurt", amount: "1 tub", source: "General", position: 2),
@@ -109,7 +105,6 @@ final class HouseholdStore {
 
     private init(previewing: Bool) { client = supabase; isPreview = previewing }
 
-    var remainingGroceries: Int { groceries.filter { !$0.isComplete }.count }
     var currentMember: HouseholdMember? { members.first { $0.userID == userID } }
     /// Every tag in the recipe book, sorted, with tags that differ only by case folded together.
     var recipeTags: [String] {
@@ -158,11 +153,9 @@ final class HouseholdStore {
         for task in savingTasks.values { task.cancel() }
         savingTasks.removeAll()
         writeTask?.cancel(); writeTask = nil
-        aisleTask?.cancel(); aisleTask = nil
-        sortedNames = [:]
         pendingWrites = 0
         writeRevision &+= 1
-        grocerySync.setHousehold(nil)
+        groceries.setHousehold(nil)
         household = nil
         members = []; recipes = []; meals = []; notes = []; reviews = []; cooks = []
         await stopRealtime()
@@ -318,7 +311,7 @@ final class HouseholdStore {
     private func enter(_ row: HouseholdRecord) async throws {
         let session = syncSession
         household = Household(id: row.id, name: row.name, inviteCode: row.inviteCode)
-        grocerySync.setHousehold(row.id)
+        groceries.setHousehold(row.id)
         try await reload()
         guard session == syncSession else { throw CancellationError() }
         phase = .ready
@@ -427,7 +420,7 @@ final class HouseholdStore {
                 successor: isOwner ? members.first(where: { $0.userID != userID }).map { .init(userID: $0.userID, displayName: $0.displayName) } : nil,
                 deletesHousehold: members.count == 1, personalRecipes: recipes.filter(isMine).count,
                 sharedRecipes: recipes.filter { isMine($0) && $0.owner?.isShared == true }.count,
-                householdRecipes: recipes.filter { $0.owner == .household }.count, plannedMeals: meals.count, groceries: groceries.count)
+                householdRecipes: recipes.filter { $0.owner == .household }.count, plannedMeals: meals.count, groceries: groceries.items.count)
         }
         return         try await client.rpc("preview_household_move", params: PreviewMoveParameters(code: code.map(HouseholdInvite.normalized)))
             .execute().value
@@ -531,7 +524,7 @@ final class HouseholdStore {
         // Row Level Security limits reviews to this person's and their household's, on recipes they can see.
         async let reviewRows: [RecipeReviewRecord] = fetchRows("recipe_reviews", key: \.id)
         async let cookRows: [RecipeCookRecord] = fetchRows("recipe_cooks", householdID: id, key: \.id)
-        async let groceryRefresh: Void = grocerySync.refresh()
+        async let groceryRefresh: Void = groceries.refresh()
         let (hs, m, r, f, p, n, v, c, _) = try await (householdRows, memberRows, recipeRows, favoriteRows, mealRows, noteRows,
                                                       reviewRows, cookRows, groceryRefresh)
         guard !Task.isCancelled, session == syncSession, household?.id == id else { return }
@@ -584,7 +577,7 @@ final class HouseholdStore {
             await startRealtime()
         }
         await refresh()
-        clearExpiredGroceries()
+        groceries.clearExpired()
     }
 
     /// Listens on the household's topic for shared changes and on the person's own topic
@@ -614,7 +607,7 @@ final class HouseholdStore {
                     // nested under "payload", rather than the inner object alone.
                     guard let table = payload["payload"]?.objectValue?["table"]?.stringValue else { continue }
                     switch table {
-                    case "grocery_items": self.grocerySync.requestReload()
+                    case "grocery_items": self.groceries.requestReload()
                     case "household_members" where subscribed === personalChannel: self.checkMembership()
                     default: self.scheduleReload()
                     }
@@ -654,7 +647,7 @@ final class HouseholdStore {
         realtimeTasks = []
         reloadTask?.cancel()
         reloadTask = nil
-        grocerySync.cancelReload()
+        groceries.cancelReload()
         let previousChannel = channel
         let previousPersonalChannel = personalChannel
         channel = nil
@@ -967,44 +960,6 @@ final class HouseholdStore {
         save { [client] in try await client.from("meal_plan_notes").delete().eq("id", value: note.id).execute() }
     }
 
-    // MARK: Groceries
-
-    func addGrocery(name: String, amount: String = "", source: String = "General") {
-        grocerySync.add(name: name, amount: amount, source: source)
-    }
-
-    func toggleGrocery(_ item: GroceryItem) { grocerySync.toggle(item.id) }
-
-    func reorderGroceries(_ ordered: [GroceryItem]) { grocerySync.reorder(ordered) }
-
-    func removeGroceries(_ items: [GroceryItem]) { grocerySync.remove(items.map(\.id)) }
-
-    func clearCompletedGroceries() { removeGroceries(groceries.filter(\.isComplete)) }
-
-    func clearAllGroceries() { removeGroceries(groceries) }
-
-    /// Removes checked items older than the Clear Checked Items setting allows.
-    func clearExpiredGroceries() {
-        guard let interval = GroceryAutoClear.current.interval else { return }
-        let cutoff = Date.now.addingTimeInterval(-interval)
-        let expired = groceries.filter { $0.isComplete && checkedAt[$0.id.uuidString].map { $0 <= cutoff } == true }
-        if !expired.isEmpty { removeGroceries(expired) }
-    }
-
-    /// Stamps newly checked items and forgets unchecked ones. Items missing from the list, which may just
-    /// not have loaded yet, are forgotten only after a month.
-    private func noteCheckedGroceries() {
-        let now = Date.now
-        let items = Dictionary(groceries.map { ($0.id.uuidString, $0.isComplete) }, uniquingKeysWith: { first, _ in first })
-        var stamps = checkedAt.filter { id, date in items[id] ?? (now.timeIntervalSince(date) < 30 * 86_400) }
-        for (id, isComplete) in items where isComplete && stamps[id] == nil { stamps[id] = now }
-        if stamps != checkedAt {
-            checkedAt = stamps
-            UserDefaults.standard.set(stamps, forKey: Self.checkedAtKey)
-        }
-        clearExpiredGroceries()
-    }
-
     // MARK: Household data
 
     /// Owner only. Deletes household recipes, the meal plan, and grocery items in one transaction, then
@@ -1068,37 +1023,6 @@ final class HouseholdStore {
             if pendingWrites == 0 { await refresh() }
         }
         savingTasks[token] = writeTask
-    }
-
-    func updateGrocery(_ item: GroceryItem, original: GroceryItem) {
-        grocerySync.update(item, original: original)
-    }
-
-    func importGroceries(_ changes: GroceryImport) {
-        guard household != nil else { return }
-        for (item, original) in changes.updated { grocerySync.update(item, original: original) }
-        grocerySync.insert(changes.added)
-    }
-
-    /// Fills in the aisle of every unsorted item, including ones another member added.
-    /// Whichever device gets there first saves the aisle for the whole household.
-    private func sortGroceriesIntoAisles() {
-        guard aisleTask == nil, !isPreview, let id = household?.id else { return }
-        let session = syncSession
-        aisleTask = Task { [weak self] in
-            guard let self else { return }
-            defer { if session == syncSession { aisleTask = nil } }
-            // Repeats for items added or renamed while the previous batch was being sorted.
-            while !Task.isCancelled, session == syncSession, household?.id == id {
-                let unsorted = groceries.filter { $0.aisle == nil && self.sortedNames[$0.id] != $0.name }
-                guard !unsorted.isEmpty else { return }
-                let names = Array(Set(unsorted.map(\.name)))
-                let aisles = await GroceryAisleClassifier.aisles(for: names)
-                guard !Task.isCancelled, session == syncSession, household?.id == id else { return }
-                let assigned = grocerySync.assignAisles(aisles.mapValues(\.rawValue))
-                for item in assigned { sortedNames[item.id] = item.name }
-            }
-        }
     }
 
     private func report(_ error: Error) {

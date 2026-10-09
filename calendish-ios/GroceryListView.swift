@@ -27,15 +27,15 @@ struct GroceryListView: View {
     private var query: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var isSearching: Bool { !query.isEmpty }
     private var matchingItems: [GroceryItem] {
-        guard isSearching else { return store.groceries }
-        return store.groceries.filter { [$0.name, $0.amount, $0.source].contains { $0.localizedCaseInsensitiveContains(query) } }
+        guard isSearching else { return store.groceries.items }
+        return store.groceries.items.filter { [$0.name, $0.amount, $0.source].contains { $0.localizedCaseInsensitiveContains(query) } }
     }
     private var activeScope: GroceryScope { searchPresented ? scope : .all }
     private var activeItems: [GroceryItem] { activeScope == .completed ? [] : matchingItems.filter { !$0.isComplete } }
     private var completedItems: [GroceryItem] { activeScope == .toBuy ? [] : matchingItems.filter(\.isComplete) }
     /// Offer to add the search text when the list has nothing by that exact name, so searching doubles as a duplicate check.
     private var canAddSearch: Bool {
-        isSearching && activeScope != .completed && !store.groceries.contains { $0.name.localizedCaseInsensitiveCompare(query) == .orderedSame }
+        isSearching && activeScope != .completed && !store.groceries.items.contains { $0.name.localizedCaseInsensitiveCompare(query) == .orderedSame }
     }
     /// Sections for the chosen grouping. Items not yet sorted into an aisle wait in an untitled section at the top.
     private var groups: [(title: String?, items: [GroceryItem])] {
@@ -56,11 +56,11 @@ struct GroceryListView: View {
         reordered.move(fromOffsets: source, toOffset: destination)
         var iterator = reordered.makeIterator()
         let ids = Set(items.map(\.id))
-        store.reorderGroceries(store.groceries.map { ids.contains($0.id) ? iterator.next()! : $0 })
+        store.groceries.reorder(store.groceries.items.map { ids.contains($0.id) ? iterator.next()! : $0 })
     }
     private func order(_ aisle: GroceryAisle?) -> Int { aisle.flatMap { GroceryAisle.allCases.firstIndex(of: $0) } ?? -1 }
     private var subtitle: String {
-        switch store.remainingGroceries {
+        switch store.groceries.remainingCount {
         case 0: "All done"
         case 1: "1 item left"
         case let count: "\(count) items left"
@@ -73,7 +73,7 @@ struct GroceryListView: View {
                 if canAddSearch {
                     Section {
                         Button {
-                            store.addGrocery(name: query)
+                            store.groceries.add(name: query)
                             search = ""
                         } label: {
                             Label { Text("Add “\(query)”") } icon: {
@@ -89,7 +89,7 @@ struct GroceryListView: View {
                     Section {
                         ForEach(activeItems) { item in GroceryRow(item: item) }
                             .onMove { move(activeItems, from: $0, to: $1) }
-                            .onDelete { offsets in store.removeGroceries(offsets.map { activeItems[$0] }) }
+                            .onDelete { offsets in store.groceries.remove(offsets.map { activeItems[$0].id }) }
                             .moveDisabled(searchPresented)
                     }
                 } else {
@@ -97,7 +97,7 @@ struct GroceryListView: View {
                         Section {
                             ForEach(group.items) { item in GroceryRow(item: item, showsSources: grouping != .recipe) }
                                 .onMove { move(group.items, from: $0, to: $1) }
-                                .onDelete { offsets in store.removeGroceries(offsets.map { group.items[$0] }) }
+                                .onDelete { offsets in store.groceries.remove(offsets.map { group.items[$0].id }) }
                                 .moveDisabled(searchPresented)
                         } header: {
                             if let title = group.title { Text(title) }
@@ -109,7 +109,7 @@ struct GroceryListView: View {
                         // Search results include completed matches so nothing on the list is hidden from a search.
                         if showCompleted || searchPresented {
                             ForEach(completedItems) { item in GroceryRow(item: item) }
-                                .onDelete { offsets in store.removeGroceries(offsets.map { completedItems[$0] }) }
+                                .onDelete { offsets in store.groceries.remove(offsets.map { completedItems[$0].id }) }
                         }
                     } header: {
                         HStack {
@@ -124,7 +124,7 @@ struct GroceryListView: View {
                 }
             }
             .contentMargins(.bottom, 16, for: .scrollContent)
-            .onAppear { store.clearExpiredGroceries() }
+            .onAppear { store.groceries.clearExpired() }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if addingItem {
                     newItemComposer
@@ -143,15 +143,15 @@ struct GroceryListView: View {
             .onChange(of: newItemFocused) { _, focused in
                 if !focused { addingItem = false }
             }
-            .animation(reduceMotion ? nil : .default, value: store.groceries.map(\.isComplete))
+            .animation(reduceMotion ? nil : .default, value: store.groceries.items.map(\.isComplete))
             .overlay {
-                if searchPresented && activeItems.isEmpty && completedItems.isEmpty && !canAddSearch && !store.groceries.isEmpty {
+                if searchPresented && activeItems.isEmpty && completedItems.isEmpty && !canAddSearch && !store.groceries.items.isEmpty {
                     if isSearching {
                         ContentUnavailableView.search(text: query)
                     } else {
                         ContentUnavailableView(scope == .completed ? "No Completed Items" : "Nothing Left to Buy", systemImage: scope == .completed ? "checkmark.circle" : "basket")
                     }
-                } else if store.groceries.isEmpty && !addingItem {
+                } else if store.groceries.items.isEmpty && !addingItem {
                     ContentUnavailableView("All set for now", systemImage: "basket", description: Text("Tap + to start your household list."))
                         .allowsHitTesting(false)
                 }
@@ -174,12 +174,12 @@ struct GroceryListView: View {
                             Text(grouping.rawValue)
                         }.pickerStyle(.menu)
                         Button("Clear Completed", systemImage: "trash", role: .destructive) { clearCompleted = true }
-                            .disabled(!store.groceries.contains(where: \.isComplete))
+                            .disabled(!store.groceries.items.contains(where: \.isComplete))
                         Button("Clear All", systemImage: "trash.slash", role: .destructive) { clearAll = true }
-                            .disabled(store.groceries.isEmpty)
+                            .disabled(store.groceries.items.isEmpty)
                     } label: { Label("List options", systemImage: "ellipsis") }
                     .confirmationDialog("Clear all completed items?", isPresented: $clearCompleted, titleVisibility: .visible) {
-                        Button("Clear Completed", role: .destructive) { store.clearCompletedGroceries() }
+                        Button("Clear Completed", role: .destructive) { store.groceries.clearCompleted() }
                     }
                 }
                 ToolbarItem(id: "grocery-add", placement: .topBarTrailing) {
@@ -187,7 +187,7 @@ struct GroceryListView: View {
                 }
             }
             .calendishAlert("Clear the Entire Grocery List?", isPresented: $clearAll) {
-                Button("Clear All Items", role: .destructive) { store.clearAllGroceries() }
+                Button("Clear All Items", role: .destructive) { store.groceries.clearAll() }
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("This removes every item, including ones not yet bought, for everyone in your household.")
@@ -263,8 +263,8 @@ struct GroceryListView: View {
         let name = newItem.trimmingCharacters(in: .whitespacesAndNewlines)
         newItem = ""
         guard !name.isEmpty else { return }
-        store.addGrocery(name: name)
-        lastAddedItemID = store.groceries.last?.id
+        store.groceries.add(name: name)
+        lastAddedItemID = store.groceries.items.last?.id
     }
 
 }
@@ -313,7 +313,7 @@ struct GroceryRow: View {
                 if pendingCompletion {
                     pendingCompletion = false
                 } else if item.isComplete {
-                    store.toggleGrocery(item)
+                    store.groceries.toggle(item.id)
                 } else {
                     pendingCompletion = true
                 }
@@ -374,7 +374,7 @@ struct GroceryRow: View {
         .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 20))
         .sensoryFeedback(.selection, trigger: feedback)
         .swipeActions(edge: .trailing) {
-            Button("Remove", systemImage: "trash", role: .destructive) { store.removeGroceries([item]) }
+            Button("Remove", systemImage: "trash", role: .destructive) { store.groceries.remove([item.id]) }
                 .tint(.red)
         }
         .accessibilityAction(named: "Edit Item") { textFocused = true }
@@ -410,10 +410,10 @@ struct GroceryRow: View {
 
     private func commitCompletion() {
         guard pendingCompletion,
-              let current = store.groceries.first(where: { $0.id == item.id }),
+              let current = store.groceries.items.first(where: { $0.id == item.id }),
               !current.isComplete else { return }
         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
-            store.toggleGrocery(current)
+            store.groceries.toggle(current.id)
         }
     }
 
@@ -422,7 +422,7 @@ struct GroceryRow: View {
         editing = false
         textFocused = false
         let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let current = store.groceries.first(where: { $0.id == item.id }) else { return }
+        guard let current = store.groceries.items.first(where: { $0.id == item.id }) else { return }
         guard !trimmed.isEmpty, trimmed != originalLine else {
             line = Self.line(for: current)
             return
@@ -432,13 +432,13 @@ struct GroceryRow: View {
         // Keep the whole edited line together, including any quantity.
         updated.amount = ""
         line = trimmed
-        store.updateGrocery(updated, original: current)
+        store.groceries.update(updated, original: current)
     }
 
     private func move(_ direction: Int) {
-        var items = store.groceries
+        var items = store.groceries.items
         guard let index = items.firstIndex(where: { $0.id == item.id }), items.indices.contains(index + direction) else { return }
         items.swapAt(index, index + direction)
-        store.reorderGroceries(items)
+        store.groceries.reorder(items)
     }
 }

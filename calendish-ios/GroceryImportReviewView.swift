@@ -14,7 +14,7 @@ struct GroceryImportReviewView: View {
     var body: some View {
         NavigationStack {
             List {
-                ForEach(review.sections(groceries: store.groceries, units: units)) { candidate in
+                ForEach(review.sections(groceries: store.groceries.items, units: units)) { candidate in
                     section(for: candidate)
                 }
                 if review.isEmpty {
@@ -26,7 +26,7 @@ struct GroceryImportReviewView: View {
             .navigationSubtitle(review.ingredientCount == 0 ? "" : "\(review.selected.count) of \(review.ingredientCount) selected")
             .sensoryFeedback(.selection, trigger: review.selected)
             .sensoryFeedback(.selection, trigger: review.servings)
-            .onAppear { review.prepare(groceries: store.groceries, units: units) }
+            .onAppear { review.prepare(groceries: store.groceries.items, units: units) }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.toolbarGlyph() }
                 ToolbarItem(placement: .confirmationAction) {
@@ -111,7 +111,7 @@ struct GroceryImportReviewView: View {
     }
 
     private func add() {
-        store.importGroceries(review.groceriesToAdd(groceries: store.groceries, units: units))
+        store.groceries.applyImport(review.groceriesToAdd(groceries: store.groceries.items, units: units))
         dismiss()
     }
 }

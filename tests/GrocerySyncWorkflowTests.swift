@@ -44,7 +44,136 @@ struct GrocerySyncWorkflowTests {
         await editOrderAndAisles()
         try await sharedRefresh()
         try await explicitRefreshFailure()
+        checkedItemExpiry()
+        await automaticAisles()
+        await aisleHouseholdLifetime()
+        reviewedImport()
         print("Grocery sync workflow tests passed")
+    }
+
+    @MainActor
+    static func checkedItemExpiry() {
+        let suite = "grocery-expiry-tests-\(UUID())"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var date = Date(timeIntervalSince1970: 1_000_000)
+        var interval: TimeInterval? = nil
+        let household = UUID()
+        let milk = GroceryItem(name: "Milk", amount: "", source: "General", position: 0)
+        let sync = GrocerySync(transport: nil, defaults: defaults, now: { date }, autoClearInterval: { interval })
+        sync.setHousehold(household, items: [milk])
+        sync.toggle(milk.id)
+        date.addTimeInterval(3600)
+        sync.clearExpired()
+        precondition(sync.items.count == 1, "Never keeps checked groceries")
+        // A persisted stamp survives relaunch and an empty initial household load.
+        let relaunched = GrocerySync(transport: nil, defaults: defaults, now: { date }, autoClearInterval: { interval })
+        relaunched.setHousehold(household)
+        var checked = milk; checked.isComplete = true
+        interval = 3600
+        relaunched.insert([checked])
+        precondition(relaunched.items.isEmpty, "Expiry includes the exact cutoff and survives an empty load")
+
+        interval = nil
+        sync.toggle(milk.id) // Uncheck removes its stamp.
+        date.addTimeInterval(7200)
+        sync.toggle(milk.id)
+        interval = 3600
+        sync.clearExpired()
+        precondition(sync.items.count == 1, "Rechecking starts a fresh clock")
+        date.addTimeInterval(3599)
+        sync.clearExpired()
+        precondition(sync.items.count == 1, "Keep a checkmark younger than the setting")
+        date.addTimeInterval(1)
+        sync.clearExpired()
+        precondition(sync.items.isEmpty)
+
+        interval = nil
+        sync.insert([checked])
+        sync.setHousehold(nil)
+        date.addTimeInterval(30 * 86_400)
+        sync.setHousehold(UUID())
+        sync.insert([checked])
+        interval = 3600
+        sync.clearExpired()
+        precondition(sync.items.count == 1, "Missing stamps expire after a month, so reappearing items start fresh")
+        sync.add(name: "Bread")
+        precondition(sync.remainingCount == 1)
+        sync.clearCompleted()
+        precondition(sync.items.map(\.name) == ["Bread"])
+        sync.clearAll()
+        precondition(sync.items.isEmpty)
+    }
+
+    @MainActor
+    static func automaticAisles() async {
+        let remote = ControlledGroceries()
+        var batches: [([String], CheckedContinuation<[String: String], Never>)] = []
+        let milk = GroceryItem(name: "Milk", amount: "", source: "General", position: 0)
+        let sync = GrocerySync(transport: remote, classifyAisles: { names in
+            await withCheckedContinuation { batches.append((names, $0)) }
+        })
+        sync.setHousehold(UUID(), items: [milk])
+        await until { batches.count == 1 }
+        var renamed = milk; renamed.name = "Oat milk"
+        sync.update(renamed, original: milk)
+        sync.add(name: "Bread")
+        batches[0].1.resume(returning: ["Milk": "dairy"])
+        await until { batches.count == 2 }
+        precondition(sync.items.allSatisfy { $0.aisle == nil }, "Ignore results for a renamed item")
+        precondition(Set(batches[1].0) == ["Oat milk", "Bread"], "Batch items added and renamed during classification")
+        batches[1].1.resume(returning: ["Oat milk": "dairy", "Bread": "bakery"])
+        await until { sync.items.allSatisfy { $0.aisle != nil } && remote.writes.count == 1 }
+        remote.writes[0].completion.resume()
+        await until { remote.writes.count == 2 && remote.reads.count == 1 }
+        remote.writes[1].completion.resume()
+        await until { remote.writes.count == 3 }
+        remote.writes[2].completion.resume(throwing: Failure.offline)
+        // A failed aisle save refetches unsorted items without endlessly classifying them again.
+        remote.reads[0].completion.resume(returning: sync.items)
+        await until { remote.reads.count == 2 }
+        let unsorted = sync.items.map { item in var item = item; item.aisle = nil; return item }
+        remote.reads[1].completion.resume(returning: unsorted)
+        await until { sync.items.allSatisfy { $0.aisle == nil } }
+        for _ in 0..<20 { await Task.yield() }
+        precondition(batches.count == 2, "Do not repeat a failed aisle save on every fetch")
+        sync.setHousehold(nil)
+    }
+
+    @MainActor
+    static func aisleHouseholdLifetime() async {
+        var batches: [CheckedContinuation<[String: String], Never>] = []
+        let milk = GroceryItem(name: "Milk", amount: "", source: "General", position: 0)
+        let sync = GrocerySync(transport: nil, classifyAisles: { _ in
+            await withCheckedContinuation { batches.append($0) }
+        })
+        sync.setHousehold(UUID(), items: [milk])
+        await until { batches.count == 1 }
+        // Reuse the name and ID to prove the session, rather than the item alone, rejects old results.
+        sync.setHousehold(UUID(), items: [milk])
+        await until { batches.count == 2 }
+        batches[0].resume(returning: ["Milk": "produce"])
+        for _ in 0..<20 { await Task.yield() }
+        precondition(sync.items[0].aisle == nil, "An old household's classification cannot publish")
+        batches[1].resume(returning: ["Milk": "dairy"])
+        await until { sync.items[0].aisle == "dairy" }
+        sync.setHousehold(nil)
+    }
+
+    @MainActor
+    static func reviewedImport() {
+        let sync = GrocerySync(transport: nil)
+        let milk = GroceryItem(name: "Milk", amount: "1", source: "General", position: 0)
+        var edited = milk; edited.amount = "2"
+        let bread = GroceryItem(name: "Bread", amount: "", source: "General", position: 1)
+        let changes = GroceryImport(added: [bread], updated: [(edited, milk)])
+        sync.applyImport(changes)
+        precondition(sync.items.isEmpty, "Do not import without a household")
+        sync.setHousehold(UUID(), items: [milk])
+        sync.toggle(milk.id)
+        sync.applyImport(changes)
+        precondition(sync.items[0].amount == "2" && sync.items[0].isComplete, "Import preserves live checkmarks")
+        precondition(sync.items.map(\.id) == [milk.id, bread.id])
     }
 
     @MainActor
