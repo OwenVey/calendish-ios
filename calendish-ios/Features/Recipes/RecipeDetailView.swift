@@ -20,6 +20,8 @@ struct RecipeDetailView: View {
     @State private var isCooking = false
     @State private var planning: MealSelection?
     @State private var sourceToVisit: RecipeSource?
+    @State private var sharing: ActivitySheet.Items?
+    @State private var preparingShare = false
     private struct RecipeSource: Identifiable {
         let url: URL
         var id: String { url.absoluteString }
@@ -146,6 +148,9 @@ struct RecipeDetailView: View {
                         if let link = recipe.recipeLink, let url = RecipeLinkImporter.validatedURL(link) {
                             Button("Visit source", systemImage: "safari") { sourceToVisit = RecipeSource(url: url) }
                         }
+                        Button("Share recipe", systemImage: "square.and.arrow.up") {
+                            Task { await shareRecipe() }
+                        }.disabled(preparingShare)
                     }
                     Section {
                         if plannedMeal == nil {
@@ -225,6 +230,11 @@ struct RecipeDetailView: View {
         .sheet(item: $savedCopy) { copy in NavigationStack { RecipeDetailView(recipe: copy) } }
         .sheet(isPresented: $showEditor) { RecipeEditorView(recipe: recipe) }
         .sheet(item: $planning) { MealPickerView(selection: $0) }
+        .sheet(item: $sharing) { items in
+            ActivitySheet(items: items.values)
+                .presentationDetents([.medium, .large])
+                .ignoresSafeArea()
+        }
         .sheet(item: $sourceToVisit) { source in
             RecipeSourceBrowser(url: source.url)
                 .ignoresSafeArea()
@@ -237,6 +247,17 @@ struct RecipeDetailView: View {
 }
 
 extension RecipeDetailView {
+    /// Shares the recipe as text plus a card image, at the servings and units on screen.
+    private func shareRecipe() async {
+        preparingShare = true
+        defer { preparingShare = false }
+        let share = RecipeShare(recipe: recipe, servings: servings, units: units)
+        let photo: UIImage? = if let path = recipe.imagePath { await RecipePhotos.shared.image(for: path, thumbnail: false) } else { nil }
+        var items: [Any] = [share.text]
+        if let card = RecipeShareCard.image(for: share, photo: photo) { items.append(card) }
+        sharing = ActivitySheet.Items(values: items)
+    }
+
     private var ingredientsSubtitle: String {
         guard isScaled else { return "Check things off as you cook." }
         let scaledYield = recipe.yieldText.map { " · Makes \(Ingredient.scale($0, by: scale))" } ?? ""
