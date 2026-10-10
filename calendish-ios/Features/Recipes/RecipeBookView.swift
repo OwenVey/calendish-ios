@@ -6,7 +6,8 @@ import UniformTypeIdentifiers
 struct RecipeBookView: View {
     @Environment(HouseholdStore.self) private var store
     @State private var search = ""
-    @State private var selectedTag = "All recipes"
+    @State private var selectedCategory: RecipeCategory?
+    @State private var selectedTag: String?
     @State private var scope = RecipeScope.all
     @AppStorage(PreferenceKey.recipeSort) private var sort = RecipeSort.recent
     @AppStorage(PreferenceKey.recipeLayout) private var layout = RecipeLayout.list
@@ -31,7 +32,8 @@ struct RecipeBookView: View {
     private func filteredRecipes(stats: [UUID: RecipeStats]) -> [Recipe] {
         let recipes = store.recipes.filter { recipe in
             scope.includes(recipe, person: store.userID) &&
-            (selectedTag == "All recipes" || recipe.tags.contains { $0.caseInsensitiveCompare(selectedTag) == .orderedSame }) &&
+            (selectedCategory == nil || recipe.category == selectedCategory) &&
+            (selectedTag.map { tag in recipe.tags.contains { $0.caseInsensitiveCompare(tag) == .orderedSame } } ?? true) &&
             (!favoritesOnly || recipe.isFavorite) &&
             (search.isEmpty || ([recipe.title, recipe.summary, recipe.category?.title ?? ""] + recipe.tags + recipe.ingredients.map(\.text)).contains { $0.localizedStandardContains(search) })
         }
@@ -39,10 +41,10 @@ struct RecipeBookView: View {
     }
     private func subtitle(count: Int) -> String {
         let count = count == 1 ? "1 recipe" : "\(count) recipes"
-        let filters = (favoritesOnly ? ["Favorites"] : []) + (selectedTag == "All recipes" ? [] : [selectedTag])
+        let filters = (favoritesOnly ? ["Favorites"] : []) + [selectedCategory?.title, selectedTag].compactMap { $0 }
         return (filters + [count]).joined(separator: " · ")
     }
-    private var isFiltered: Bool { favoritesOnly || selectedTag != "All recipes" }
+    private var isFiltered: Bool { favoritesOnly || selectedCategory != nil || selectedTag != nil }
 
     private func perform(_ action: RecipeBookAction) {
         switch action {
@@ -93,9 +95,24 @@ struct RecipeBookView: View {
                     }
                     Section("Filter") {
                         Toggle("Favorites only", systemImage: "star", isOn: $favoritesOnly)
-                        Picker("Filter", selection: $selectedTag) {
-                            Text("All recipes").tag("All recipes")
-                            ForEach(store.recipeTags, id: \.self) { Text($0).tag($0) }
+                        Picker("Category", selection: $selectedCategory) {
+                            Text("All categories").tag(nil as RecipeCategory?)
+                            ForEach(RecipeCategory.allCases) { category in
+                                Label(category.title, systemImage: category.systemImage).tag(Optional(category))
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        Picker("Tag", selection: $selectedTag) {
+                            Text("All tags").tag(nil as String?)
+                            ForEach(store.recipeTags, id: \.self) { Text($0).tag(Optional($0)) }
+                        }
+                        .pickerStyle(.menu)
+                        if isFiltered {
+                            Button("Clear filters") {
+                                selectedCategory = nil
+                                selectedTag = nil
+                                favoritesOnly = false
+                            }
                         }
                     }
                 } label: {
