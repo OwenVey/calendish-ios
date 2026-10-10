@@ -33,7 +33,7 @@ struct HouseholdMoveView: View {
                     Section(leaving ? "Your new household" : "Household to join") {
                         Text(preview.destination?.name ?? "Your own household").font(.headline)
                         if let destination = preview.destination {
-                            Text(destination.members.joined(separator: ", ")).foregroundStyle(.secondary)
+                            Text(destination.members.formatted()).foregroundStyle(.secondary)
                         } else {
                             Text("A new household for you, with an empty grocery list and meal plan.")
                         }

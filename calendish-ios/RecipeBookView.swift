@@ -1,0 +1,176 @@
+import SwiftUI
+import PhotosUI
+import VisionKit
+import UniformTypeIdentifiers
+
+struct RecipeBookView: View {
+    @Environment(HouseholdStore.self) private var store
+    @State private var search = ""
+    @State private var selectedTag = "All recipes"
+    @State private var scope = RecipeScope.all
+    @AppStorage(PreferenceKey.recipeSort) private var sort = RecipeSort.recent
+    @AppStorage(PreferenceKey.recipeLayout) private var layout = RecipeLayout.list
+    @State private var favoritesOnly = false
+    @State private var sheet: RecipeSheet?
+    @State private var importDrafts = RecipeImportDrafts()
+    @State private var showPhotoPicker = false
+    @State private var photoItems: [PhotosPickerItem] = []
+    @State private var showScanner = false
+    @State private var scannedPages: [Data] = []
+    @State private var showFilePicker = false
+    @State private var fileError: String?
+    @State private var recipeToDelete: Recipe?
+    @State private var planning: MealSelection?
+    @State private var groceryRecipe: Recipe?
+    private enum RecipeSheet: Identifiable {
+        case manual
+        case importing(RecipeImportView.Start)
+        var id: String { if case .manual = self { "manual" } else { "import" } }
+    }
+    /// Filters and sorts once per update; both the stats and the search are costly over a large book.
+    private func filteredRecipes(stats: [UUID: RecipeStats]) -> [Recipe] {
+        let recipes = store.recipes.filter { recipe in
+            scope.includes(recipe, person: store.userID) &&
+            (selectedTag == "All recipes" || recipe.tags.contains { $0.caseInsensitiveCompare(selectedTag) == .orderedSame }) &&
+            (!favoritesOnly || recipe.isFavorite) &&
+            (search.isEmpty || ([recipe.title, recipe.summary, recipe.category?.title ?? ""] + recipe.tags + recipe.ingredients.map(\.text)).contains { $0.localizedStandardContains(search) })
+        }
+        return sort.sorted(recipes, stats: stats)
+    }
+    private func subtitle(count: Int) -> String {
+        let count = count == 1 ? "1 recipe" : "\(count) recipes"
+        let filters = (favoritesOnly ? ["Favorites"] : []) + (selectedTag == "All recipes" ? [] : [selectedTag])
+        return (filters + [count]).joined(separator: " · ")
+    }
+    private var isFiltered: Bool { favoritesOnly || selectedTag != "All recipes" }
+
+    private func perform(_ action: RecipeBookAction) {
+        switch action {
+        case .plan(let recipe): planning = MealSelection(recipeID: recipe.id)
+        case .addToGroceries(let recipe): groceryRecipe = recipe
+        case .delete(let recipe): recipeToDelete = recipe
+        }
+    }
+
+    var body: some View {
+        let stats = store.recipeStats
+        let recipes = filteredRecipes(stats: stats)
+        Group {
+            switch layout {
+            case .list:
+                RecipeBookList(recipes: recipes, stats: stats, showsLastCooked: sort.showsLastCooked, scope: $scope, perform: perform)
+            case .grid:
+                RecipeBookGrid(recipes: recipes, stats: stats, showsLastCooked: sort.showsLastCooked, scope: $scope, perform: perform)
+            }
+        }
+        .overlay {
+            if recipes.isEmpty {
+                if store.recipes.isEmpty {
+                    ContentUnavailableView("Your recipe book starts here", systemImage: "book.closed", description: Text("Add a recipe or import one from a link, text, photo, or PDF."))
+                } else if favoritesOnly && search.isEmpty && !store.recipes.contains(where: \.isFavorite) {
+                    ContentUnavailableView("No favorites yet", systemImage: "star", description: Text("Open a recipe’s actions menu and choose Add to favorites."))
+                } else {
+                    ContentUnavailableView("No matching recipes", systemImage: "book.closed", description: Text("Try another search or change the filters."))
+                }
+            }
+        }
+        .navigationTitle("Recipes")
+        .tabRootStyle()
+        .navigationSubtitle(subtitle(count: recipes.count))
+        .searchable(text: $search, prompt: "Search recipes and ingredients")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Section("View as") {
+                        Picker("View as", selection: $layout) {
+                            ForEach(RecipeLayout.allCases) { Label($0.title, systemImage: $0.symbol).tag($0) }
+                        }
+                    }
+                    Section("Sort by") {
+                        Picker("Sort by", selection: $sort) {
+                            ForEach(RecipeSort.allCases) { Text($0.title).tag($0) }
+                        }
+                    }
+                    Section("Filter") {
+                        Toggle("Favorites only", systemImage: "star", isOn: $favoritesOnly)
+                        Picker("Filter", selection: $selectedTag) {
+                            Text("All recipes").tag("All recipes")
+                            ForEach(store.recipeTags, id: \.self) { Text($0).tag($0) }
+                        }
+                    }
+                } label: {
+                    Label("View, sort, and filter", systemImage: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("Write a recipe", systemImage: "square.and.pencil") { sheet = .manual }
+                    Section {
+                        Button("Import from link", systemImage: "link") { sheet = .importing(.link) }
+                        Button("Paste recipe text", systemImage: "doc.on.clipboard") { sheet = .importing(.text) }
+                    }
+                    Section {
+                        if VNDocumentCameraViewController.isSupported {
+                            Button("Scan with camera", systemImage: "doc.viewfinder") { showScanner = true }
+                        }
+                        Button("Choose photos", systemImage: "photo.on.rectangle") { showPhotoPicker = true }
+                        Button("Choose file", systemImage: "folder") { showFilePicker = true }
+                    }
+                } label: { Label("New recipe", systemImage: "plus") }
+            }
+        }
+        .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }
+        .calendishAlert("Delete “\(recipeToDelete?.title ?? "recipe")”?", item: $recipeToDelete) { recipe in
+            Button("Delete recipe", role: .destructive) { store.deleteRecipe(recipe) }
+            Button("Cancel", role: .cancel) { }
+        } message: { recipe in
+            Text(store.deletionExplanation(for: recipe))
+        }
+        // Drop a link, text, images, or a PDF from another app, as on iPad.
+        .dropDestination(for: RecipeImport.self) { items, _ in
+            guard let item = RecipeImport.combined(items) else { return false }
+            sheet = .importing(.content(item))
+            return true
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $photoItems, maxSelectionCount: 10, selectionBehavior: .ordered, matching: .images, preferredItemEncoding: .compatible)
+        .onChange(of: photoItems) { _, items in
+            guard !items.isEmpty else { return }
+            sheet = .importing(.photos(items))
+            photoItems = []
+        }
+        .fullScreenCover(isPresented: $showScanner, onDismiss: {
+            guard !scannedPages.isEmpty else { return }
+            sheet = .importing(.content(.images(scannedPages)))
+            scannedPages = []
+        }) {
+            DocumentScanner { scannedPages = $0 }.ignoresSafeArea()
+        }
+        .fileImporter(isPresented: $showFilePicker, allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { result in
+            guard case .success(let urls) = result else { return }
+            do {
+                let items = try urls.map { url -> RecipeImport in
+                    let isScoped = url.startAccessingSecurityScopedResource()
+                    defer { if isScoped { url.stopAccessingSecurityScopedResource() } }
+                    let data = try Data(contentsOf: url)
+                    return UTType(filenameExtension: url.pathExtension)?.conforms(to: .pdf) == true ? .pdf(data) : .images([data])
+                }
+                if let item = RecipeImport.combined(items) { sheet = .importing(.content(item)) }
+            } catch {
+                fileError = InterfaceCopy.failure(error, action: "open the file", recovery: "Choose another file and try again.")
+            }
+        }
+        .calendishAlert("Couldn’t open file", item: $fileError) { _ in
+            Button("OK", role: .cancel) {}
+        } message: { Text($0) }
+        .sheet(item: $sheet) { destination in
+            switch destination {
+            case .manual: RecipeEditorView()
+            case .importing(let start): RecipeImportView(start: start, drafts: $importDrafts)
+            }
+        }
+        .sheet(item: $planning) { MealPickerView(selection: $0) }
+        .sheet(item: $groceryRecipe) { recipe in
+            GroceryImportReviewView(candidates: [GroceryImportCandidate(recipe: recipe, servings: recipe.servings)])
+        }
+    }
+}

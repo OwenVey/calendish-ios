@@ -1,12 +1,6 @@
 import SwiftUI
 import PhotosUI
 
-/// What's been typed or pasted, kept by the presenter so it survives closing the sheet.
-struct RecipeImportDrafts {
-    var link = ""
-    var text = ""
-}
-
 /// The one way recipes come in from outside the app: links, pasted text, photos, scans, files,
 /// drops, and shares. Reads the recipe, then hands it to the editor to review and save.
 struct RecipeImportView: View {
@@ -50,10 +44,37 @@ struct RecipeImportView: View {
     var body: some View {
         Group {
             switch phase {
-            case .link: linkForm
-            case .text: textForm
-            case .reading(let message): status { ProgressView(message) }
-            case .failed(let message, let recognizedText): status { failure(message, recognizedText: recognizedText) }
+            case .link:
+                RecipeImportComposeForm(title: "Import from link", draft: $drafts.link, error: composeError,
+                                        onImport: importDraft, onPaste: paste, onClear: { clearDraft($drafts.link) }) {
+                    TextField("https://example.com/recipe", text: $drafts.link)
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityLabel("Recipe link")
+                        .submitLabel(.go)
+                        .onSubmit { importDraft(drafts.link) }
+                } header: {
+                    Text("Recipe link")
+                } footer: {
+                    Text("Paste a link to a recipe page, or to an Instagram, TikTok, or YouTube post.")
+                }
+            case .text:
+                RecipeImportComposeForm(title: "Import from text", draft: $drafts.text, error: composeError,
+                                        onImport: importDraft, onPaste: paste, onClear: { clearDraft($drafts.text) }) {
+                    TextField("Recipe text", text: $drafts.text, prompt: Text("Paste a recipe"), axis: .vertical)
+                        .lineLimit(10...)
+                } header: {
+                    Text("Recipe text")
+                } footer: {
+                    Text("Copy a recipe from a website, note, or message, including its ingredients or instructions.")
+                }
+            case .reading(let message):
+                RecipeImportStatus { ProgressView(message) }
+            case .failed(let message, let recognizedText):
+                RecipeImportStatus {
+                    RecipeImportFailure(message: message, recognizedText: recognizedText, onEditText: editRecognizedText)
+                }
             case .done(let imported): RecipeEditorView(imported: imported)
             }
         }
@@ -156,43 +177,6 @@ struct RecipeImportView: View {
 
     // MARK: Link and text
 
-    private var linkForm: some View {
-        composeForm(title: "Import from link", draft: $drafts.link) {
-            TextField("https://example.com/recipe", text: $drafts.link)
-                .keyboardType(.URL)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .accessibilityLabel("Recipe link")
-                .submitLabel(.go)
-                .onSubmit { importDraft(drafts.link) }
-        } header: {
-            Text("Recipe link")
-        } footer: {
-            Text("Paste a link to a recipe page, or to an Instagram, TikTok, or YouTube post.")
-        }
-    }
-
-    private var textForm: some View {
-        composeForm(title: "Import from text", draft: $drafts.text) {
-            TextEditor(text: $drafts.text)
-                .frame(minHeight: 240)
-                .accessibilityLabel("Recipe text")
-                .overlay(alignment: .topLeading) {
-                    if drafts.text.isEmpty {
-                        Text("Paste a recipe")
-                            .foregroundStyle(.tertiary)
-                            .padding(.top, 8)
-                            .padding(.leading, 5)
-                            .allowsHitTesting(false)
-                    }
-                }
-        } header: {
-            Text("Recipe text")
-        } footer: {
-            Text("Copy a recipe from a website, note, or message, including its ingredients or instructions.")
-        }
-    }
-
     /// Either form takes either kind of input: a link pasted as text is still imported as a link.
     private func importDraft(_ draft: String) {
         guard !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
@@ -201,63 +185,6 @@ struct RecipeImportView: View {
             read(.link(url, text: linkText.text))
         } else {
             read(content)
-        }
-    }
-
-    private func composeForm(title: String, draft: Binding<String>, @ViewBuilder field: () -> some View,
-                             @ViewBuilder header: () -> some View, @ViewBuilder footer: () -> some View) -> some View {
-        NavigationStack {
-            Form {
-                Section {
-                    field()
-                } header: {
-                    HStack {
-                        header()
-                        Spacer()
-                        // Accepts a link, text, an image, or a PDF, without the paste permission prompt.
-                        PasteButton(payloadType: RecipeImport.self) { items in
-                            Task { @MainActor in paste(items) }
-                        }
-                        .labelStyle(.titleAndIcon)
-                        .buttonBorderShape(.capsule)
-                        .controlSize(.small)
-                    }
-                } footer: {
-                    footer()
-                }
-                Section {
-                    Button { importDraft(draft.wrappedValue) } label: {
-                        Text("Import")
-                            .font(.headline)
-                            .frame(maxWidth: .infinity, minHeight: 36)
-                    }
-                    .disabled(draft.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .modifier(GlassActionStyle(prominent: true))
-                    .controlSize(.large)
-                }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
-                if let composeError {
-                    Section {
-                        Text(composeError).foregroundStyle(.red)
-                    }
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .contentMargins(.top, 12, for: .scrollContent)
-            .listSectionSpacing(16)
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", role: .cancel) { dismiss() }.toolbarGlyph()
-                }
-                if !draft.wrappedValue.isEmpty {
-                    ToolbarItem(placement: .primaryAction) {
-                        Button("Clear", systemImage: "xmark.circle") { draft.wrappedValue = ""; composeError = nil }.toolbarGlyph()
-                    }
-                }
-            }
         }
     }
 
@@ -278,36 +205,14 @@ struct RecipeImportView: View {
         }
     }
 
-    // MARK: Status
-
-    private func status(@ViewBuilder content: () -> some View) -> some View {
-        NavigationStack {
-            content()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .navigationTitle("Import recipe")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Cancel", role: .cancel) { dismiss() }.toolbarGlyph()
-                    }
-                }
-        }
+    private func clearDraft(_ draft: Binding<String>) {
+        draft.wrappedValue = ""
+        composeError = nil
     }
 
-    private func failure(_ message: String, recognizedText: String?) -> some View {
-        ContentUnavailableView {
-            Label("Couldn’t read recipe", systemImage: "text.viewfinder")
-        } description: {
-            Text(message)
-        } actions: {
-            if let recognizedText {
-                Button("Edit text") {
-                    drafts.text = recognizedText
-                    composeError = nil
-                    phase = .text
-                }
-                .modifier(GlassActionStyle(prominent: true))
-            }
-        }
+    private func editRecognizedText(_ text: String) {
+        drafts.text = text
+        composeError = nil
+        phase = .text
     }
 }

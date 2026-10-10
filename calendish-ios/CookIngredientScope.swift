@@ -1,0 +1,8 @@
+import Foundation
+
+/// Which ingredients cook mode's panel lists.
+enum CookIngredientScope: String, CaseIterable, Identifiable {
+    case all = "All ingredients"
+    case currentStep = "Current step"
+    var id: Self { self }
+}

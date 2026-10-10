@@ -55,7 +55,8 @@ nonisolated enum IngredientParser {
     ]
 
     private static let quantity = #"(?:\d+\s+\d+/\d+|\d+/\d+|\d+(?:[.,]\d+)?(?:\s?[¼½¾⅓⅔⅛⅜⅝⅞])?|[¼½¾⅓⅔⅛⅜⅝⅞])"#
-    private static let amountPattern = try! Regex(#"^\s*"# + quantity + #"(?:\s*(?:[-–]|to)\s*"# + quantity + ")?")
+    /// Compiled once. `Regex` isn't marked Sendable, but matching never mutates it.
+    nonisolated(unsafe) private static let amountPattern = try! Regex(#"^\s*"# + quantity + #"(?:\s*(?:[-–]|to)\s*"# + quantity + ")?")
 
     /// The leading amount in a line, including its unit when it has one: "1½ cups" in "1½ cups orzo", or "2" in "2 large eggs".
     static func amountRange(in line: String) -> Range<String.Index>? {

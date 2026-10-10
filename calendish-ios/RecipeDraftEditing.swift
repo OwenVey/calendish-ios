@@ -101,7 +101,7 @@ final class RecipeDraftEditing {
         let typed = fields.newTag.trimmingCharacters(in: .whitespacesAndNewlines)
         return knownTags.filter { suggestion in
             !fields.tags.contains { $0.caseInsensitiveCompare(suggestion) == .orderedSame } &&
-            (typed.isEmpty || suggestion.localizedCaseInsensitiveContains(typed))
+            (typed.isEmpty || suggestion.localizedStandardContains(typed))
         }
     }
 

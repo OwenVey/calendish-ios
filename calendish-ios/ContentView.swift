@@ -2,10 +2,6 @@ import SwiftUI
 import GoogleSignIn
 import Supabase
 
-enum AppTab: Hashable {
-    case recipes, plan, groceries, settings
-}
-
 struct ContentView: View {
     @State private var store: HouseholdStore
     @State private var timers = CookingTimers.shared
@@ -32,7 +28,7 @@ struct ContentView: View {
             case .loading: LoadingView()
             case .signedOut: SignInView()
             case .onboarding: HouseholdSetupView()
-            case .ready: tabs
+            case .ready: AppTabView(selection: $selectedTab)
             }
         }
         .animation(.easeOut(duration: 0.3), value: store.phase)
@@ -52,7 +48,7 @@ struct ContentView: View {
                         Button("Cancel timer: \(timer.recipeTitle), step \(timer.stepIndex + 1)", role: .destructive) { timers.cancel(timer) }
                     }
                 } label: {
-                    Label("\(timers.timers.count) \(timers.timers.count == 1 ? "timer" : "timers") running", systemImage: "timer").frame(minHeight: 44)
+                    Label("^[\(timers.timers.count) timer](inflect: true) running", systemImage: "timer").frame(minHeight: 44)
                 }
                 .frame(maxWidth: .infinity).background(CalendishStyle.surface)
             }
@@ -75,10 +71,10 @@ struct ContentView: View {
             else if url.scheme == "calendish" { supabase.auth.handle(url) }
             else { GIDSignIn.sharedInstance.handle(url) }
         }
-        .sheet(item: Binding(get: { store.inviteToReview }, set: { store.inviteToReview = $0 })) { invite in
+        .sheet(item: $store.inviteToReview) { invite in
             HouseholdMoveView(code: invite.code).environment(store)
         }
-        .sheet(isPresented: Binding(get: { store.needsPasswordReset }, set: { store.needsPasswordReset = $0 })) { PasswordResetView().environment(store) }
+        .sheet(isPresented: $store.needsPasswordReset) { PasswordResetView().environment(store) }
         .onChange(of: scenePhase) { _, phase in
             // Catch up on anything missed while Realtime was disconnected in the background.
             if phase == .active, store.phase == .ready { Task { await store.resumeSync() } }
@@ -91,11 +87,9 @@ struct ContentView: View {
                 .environment(store)
                 .onAppear { SharedInbox.remove(share.id) }
         }
-        .calendishAlert(store.errorTitle, isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) {
+        .calendishAlert(store.errorTitle, item: $store.errorMessage) { _ in
             Button("OK") {}
-        } message: {
-            Text(store.errorMessage ?? "")
-        }
+        } message: { Text($0) }
         .menuStyle(CalendishMenuStyle())
     }
 
@@ -104,38 +98,6 @@ struct ContentView: View {
         guard store.phase == .ready, sharedImport == nil, let share = SharedInbox.next() else { return }
         selectedTab = .recipes
         sharedImport = SharedImport(id: share.id, item: share.item)
-    }
-
-    private var tabs: some View {
-        TabView(selection: $selectedTab) {
-            Tab("Recipes", systemImage: "book.closed", value: .recipes) {
-                NavigationStack { RecipeBookView() }
-            }
-            Tab("Meal plan", systemImage: "calendar", value: .plan) {
-                NavigationStack { MealPlanView() }
-            }
-            Tab("Groceries", systemImage: "basket", value: .groceries) {
-                NavigationStack { GroceryListView() }
-            }
-            Tab("Settings", systemImage: "gearshape", value: .settings) {
-                NavigationStack { SettingsView() }
-            }
-        }
-    }
-}
-
-/// Matches the launch screen (a plain LaunchBackground) so there's no flash, only showing a spinner if loading runs long.
-private struct LoadingView: View {
-    @State private var showSpinner = false
-    var body: some View {
-        ZStack {
-            Color("LaunchBackground").ignoresSafeArea()
-            if showSpinner { ProgressView("Loading Calendish") }
-        }
-        .task {
-            try? await Task.sleep(for: .seconds(1))
-            showSpinner = true
-        }
     }
 }
 

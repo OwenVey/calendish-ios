@@ -1,33 +1,5 @@
 import Foundation
 
-nonisolated struct ImportedRecipe {
-    var recipe: Recipe
-    var photo: Data?
-}
-
-/// A page as it arrived, after following any redirects.
-nonisolated struct LoadedPage: Sendable {
-    var url: URL
-    var status: Int
-    var data: Data
-
-    var isSuccess: Bool { (200..<300).contains(status) }
-    var text: String? { String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) }
-}
-
-/// How importing reaches the web. Tests replace it with recorded pages.
-nonisolated struct PageLoader: Sendable {
-    var load: @Sendable (URL) async throws -> LoadedPage
-
-    static let network = PageLoader { url in
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 30
-        let (data, response) = try await URLSession.shared.data(for: request)
-        let http = response as? HTTPURLResponse
-        return LoadedPage(url: http?.url ?? url, status: http?.statusCode ?? 0, data: data)
-    }
-}
-
 /// Reads the recipe metadata published by recipe sites, without guessing missing ingredients.
 nonisolated enum RecipeLinkImporter {
     static func validatedURL(_ input: String) -> URL? {

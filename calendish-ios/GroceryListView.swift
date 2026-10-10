@@ -1,22 +1,5 @@
 import SwiftUI
 
-enum GroceryGrouping: String, CaseIterable, Identifiable {
-    case none = "None", recipe = "Recipe", aisle = "Aisle"
-    var id: Self { self }
-}
-
-enum GroceryScope: String, CaseIterable, Identifiable {
-    case all = "All", toBuy = "To Buy", completed = "Completed"
-    var id: Self { self }
-    var title: String {
-        switch self {
-        case .all: "All"
-        case .toBuy: "To buy"
-        case .completed: "Checked"
-        }
-    }
-}
-
 struct GroceryListView: View {
     @Environment(HouseholdStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -35,17 +18,17 @@ struct GroceryListView: View {
     private var isSearching: Bool { !query.isEmpty }
     private var matchingItems: [GroceryItem] {
         guard isSearching else { return store.groceries.items }
-        return store.groceries.items.filter { [$0.name, $0.amount, $0.source].contains { $0.localizedCaseInsensitiveContains(query) } }
+        return store.groceries.items.filter { [$0.name, $0.amount, $0.source].contains { $0.localizedStandardContains(query) } }
     }
     private var activeScope: GroceryScope { searchPresented ? scope : .all }
-    private var activeItems: [GroceryItem] { activeScope == .completed ? [] : matchingItems.filter { !$0.isComplete } }
-    private var completedItems: [GroceryItem] { activeScope == .toBuy ? [] : matchingItems.filter(\.isComplete) }
+    private func activeItems(in matching: [GroceryItem]) -> [GroceryItem] { activeScope == .completed ? [] : matching.filter { !$0.isComplete } }
+    private func completedItems(in matching: [GroceryItem]) -> [GroceryItem] { activeScope == .toBuy ? [] : matching.filter(\.isComplete) }
     /// Offer to add the search text when the list has nothing by that exact name, so searching doubles as a duplicate check.
     private var canAddSearch: Bool {
         isSearching && activeScope != .completed && !store.groceries.items.contains { $0.name.localizedCaseInsensitiveCompare(query) == .orderedSame }
     }
     /// Sections for the chosen grouping. Items not yet sorted into an aisle wait in an untitled section at the top.
-    private var groups: [(title: String?, items: [GroceryItem])] {
+    private func groups(of activeItems: [GroceryItem]) -> [(title: String?, items: [GroceryItem])] {
         switch grouping {
         case .none: [(title: String?.none, items: activeItems)]
         case .recipe:
@@ -75,6 +58,11 @@ struct GroceryListView: View {
     }
 
     var body: some View {
+        // Filtered once per update; the list, its overlay, and its delete actions all read these.
+        let matchingItems = matchingItems
+        let activeItems = activeItems(in: matchingItems)
+        let completedItems = completedItems(in: matchingItems)
+        let canAddSearch = canAddSearch
         ScrollViewReader { scroll in
             List {
                 if canAddSearch {
@@ -100,7 +88,7 @@ struct GroceryListView: View {
                             .moveDisabled(searchPresented)
                     }
                 } else {
-                    ForEach(groups, id: \.title) { group in
+                    ForEach(groups(of: activeItems), id: \.title) { group in
                         Section {
                             ForEach(group.items) { item in GroceryRow(item: item, showsSources: grouping != .recipe) }
                                 .onMove { move(group.items, from: $0, to: $1) }
@@ -135,7 +123,8 @@ struct GroceryListView: View {
             .onAppear { store.groceries.clearExpired() }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if addingItem {
-                    newItemComposer
+                    GroceryItemComposer(text: $newItem, isFocused: $newItemFocused, onCancel: cancelAddingItem,
+                                        onAdd: addAnotherItem, onSubmit: submitNewItem)
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
                         .padding(.bottom, 12)
@@ -206,55 +195,6 @@ struct GroceryListView: View {
         }
     }
 
-    private var newItemComposer: some View {
-        HStack(spacing: 12) {
-            Button("Cancel new item", systemImage: "xmark", action: cancelAddingItem)
-                .labelStyle(.iconOnly)
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .frame(width: 44, height: 44)
-                .contentShape(Circle())
-
-            TextField("e.g. 3 tbsp olive oil", text: $newItem)
-                .font(.body)
-                .textFieldStyle(.plain)
-                .focused($newItemFocused)
-                .submitLabel(.done)
-                .onSubmit {
-                    addNewItem()
-                    addingItem = false
-                    newItemFocused = false
-                }
-                .accessibilityLabel("New grocery item")
-
-            Button {
-                addNewItem()
-                newItemFocused = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(canAddItem ? CalendishStyle.onAccent : Color.secondary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .glassEffect(canAddItem ? .regular.tint(CalendishStyle.accent).interactive() : .regular, in: .circle)
-            .disabled(!canAddItem)
-            .accessibilityLabel("Add item")
-        }
-        .padding(12)
-        .glassEffect(.regular, in: .rect(cornerRadius: 26))
-        .task {
-            await Task.yield()
-            guard !Task.isCancelled else { return }
-            newItemFocused = true
-        }
-    }
-
-    private var canAddItem: Bool {
-        !newItem.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
     private func beginAddingItem() {
         search = ""
         searchPresented = false
@@ -262,6 +202,17 @@ struct GroceryListView: View {
         addingItem = true
         if newItemFocused { return }
         // The composer's task focuses its field once it enters the layout.
+    }
+
+    private func addAnotherItem() {
+        addNewItem()
+        newItemFocused = true
+    }
+
+    private func submitNewItem() {
+        addNewItem()
+        addingItem = false
+        newItemFocused = false
     }
 
     private func cancelAddingItem() {
@@ -278,178 +229,4 @@ struct GroceryListView: View {
         lastAddedItemID = store.groceries.items.last?.id
     }
 
-}
-
-/// Lines the add-from-search row up with grocery rows' checkmark column.
-private struct GroceryAddLabelStyle: LabelStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 16) {
-            configuration.icon
-            configuration.title.font(.body.weight(.medium))
-            Spacer()
-        }
-        .contentShape(Rectangle())
-    }
-}
-
-struct GroceryRow: View {
-    let item: GroceryItem
-    /// Lists an item's recipes under it when there are several, unless its section header already does.
-    var showsSources = true
-    @Environment(HouseholdStore.self) private var store
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var feedback = false
-    @State private var pendingCompletion = false
-    @State private var editing = false
-    @State private var line: String
-    @State private var originalLine = ""
-    @FocusState private var textFocused: Bool
-
-    init(item: GroceryItem, showsSources: Bool = true) {
-        self.item = item
-        self.showsSources = showsSources
-        _line = State(initialValue: Self.line(for: item))
-    }
-
-    private static func line(for item: GroceryItem) -> String {
-        [item.amount, item.name].filter { !$0.isEmpty }.joined(separator: " ")
-    }
-
-    private var isChecked: Bool { item.isComplete || pendingCompletion }
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Button {
-                finishEditing()
-                if pendingCompletion {
-                    pendingCompletion = false
-                } else if item.isComplete {
-                    store.groceries.toggle(item.id)
-                } else {
-                    pendingCompletion = true
-                }
-                feedback.toggle()
-            } label: {
-                Image(systemName: isChecked ? "checkmark.circle.fill" : "circle")
-                    .font(.title2)
-                    .foregroundStyle(isChecked ? CalendishStyle.accent : Color.secondary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isChecked ? "Uncheck \(Self.line(for: item))" : "Check off \(Self.line(for: item))")
-            .accessibilityValue(isChecked ? "Checked" : "Unchecked")
-
-            VStack(alignment: .leading, spacing: 2) {
-                TextField("Grocery item", text: $line, axis: .vertical)
-                    .font(.body.weight(.medium))
-                    .textFieldStyle(.plain)
-                    .focused($textFocused)
-                    .submitLabel(.done)
-                    .foregroundStyle(textFocused ? Color.primary : Color.clear)
-                    .overlay(alignment: .leading) {
-                        if !textFocused {
-                            IngredientLineText(line: line)
-                                .font(.body.weight(.medium))
-                                .strikethrough(isChecked)
-                                .foregroundStyle(isChecked ? .secondary : .primary)
-                                .allowsHitTesting(false)
-                                .accessibilityHidden(true)
-                        }
-                    }
-                    .onSubmit { finishEditing() }
-                    .onChange(of: line) { _, updatedLine in
-                        // A vertical TextField inserts a newline from the software
-                        // keyboard's Done key instead of invoking onSubmit.
-                        if textFocused && updatedLine.contains("\n") {
-                            line = updatedLine.replacingOccurrences(of: "\n", with: "")
-                            finishEditing()
-                        }
-                    }
-                    .accessibilityLabel("Grocery item")
-                    .accessibilityHint("Edit name and quantity")
-                if showsSources && item.sources.count > 1 {
-                    Text(item.sources.formatted(.list(type: .and)))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel("For \(item.sources.formatted(.list(type: .and)))")
-                }
-            }
-            .padding(.vertical, showsSources && item.sources.count > 1 ? 6 : 0)
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-            .contentShape(Rectangle())
-            .onTapGesture { textFocused = true }
-        }
-        .frame(minHeight: 44)
-        // The circle's tap target includes 8 points on either side of its glyph.
-        .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 20))
-        .sensoryFeedback(.selection, trigger: feedback)
-        .swipeActions(edge: .trailing) {
-            Button("Remove", systemImage: "trash", role: .destructive) { store.groceries.remove([item.id]) }
-                .tint(.red)
-        }
-        .accessibilityAction(named: "Edit item") { textFocused = true }
-        .accessibilityAction(named: "Move up") { move(-1) }
-        .accessibilityAction(named: "Move down") { move(1) }
-        .onChange(of: textFocused) { _, focused in
-            if focused {
-                originalLine = line
-                editing = true
-            } else {
-                finishEditing()
-            }
-        }
-        .onChange(of: Self.line(for: item)) { _, updatedLine in
-            if !editing { line = updatedLine }
-        }
-        .task(id: pendingCompletion) {
-            guard pendingCompletion else { return }
-            // Let the filled checkmark register before moving into Completed.
-            do { try await Task.sleep(for: .milliseconds(450)) } catch { return }
-            guard !Task.isCancelled else { return }
-            commitCompletion()
-        }
-        .onChange(of: item.isComplete) { _, completed in
-            if completed { pendingCompletion = false }
-        }
-        .onDisappear {
-            finishEditing()
-            // Leaving the tab or scrolling away must still save the checkoff.
-            commitCompletion()
-        }
-    }
-
-    private func commitCompletion() {
-        guard pendingCompletion,
-              let current = store.groceries.items.first(where: { $0.id == item.id }),
-              !current.isComplete else { return }
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
-            store.groceries.toggle(current.id)
-        }
-    }
-
-    private func finishEditing() {
-        guard editing else { return }
-        editing = false
-        textFocused = false
-        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let current = store.groceries.items.first(where: { $0.id == item.id }) else { return }
-        guard !trimmed.isEmpty, trimmed != originalLine else {
-            line = Self.line(for: current)
-            return
-        }
-        var updated = current
-        updated.name = trimmed
-        // Keep the whole edited line together, including any quantity.
-        updated.amount = ""
-        line = trimmed
-        store.groceries.update(updated, original: current)
-    }
-
-    private func move(_ direction: Int) {
-        var items = store.groceries.items
-        guard let index = items.firstIndex(where: { $0.id == item.id }), items.indices.contains(index + direction) else { return }
-        items.swapAt(index, index + direction)
-        store.groceries.reorder(items)
-    }
 }

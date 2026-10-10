@@ -1,0 +1,47 @@
+import SwiftUI
+
+/// A recipe's photo with its title and time below, for the recipe book's grid.
+struct RecipeCard: View {
+    @Environment(HouseholdStore.self) private var store
+    let recipe: Recipe
+    var stats: RecipeStats?
+    var showsLastCooked = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            RecipeArtwork(recipe: recipe)
+                .aspectRatio(1, contentMode: .fit)
+                .overlay(alignment: .topTrailing) {
+                    if recipe.isFavorite {
+                        Image(systemName: "star.fill")
+                            .font(.caption)
+                            .foregroundStyle(.yellow)
+                            .padding(6)
+                            .background(.ultraThinMaterial, in: .circle)
+                            .padding(8)
+                            .accessibilityLabel("Favorite")
+                    }
+                }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(recipe.title).font(.headline).lineLimit(2)
+                HStack(spacing: 4) {
+                    Image(systemName: "clock").font(.caption2).accessibilityHidden(true)
+                    Text("\(recipe.minutes) min")
+                    if let rating = stats?.averageRating {
+                        Image(systemName: "star.fill").font(.caption2).padding(.leading, 4).accessibilityHidden(true)
+                        Text(RecipeRow.formatted(rating)).accessibilityLabel(InterfaceCopy.rating(RecipeRow.formatted(rating)))
+                    }
+                    if store.isMine(recipe) && recipe.owner?.isShared == false {
+                        Image(systemName: "lock.fill").font(.caption2).accessibilityLabel("Only me")
+                    }
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                if showsLastCooked {
+                    Text(CookedHistory.lastCookedText(stats?.history)).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+        .contentShape(.rect)
+    }
+}

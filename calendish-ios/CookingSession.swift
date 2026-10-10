@@ -137,7 +137,8 @@ final class CookingSession {
         photoLoad?.cancel()
         photoLoad = nil
         let previous = snapshot
-        let activities = Activity<CookingActivityAttributes>.activities
+        // Only activities running now; one started later belongs to a new session.
+        let activityIDs = Set(Activity<CookingActivityAttributes>.activities.map(\.id))
         snapshot = nil
         persist()
         // Every way of finishing, in the app or from the Live Activity, counts toward cooked history.
@@ -147,7 +148,7 @@ final class CookingSession {
         }
         activityWarning = nil
         enqueue {
-            for activity in activities {
+            for activity in Activity<CookingActivityAttributes>.activities where activityIDs.contains(activity.id) {
                 // Capture the session before awaiting so a newly started activity isn't ended.
                 guard previous == nil || activity.attributes.sessionID == previous?.id else { continue }
                 var state = activity.content.state

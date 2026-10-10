@@ -1,55 +1,6 @@
 import Foundation
 import Observation
 
-/// What hands-free cooking hears from the local speech boundary.
-enum HandsFreeHearing: Sendable {
-    /// Recognized speech. Only a final result is a complete utterance; its ID identifies it across redelivery.
-    case utterance(id: String, text: String, isFinal: Bool)
-    /// A call, Siri, or another app took the microphone.
-    case interrupted
-    /// Capture or recognition stopped unexpectedly, including capture ending by itself.
-    case failed
-}
-
-enum HandsFreeAvailability: Equatable {
-    case ready
-    /// The on-device speech model must be downloaded first.
-    case needsPreparation
-    case unavailable(String)
-}
-
-/// The on-device microphone, recognition, and speech-feedback boundary.
-@MainActor
-protocol HandsFreeSpeech: AnyObject {
-    func requestMicrophoneAccess() async -> Bool
-    func availability() async -> HandsFreeAvailability
-    /// Installs missing speech models, reporting progress from 0 to 1. Cancelled with its task.
-    func prepare(progress: @escaping @MainActor (Double) -> Void) async throws
-    /// Starts capture, reporting what's heard until listening stops.
-    func listen(_ hear: @escaping @MainActor (HandsFreeHearing) -> Void)
-    func stopListening()
-    /// Speaks feedback, returning when it ends. Microphone input is ignored meanwhile.
-    func speak(_ text: String) async
-    func stopSpeaking()
-}
-
-/// A short, standalone spoken command. Commands embedded in longer speech don't count.
-enum HandsFreeCommand: Equatable {
-    case next, back, startTimer
-
-    init?(utterance: String) {
-        let words = utterance.lowercased()
-            .split { !$0.isLetter && $0 != "'" }
-            .joined(separator: " ")
-        switch words {
-        case "next", "next step": self = .next
-        case "back", "go back": self = .back
-        case "start timer", "start the timer": self = .startTimer
-        default: return nil
-        }
-    }
-}
-
 /// Hands-free cook mode: listens for spoken commands while Cook Mode is visible, acting on the
 /// shared cooking session and timers so voice and touch always agree on the current step.
 @MainActor @Observable
