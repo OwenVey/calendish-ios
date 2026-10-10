@@ -50,7 +50,7 @@ Save recipes from anywhere, plan the week together, shop from one live list, and
 - **Add from recipes or planned meals.** Review each ingredient, adjust servings, and skip what you already have. Matching items are merged, so "3 onions" covers both the stew and the tacos.
 - **Aisle grouping** using on-device Apple Intelligence, or group by recipe.
 - Checked items can be cleared by hand or automatically.
-- **Add with Siri or Shortcuts.** Say "Add apples to Calendish" and Siri adds them without opening the app.
+- **Add with Siri or Shortcuts.** On iOS 27, say "Add apples to Calendish" and Siri adds them without opening the app.
 
 ### 🏠 Households
 
