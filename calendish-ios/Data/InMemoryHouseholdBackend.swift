@@ -132,7 +132,7 @@ final class InMemoryHouseholdBackend: HouseholdBackend, GrocerySyncTransport {
             if let index = snapshot.meals.firstIndex(where: { $0.id == meal }), let recipe = snapshot.recipes.first(where: { $0.id == snapshot.meals[index].recipeID }) {
                 snapshot.meals[index].recipe = recipe
             }
-        case .removeMeal(let meal): snapshot.meals.removeAll { $0.id == meal }
+        case .removeMeals(let ids): snapshot.meals.removeAll { ids.contains($0.id) }
         case let .saveNote(note, target):
             guard target == id else { throw CocoaError(.fileWriteNoPermission) }
             if let index = snapshot.notes.firstIndex(where: { $0.id == note.id }) { snapshot.notes[index] = note }

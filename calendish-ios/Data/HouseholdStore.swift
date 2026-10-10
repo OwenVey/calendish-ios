@@ -732,9 +732,14 @@ final class HouseholdStore {
         save(.updateMeal(meal.id))
     }
 
-    func removeMeal(_ meal: PlannedMeal) {
-        meals.removeAll { $0.id == meal.id }
-        save(.removeMeal(meal.id))
+    func removeMeal(_ meal: PlannedMeal) { removeMeals([meal]) }
+
+    /// Removes several planned meals in one write.
+    func removeMeals(_ removed: [PlannedMeal]) {
+        let ids = Set(removed.map(\.id))
+        guard !ids.isEmpty else { return }
+        meals.removeAll { ids.contains($0.id) }
+        save(.removeMeals(Array(ids)))
     }
 
     /// Adds a note to the meal plan, or saves changes to one already there.

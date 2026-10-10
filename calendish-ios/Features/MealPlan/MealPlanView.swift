@@ -96,6 +96,12 @@ struct MealPlanView: View {
                             Button("This week", systemImage: "calendar.day.timeline.left") { reviewGroceries(weeksFromNow: 0) }
                             Button("Next week", systemImage: "calendar.day.timeline.right") { reviewGroceries(weeksFromNow: 1) }
                         }
+                        Section {
+                            Button("Clear meal plan", systemImage: "trash", role: .destructive) {
+                                removing = PlanRemoval(meals: store.meals, clearsPlan: true)
+                            }
+                            .disabled(store.meals.isEmpty)
+                        }
                     }
                     .menuStyle(CalendishMenuStyle())
                 }
@@ -117,7 +123,7 @@ struct MealPlanView: View {
     }
 
     private func remove(_ removal: PlanRemoval) {
-        removal.meals.forEach(store.removeMeal)
+        store.removeMeals(removal.meals)
         removal.notes.forEach(store.removeNote)
     }
 

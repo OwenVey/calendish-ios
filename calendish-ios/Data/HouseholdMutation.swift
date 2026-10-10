@@ -16,7 +16,7 @@ enum HouseholdMutation {
     case removeCooked(household: UUID, recipe: UUID, day: Date)
     case saveMeal(PlannedMeal, household: UUID, keepVersion: Bool)
     case updateMeal(UUID)
-    case removeMeal(UUID)
+    case removeMeals([UUID])
     case saveNote(MealPlanNote, household: UUID)
     case removeNote(UUID)
 
@@ -33,7 +33,7 @@ enum HouseholdMutation {
         case .favorite: "update favorites"
         case .review: "save your recipe note or rating"
         case .markCooked, .removeCooked: "update cooking history"
-        case .saveMeal, .updateMeal, .removeMeal: "confirm the meal plan change"
+        case .saveMeal, .updateMeal, .removeMeals: "confirm the meal plan change"
         case .saveNote, .removeNote: "confirm the meal-plan note change"
         }
     }

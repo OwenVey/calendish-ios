@@ -120,7 +120,7 @@ final class SupabaseHouseholdBackend: HouseholdBackend {
                 meal_recipe: keepVersion ? nil : meal.recipeID, meal_servings: meal.servings, keep_version: keepVersion)
             try await client.rpc("save_planned_meal", params: parameters).execute()
         case .updateMeal(let id): try await client.rpc("update_planned_meal_to_latest", params: ["target_meal": id]).execute()
-        case .removeMeal(let id): try await client.from("planned_meals").delete().eq("id", value: id).execute()
+        case .removeMeals(let ids): try await client.from("planned_meals").delete().in("id", values: ids).execute()
         case let .saveNote(note, household): try await client.from("meal_plan_notes").upsert(note.record(household: household)).execute()
         case .removeNote(let id): try await client.from("meal_plan_notes").delete().eq("id", value: id).execute()
         }
