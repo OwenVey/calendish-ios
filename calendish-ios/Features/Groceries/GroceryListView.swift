@@ -12,6 +12,7 @@ struct GroceryListView: View {
     @State private var searchPresented = false
     @State private var scope = GroceryScope.all
     @State private var addingItem = false
+    @State private var pastingItems = false
     @State private var lastAddedItemID: UUID?
     @FocusState private var newItemFocused: Bool
     private var query: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -164,6 +165,10 @@ struct GroceryListView: View {
                 ToolbarItem(id: "grocery-edit", placement: .topBarLeading) { EditButton().toolbarGlyph() }
                 ToolbarItem(id: "grocery-options", placement: .topBarTrailing) {
                     Menu {
+                        Button("Paste grocery list", systemImage: "doc.on.clipboard") {
+                            cancelAddingItem()
+                            pastingItems = true
+                        }
                         Picker(selection: $grouping) {
                             ForEach(GroceryGrouping.allCases) { Text($0.rawValue).tag($0) }
                         } label: {
@@ -192,6 +197,7 @@ struct GroceryListView: View {
             } message: {
                 Text("This removes every item, including ones not yet bought, for everyone in your household.")
             }
+            .sheet(isPresented: $pastingItems) { GroceryPasteView() }
         }
     }
 

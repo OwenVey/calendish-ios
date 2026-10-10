@@ -1,6 +1,44 @@
 import XCTest
 
 final class GrocerySearchUITests: XCTestCase {
+    func testPastedListCanBeReviewedWithoutAddingItems() {
+        continueAfterFailure = false
+        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
+        app.launch()
+        XCTAssertTrue(app.buttons["Groceries"].waitForExistence(timeout: 10))
+        app.buttons["Groceries"].tap()
+        app.buttons["List options"].tap()
+        app.buttons["Paste grocery list"].tap()
+        let editor = app.textViews["Grocery list to paste"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertFalse(app.buttons["Review items"].isEnabled)
+        editor.tap()
+        editor.typeText("- Milk\n\n- 2 eggs\n[ ] Bread")
+        app.buttons["Review items"].tap()
+        XCTAssertTrue(app.buttons["Add 3 items"].waitForExistence(timeout: 5), app.debugDescription)
+        // The household list remains in the accessibility tree behind the sheet.
+        let review = app.collectionViews.containing(NSPredicate(format: "value == %@", "Milk")).firstMatch
+        let fields = review.textFields.matching(identifier: "Grocery item")
+        XCTAssertEqual(fields.count, 3, app.debugDescription)
+        XCTAssertEqual(fields.element(boundBy: 0).value as? String, "Milk")
+        XCTAssertEqual(fields.element(boundBy: 1).value as? String, "2 eggs")
+        fields.element(boundBy: 2).tap()
+        fields.element(boundBy: 2).typeText(" rolls")
+        let edited = fields.element(boundBy: 2).value as? String ?? ""
+        XCTAssertTrue(edited.contains("Bread") && edited.contains("rolls"), "The reviewed item should retain typed edits")
+        fields.element(boundBy: 0).swipeLeft()
+        app.buttons["Delete"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["Add 2 items"].exists, app.debugDescription)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Pasted groceries reviewed and edited"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        app.navigationBars["Review items"].buttons.element(boundBy: 0).tap()
+        app.buttons["Cancel"].tap()
+        app.buttons["Discard list"].tap()
+        XCTAssertTrue(app.buttons["List options"].waitForExistence(timeout: 5))
+    }
+
     func testSearchClosesWithOneTapAndStaysClosed() {
         continueAfterFailure = false
         let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")

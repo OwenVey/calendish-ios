@@ -47,6 +47,7 @@ Save recipes from anywhere, plan the week together, shop from one live list, and
 ### 🛒 Groceries
 
 - One shared checklist that syncs live across the household.
+- **Paste a grocery list.** Paste one item per line from Messages or Notes, then edit or remove items before adding them together.
 - **Add from recipes or planned meals.** Review each ingredient, adjust servings, and skip what you already have. Matching items are merged, so "3 onions" covers both the stew and the tacos.
 - **Aisle grouping** using on-device Apple Intelligence, or group by recipe.
 - Checked items can be cleared by hand or automatically.
