@@ -1,10 +1,55 @@
 # Source groups for the swiftc-built logic tests. Each type lives in its own file,
 # so a test names the groups it needs rather than individual files.
-APP=calendish-ios
-MODEL_SOURCES=($APP/{InterfaceCopy,Ingredient,MeasurementPreference,Recipe,RecipeCategory,RecipeOwner,RecipeScope,PlannedMeal,MealPlanNote,RecipeReview,GroceryItem,Household,HouseholdInvite,HouseholdMember,SampleRecipes,WeekStart,CalendarDays}.swift)
-PREFERENCE_SOURCES=($APP/{PreferenceKey,RecipeSort,RecipeLayout,GroceryAutoClear,TimerAlert}.swift)
-COOKED_HISTORY_SOURCES=($APP/{CookedHistory,RecipeCook,CookedDay,FinishedCook,FinishedCooks}.swift)
-GROCERY_IMPORT_REVIEW_SOURCES=($APP/{GroceryImportReview,GroceryImportCandidate}.swift)
-GROCERY_MERGE_SOURCES=($APP/{GroceryMerge,GroceryImport}.swift)
-GROCERY_SYNC_SOURCES=($APP/{GrocerySync,GrocerySyncTransport,GroceryFields,GroceryMutation}.swift)
-RECIPE_LINK_IMPORTER_SOURCES=($APP/{RecipeLinkImporter,ImportedRecipe,LoadedPage,PageLoader}.swift)
+MODEL_SOURCES=(
+  calendish-ios/UI/InterfaceCopy.swift
+  calendish-ios/Features/Recipes/Ingredient.swift
+  calendish-ios/Features/Recipes/MeasurementPreference.swift
+  calendish-ios/Features/Recipes/Recipe.swift
+  calendish-ios/Features/Recipes/RecipeCategory.swift
+  calendish-ios/Features/Recipes/RecipeOwner.swift
+  calendish-ios/Features/Recipes/RecipeScope.swift
+  calendish-ios/Features/MealPlan/PlannedMeal.swift
+  calendish-ios/Features/MealPlan/MealPlanNote.swift
+  calendish-ios/Features/Recipes/RecipeReview.swift
+  calendish-ios/Features/Groceries/GroceryItem.swift
+  calendish-ios/Features/Account/Household.swift
+  calendish-ios/Features/Account/HouseholdInvite.swift
+  calendish-ios/Features/Account/HouseholdMember.swift
+  calendish-ios/Features/Recipes/SampleRecipes.swift
+  calendish-ios/Features/MealPlan/WeekStart.swift
+  calendish-ios/Features/MealPlan/CalendarDays.swift
+)
+PREFERENCE_SOURCES=(
+  calendish-ios/App/PreferenceKey.swift
+  calendish-ios/Features/Recipes/RecipeSort.swift
+  calendish-ios/Features/Recipes/RecipeLayout.swift
+  calendish-ios/Features/Groceries/GroceryAutoClear.swift
+  calendish-ios/Features/Cooking/TimerAlert.swift
+)
+COOKED_HISTORY_SOURCES=(
+  calendish-ios/Features/Recipes/CookedHistory.swift
+  calendish-ios/Features/Recipes/RecipeCook.swift
+  calendish-ios/Features/Recipes/CookedDay.swift
+  calendish-ios/Features/Cooking/FinishedCook.swift
+  calendish-ios/Features/Cooking/FinishedCooks.swift
+)
+GROCERY_IMPORT_REVIEW_SOURCES=(
+  calendish-ios/Features/Groceries/GroceryImportReview.swift
+  calendish-ios/Features/Groceries/GroceryImportCandidate.swift
+)
+GROCERY_MERGE_SOURCES=(
+  calendish-ios/Features/Groceries/GroceryMerge.swift
+  calendish-ios/Features/Groceries/GroceryImport.swift
+)
+GROCERY_SYNC_SOURCES=(
+  calendish-ios/Features/Groceries/GrocerySync.swift
+  calendish-ios/Features/Groceries/GrocerySyncTransport.swift
+  calendish-ios/Features/Groceries/GroceryFields.swift
+  calendish-ios/Features/Groceries/GroceryMutation.swift
+)
+RECIPE_LINK_IMPORTER_SOURCES=(
+  calendish-ios/Features/Recipes/Import/RecipeLinkImporter.swift
+  calendish-ios/Features/Recipes/Import/ImportedRecipe.swift
+  calendish-ios/Features/Recipes/Import/LoadedPage.swift
+  calendish-ios/Features/Recipes/Import/PageLoader.swift
+)

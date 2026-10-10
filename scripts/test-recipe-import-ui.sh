@@ -10,7 +10,7 @@ if [[ -z "$DEVICE_ID" ]]; then
   exit 1
 fi
 mkdir -p "$TEST_DIR/RecipeImportUITests.xcodeproj/xcshareddata/xcschemes"
-cp tests/RecipeImportUITests.swift "$TEST_DIR/RecipeImportUITests.swift"
+cp tests/Recipes/RecipeImportUITests.swift "$TEST_DIR/RecipeImportUITests.swift"
 cat > "$TEST_DIR/RecipeImportUITests.xcodeproj/project.pbxproj" <<'EOF'
 // !$*UTF8*$!
 {

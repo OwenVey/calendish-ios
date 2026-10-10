@@ -37,28 +37,48 @@ The app points at the hosted Supabase project (`wgtrbwbfazdizkevtwfp`). The publ
 
 ## Project structure
 
-```
+```text
 calendish-ios/
-├── calendish_iosApp.swift        App entry point
-├── ContentView.swift             Tab bar: Recipes, Meal Plan, Groceries
-├── HouseholdStore.swift          Auth, household data, saving, and Realtime sync
-├── Backend.swift                 Supabase client and row mapping
-├── Models.swift                  Recipe, meal, and grocery models
-├── RecipeViews.swift             Recipe book, detail, and forms
-├── RecipePhotos.swift            Photo picking, uploads, and caching
-├── CookModeView.swift            Step-by-step cooking view
-├── MealPlanView.swift            Scrolling days of planned meals
-├── GroceryListView.swift         Grocery checklist
-├── GroceryImportReviewView.swift Review screen for imported groceries
-├── AccountViews.swift            Sign-in and household setup
-├── SettingsView.swift            Household and account settings
-└── Components.swift              Shared UI pieces
-supabase/
-├── config.toml                   Auth and project settings
-└── migrations/                   Schema and Row Level Security policies
-scripts/
-└── run-sim.sh                    Build and relaunch in the simulator
+├── App/                         Entry point, root navigation, links, preferences
+├── Features/
+│   ├── Recipes/                 Recipe book, detail, editing, reviews, history
+│   │   └── Import/              Links, text, photos, scans, PDF, social posts
+│   ├── Cooking/                 Cook mode, sessions, ingredients, timers
+│   │   └── HandsFree/           Speech recognition and spoken commands
+│   ├── MealPlan/                Planned meals, notes, days, meal selection
+│   ├── Groceries/               Checklist, aisles, import review, merging, sync
+│   ├── Account/                 Sign-in, profiles, household setup and moves
+│   └── Settings/                Settings screens and supporting controls
+├── UI/                          Reusable styles, controls, layout, interface copy
+│   └── Photos/                  Shared photo-picking controls
+├── Data/                        HouseholdStore, backends, subscriptions
+│   ├── Records/                 Database row representations
+│   └── Parameters/              Backend operation inputs
+├── Assets.xcassets/              App colors and images
+├── Info.plist
+└── calendish-ios.entitlements
+ShareExtension/                  Share extension target
+Shared/                          Code shared by the app and share extension
+CookingActivityExtension/        Live Activity extension target
+CookingActivityShared/           Code shared by the app and Live Activity target
+tests/                           Account, Cooking, Data, Groceries, Recipes
+supabase/                        Backend configuration and database migrations
+scripts/                         Build, deployment, and regression checks
+└── support/                     Test source groups and simulator harness builder
+docs/                            Feature notes, research, reviews, agent guidance
+└── adr/                         Architecture decisions
 ```
+
+Keep views, models, and behavior together in the feature that owns them, even when
+another feature uses them. Put reusable UI in `UI/` and backend plumbing in `Data/`.
+`Shared/` and `CookingActivityShared/` are for code compiled into multiple targets.
+Add subfolders when a feature has a distinct cluster of related files rather than
+creating a separate folder for every type of Swift declaration.
+
+Xcode uses filesystem-synchronized folders, so files under the app and extension
+roots are discovered automatically. When moving app or test files, also update
+`scripts/support/sources.zsh`, explicit paths in the regression scripts, and the
+app-entry-point exclusion in `scripts/support/household-test-project.py`.
 
 ## Backend
 

@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 DEVICE_ID="$(xcrun simctl list devices booted -j | python3 -c 'import json,sys; d=[x for v in json.load(sys.stdin)["devices"].values() for x in v]; print(d[0]["udid"] if d else "")')"
 [[ -n "$DEVICE_ID" ]] || { echo "No booted simulator." >&2; exit 1; }
-python3 scripts/support/household-test-project.py tests/RecipeDraftEditingTests.swift recipe-draft RecipeDraftWorkflow owenvey.calendish-recipe-draft
+python3 scripts/support/household-test-project.py tests/Recipes/RecipeDraftEditingTests.swift recipe-draft RecipeDraftWorkflow owenvey.calendish-recipe-draft
 LOG="$PWD/.build/recipe-draft/build.log"
 xcodebuild -project .build/recipe-draft/Workflow.xcodeproj -scheme RecipeDraftWorkflow \
   -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath .build/sim \

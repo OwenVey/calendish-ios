@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 DEVICE_ID="$(xcrun simctl list devices booted -j | python3 -c 'import json,sys; d=[x for v in json.load(sys.stdin)["devices"].values() for x in v]; print(d[0]["udid"] if d else "")')"
 [[ -n "$DEVICE_ID" ]] || { echo "No booted simulator." >&2; exit 1; }
 BUNDLE_ID=owenvey.calendish-hands-free-workflow
-python3 scripts/support/household-test-project.py tests/HandsFreeCookingWorkflowTests.swift hands-free-workflow HandsFreeWorkflow "$BUNDLE_ID"
+python3 scripts/support/household-test-project.py tests/Cooking/HandsFreeCookingWorkflowTests.swift hands-free-workflow HandsFreeWorkflow "$BUNDLE_ID"
 LOG="$PWD/.build/hands-free-workflow/build.log"
 xcodebuild -project .build/hands-free-workflow/Workflow.xcodeproj -scheme HandsFreeWorkflow \
   -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath .build/sim \
