@@ -41,11 +41,14 @@ GROCERY_MERGE_SOURCES=(
   calendish-ios/Features/Groceries/GroceryMerge.swift
   calendish-ios/Features/Groceries/GroceryImport.swift
 )
-GROCERY_SYNC_SOURCES=(
-  calendish-ios/Features/Groceries/GrocerySync.swift
+GROCERY_TRANSPORT_SOURCES=(
   calendish-ios/Features/Groceries/GrocerySyncTransport.swift
   calendish-ios/Features/Groceries/GroceryFields.swift
   calendish-ios/Features/Groceries/GroceryMutation.swift
+)
+GROCERY_SYNC_SOURCES=(
+  calendish-ios/Features/Groceries/GrocerySync.swift
+  $GROCERY_TRANSPORT_SOURCES
 )
 RECIPE_LINK_IMPORTER_SOURCES=(
   calendish-ios/Features/Recipes/Import/RecipeLinkImporter.swift

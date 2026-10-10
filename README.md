@@ -50,6 +50,7 @@ Save recipes from anywhere, plan the week together, shop from one live list, and
 - **Add from recipes or planned meals.** Review each ingredient, adjust servings, and skip what you already have. Matching items are merged, so "3 onions" covers both the stew and the tacos.
 - **Aisle grouping** using on-device Apple Intelligence, or group by recipe.
 - Checked items can be cleared by hand or automatically.
+- **Add with Siri or Shortcuts.** Say "Add apples to Calendish" and Siri adds them without opening the app.
 
 ### 🏠 Households
 
@@ -116,6 +117,7 @@ calendish-ios/
 │   │   └── HandsFree/           Speech recognition and spoken commands
 │   ├── MealPlan/                Planned meals, notes, days, meal selection
 │   ├── Groceries/               Checklist, aisles, import review, merging, sync
+│   │   └── Siri/                Siri, Shortcuts, and Spotlight grocery adds
 │   ├── Account/                 Sign-in, profiles, household setup and moves
 │   └── Settings/                Settings screens and supporting controls
 ├── UI/                          Reusable styles, controls, layout, interface copy
@@ -169,7 +171,7 @@ Swift checks compile production sources with focused tests from `tests/`. UI che
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | Recipes    | `test-recipe-import.sh`, `test-recipe-import-ui.sh`, `test-recipe-draft.sh`, `test-recipe-observation.sh`, `test-recipe-stats.sh`, `test-cooked-history.sh` |
 | Cooking    | `test-hands-free-cooking.sh`, `test-cook-mode-ui.sh`                                                                                            |
-| Groceries  | `test-grocery-sync.sh`, `test-grocery-import-review.sh`, `test-grocery-aisles.sh`, `test-grocery-search-ui.sh`                                    |
+| Groceries  | `test-grocery-sync.sh`, `test-grocery-import-review.sh`, `test-grocery-aisles.sh`, `test-grocery-search-ui.sh`, `test-spoken-grocery-add.sh`      |
 | Households | `test-household-workflow.sh`, then `test-household-ui.sh`                                                                                       |
 
 All commands live in `scripts/`. `test-household-workflow.sh` builds a separate simulator app from production sources and runs the store through a controlled HTTP client, covering lost responses, delayed reads, sign-out races, and invitation continuation. `test-household-ui.sh` runs against that fixture app, which does not alter your signed-in app's data.

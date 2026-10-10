@@ -9,6 +9,8 @@ import SwiftUI
 
 @main
 struct calendish_iosApp: App {
+    @UIApplicationDelegateAdaptor private var appDelegate: AppDelegate
+
     init() { PreferenceKey.registerDefaults() }
 
     var body: some Scene {
