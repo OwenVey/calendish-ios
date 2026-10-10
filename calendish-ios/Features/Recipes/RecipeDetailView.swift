@@ -95,24 +95,30 @@ struct RecipeDetailView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     SectionHeading(title: "Ingredients", subtitle: ingredientsSubtitle)
                     RecipeServingsStepper(servings: servings, recipeServings: recipe.servings, scaledServings: $scaledServings)
-                    ForEach(recipe.ingredients) { ingredient in
-                        Button {
-                            if checked.contains(ingredient.id) { checked.remove(ingredient.id) }
-                            else { checked.insert(ingredient.id) }
-                        } label: {
-                            HStack(spacing: 14) {
-                                Image(systemName: checked.contains(ingredient.id) ? "checkmark.circle.fill" : "circle")
-                                    .font(.title3).foregroundStyle(checked.contains(ingredient.id) ? CalendishStyle.accent : Color.secondary)
-                                IngredientLineText(line: ingredient.display(scale: scale, units: units)).strikethrough(checked.contains(ingredient.id)).foregroundStyle(.primary)
-                                Spacer()
-                            }.padding(.vertical, 12).contentShape(Rectangle())
-                        }.buttonStyle(.plain)
-                            .accessibilityValue(checked.contains(ingredient.id) ? "Checked" : "Unchecked")
-                        Divider()
+                    VStack(spacing: 0) {
+                        ForEach(recipe.ingredients) { ingredient in
+                            Button {
+                                if checked.contains(ingredient.id) { checked.remove(ingredient.id) }
+                                else { checked.insert(ingredient.id) }
+                            } label: {
+                                HStack(spacing: 14) {
+                                    Image(systemName: checked.contains(ingredient.id) ? "checkmark.circle.fill" : "circle")
+                                        .font(.title3).foregroundStyle(checked.contains(ingredient.id) ? CalendishStyle.accent : Color.secondary)
+                                    IngredientLineText(line: ingredient.display(scale: scale, units: units)).strikethrough(checked.contains(ingredient.id)).foregroundStyle(.primary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.vertical, 12)
+                                        // Separators start at the text, like a system list, and stop after the last ingredient.
+                                        .overlay(alignment: .bottom) {
+                                            if ingredient.id != recipe.ingredients.last?.id { Divider() }
+                                        }
+                                }.contentShape(Rectangle())
+                            }.buttonStyle(.plain)
+                                .accessibilityValue(checked.contains(ingredient.id) ? "Checked" : "Unchecked")
+                        }
                     }
                 }
                 VStack(alignment: .leading, spacing: 20) {
-                    SectionHeading(title: "Let’s cook")
+                    SectionHeading(title: "Instructions")
                     ForEach(Array(recipe.steps.enumerated()), id: \.offset) { index, step in
                         HStack(alignment: .top, spacing: 14) {
                             Text("\(index + 1).").font(.headline).foregroundStyle(.secondary)

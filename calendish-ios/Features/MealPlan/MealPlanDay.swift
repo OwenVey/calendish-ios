@@ -27,9 +27,10 @@ struct MealPlanDay: View {
                               add: add, addNote: addNote, addToGroceries: addToGroceries, remove: remove)
             if isEmpty && isThisWeek {
                 Button(action: add) {
-                    Text("Nothing planned yet. Add a recipe.")
+                    Label("Add a meal", systemImage: "plus")
+                        .font(.subheadline)
                         .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 14).padding(.vertical, 12)
+                        .padding(.horizontal, 14).padding(.vertical, 10)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(.rect)
                 }
