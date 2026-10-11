@@ -5,7 +5,6 @@ struct RecipeCard: View {
     @Environment(HouseholdStore.self) private var store
     let recipe: Recipe
     var stats: RecipeStats?
-    var showsLastCooked = false
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             RecipeArtwork(recipe: recipe)
@@ -38,9 +37,6 @@ struct RecipeCard: View {
                 }
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-                if showsLastCooked {
-                    Text(CookedHistory.lastCookedText(stats?.history)).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
-                }
             }
             .padding(.horizontal, 2)
         }

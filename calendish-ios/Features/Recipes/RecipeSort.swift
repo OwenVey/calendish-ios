@@ -12,7 +12,6 @@ enum RecipeSort: String, CaseIterable, Identifiable {
         case .leastRecentlyCooked: "Least recently cooked or planned"
         }
     }
-    var showsLastCooked: Bool { self == .recentlyCooked || self == .leastRecentlyCooked }
 
     /// Sorts recipes already in Recently Added order. Ties keep that order; never-cooked recipes count as
     /// cooked longest ago, and unrated recipes come after rated ones.

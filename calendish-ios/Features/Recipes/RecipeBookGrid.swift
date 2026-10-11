@@ -4,7 +4,6 @@ import SwiftUI
 struct RecipeBookGrid: View {
     let recipes: [Recipe]
     let stats: [UUID: RecipeStats]
-    let showsLastCooked: Bool
     @Binding var scope: RecipeScope
     let perform: (RecipeBookAction) -> Void
 
@@ -14,7 +13,7 @@ struct RecipeBookGrid: View {
                 RecipeScopePicker(scope: $scope)
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16, alignment: .top), count: 2), spacing: 24) {
                     ForEach(recipes) { recipe in
-                        NavigationLink(value: recipe) { RecipeCard(recipe: recipe, stats: stats[recipe.id], showsLastCooked: showsLastCooked) }
+                        NavigationLink(value: recipe) { RecipeCard(recipe: recipe, stats: stats[recipe.id]) }
                             .buttonStyle(.plain)
                             .calendishContextMenu { RecipeContextActions(recipe: recipe, perform: perform) } preview: { RecipePreview(recipe: recipe) }
                     }

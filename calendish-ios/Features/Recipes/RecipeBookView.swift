@@ -60,9 +60,9 @@ struct RecipeBookView: View {
         ZStack {
             switch layout {
             case .list:
-                RecipeBookList(recipes: recipes, stats: stats, showsLastCooked: sort.showsLastCooked, scope: $scope, perform: perform)
+                RecipeBookList(recipes: recipes, stats: stats, scope: $scope, perform: perform)
             case .grid:
-                RecipeBookGrid(recipes: recipes, stats: stats, showsLastCooked: sort.showsLastCooked, scope: $scope, perform: perform)
+                RecipeBookGrid(recipes: recipes, stats: stats, scope: $scope, perform: perform)
             }
         }
         .overlay {

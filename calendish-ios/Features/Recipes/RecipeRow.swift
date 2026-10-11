@@ -9,7 +9,6 @@ struct RecipeRow: View {
     var showsOwner = true
     /// The household's rating and cooked history, shown when there is some.
     var stats: RecipeStats?
-    var showsLastCooked = false
     /// A line under the details, such as why a recipe is suggested.
     var caption: String?
     /// Whose recipe it is. Your own recipes don't name an owner.
@@ -44,7 +43,7 @@ struct RecipeRow: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                if let caption = caption ?? (showsLastCooked ? CookedHistory.lastCookedText(stats?.history) : nil) {
+                if let caption {
                     Text(caption).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
                 }
                 if !recipe.tags.isEmpty {
