@@ -163,6 +163,21 @@ final class CookModeUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Paused"].exists)
         app.buttons["Cancel timer"].tap()
         XCTAssertTrue(start.waitForExistence(timeout: 3), "Cancelling returns to the start button without confirming")
+
+        // The step count between the arrows doubles as the step picker.
+        app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@", "Step ", " of ")).firstMatch.tap()
+        XCTAssertTrue(app.buttons["Step 1"].waitForExistence(timeout: 3))
+        attach(app, "Step picker")
+        app.buttons["Step 1"].tap()
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Step 1 of")).firstMatch.waitForExistence(timeout: 3))
+
+        // Finish takes Next's place on the last step without moving the step count.
+        let count = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@", "Step ", " of ")).firstMatch
+        let countX = count.frame.midX
+        for _ in 0..<12 where !app.buttons["Finish cooking"].exists { app.buttons["Next step"].tap() }
+        XCTAssertTrue(app.buttons["Finish cooking"].waitForExistence(timeout: 3))
+        XCTAssertEqual(count.frame.midX, countX, accuracy: 1)
+        attach(app, "Last step")
         app.buttons["Close"].firstMatch.tap()
     }
 

@@ -40,22 +40,18 @@ struct CookStepControls: View {
                 .tint(Color.primary)
                 .accessibilityHint("Choose a step")
                 Spacer(minLength: 0)
-                if isLastStep {
-                    Button(action: onFinish) { OnAccentLabel(title: "Finish cooking", systemImage: "checkmark") }
-                        .controlSize(.large)
-                        .modifier(GlassActionStyle(prominent: true))
-                        .accessibilityHint(recordsCook ? "Records this recipe as cooked and closes cook mode" : "Closes cook mode")
-                } else {
-                    Button(action: next) {
-                        Label("Next step", systemImage: "arrow.right")
-                            .labelStyle(.iconOnly)
-                            .font(.title2.weight(.semibold))
-                            .foregroundStyle(CalendishStyle.onAccent)
-                            .frame(width: 48, height: 48)
-                    }
-                    .buttonStyle(.glassProminent)
-                    .buttonBorderShape(.circle)
+                // Finish matches Next's size and shape, so the step count stays put on the last step.
+                Button(action: isLastStep ? onFinish : next) {
+                    Label(isLastStep ? "Finish cooking" : "Next step", systemImage: isLastStep ? "checkmark" : "arrow.right")
+                        .labelStyle(.iconOnly)
+                        .font(.title2.weight(.semibold))
+                        .foregroundStyle(CalendishStyle.onAccent)
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 48, height: 48)
                 }
+                .buttonStyle(.glassProminent)
+                .buttonBorderShape(.circle)
+                .accessibilityHint(isLastStep ? (recordsCook ? "Records this recipe as cooked and closes cook mode" : "Closes cook mode") : "")
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 12)
