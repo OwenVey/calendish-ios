@@ -14,11 +14,16 @@ struct SettingsLabel: View {
         Label {
             Text(title)
         } icon: {
-            Image(systemName: systemImage)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 29, height: 29)
-                .background(color.gradient, in: .rect(cornerRadius: 7))
+            // Wide symbols scale down to fit the square's inset instead of spilling past its edges.
+            ViewThatFits(in: .horizontal) {
+                Image(systemName: systemImage)
+                Image(systemName: systemImage).resizable().scaledToFit()
+            }
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(.white)
+            .frame(width: 21, height: 21)
+            .frame(width: 29, height: 29)
+            .background(color.gradient, in: .rect(cornerRadius: 7))
         }
     }
 }
