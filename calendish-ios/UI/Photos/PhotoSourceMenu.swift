@@ -12,6 +12,9 @@ struct PhotoSourceMenu<Label: View>: View {
     @State private var showLibrary = false
     @State private var showFiles = false
     @State private var libraryItem: PhotosPickerItem?
+    @State private var fileURL: URL?
+    @State private var loading = false
+    @State private var errorMessage: String?
 
     var body: some View {
         Menu {
@@ -34,19 +37,46 @@ struct PhotoSourceMenu<Label: View>: View {
             }
         } label: { label }
         .photosPicker(isPresented: $showLibrary, selection: $libraryItem, matching: .images, preferredItemEncoding: .compatible)
-        .onChange(of: libraryItem) { _, item in
-            guard let item else { return }
-            libraryItem = nil
-            Task {
-                if let picked = try? await item.loadTransferable(type: PickedImage.self) { onPick(picked.image) }
+        .disabled(loading)
+        .task(id: libraryItem) {
+            guard let item = libraryItem else { return }
+            loading = true
+            defer { loading = false; libraryItem = nil }
+            do {
+                guard let picked = try await item.loadTransferable(type: PickedImage.self) else {
+                    throw CocoaError(.fileReadCorruptFile)
+                }
+                try Task.checkCancellation()
+                onPick(picked.image)
+            } catch {
+                guard !Task.isCancelled else { return }
+                errorMessage = "Couldn’t load the photo. Choose the photo again, or try another photo."
             }
         }
         .fileImporter(isPresented: $showFiles, allowedContentTypes: [.image]) { result in
-            guard case .success(let url) = result else { return }
-            let isScoped = url.startAccessingSecurityScopedResource()
-            defer { if isScoped { url.stopAccessingSecurityScopedResource() } }
-            if let data = try? Data(contentsOf: url), let image = UIImage(data: data) { onPick(image) }
+            switch result {
+            case .success(let url): fileURL = url
+            case .failure:
+                errorMessage = "Couldn’t open the photo. Choose the file again, or try another photo."
+            }
         }
+        .task(id: fileURL) {
+            guard let url = fileURL else { return }
+            loading = true
+            defer { loading = false; fileURL = nil }
+            do {
+                let data = try await ImportFileReader.shared.read(url)
+                guard let image = UIImage(data: data) else { throw CocoaError(.fileReadCorruptFile) }
+                try Task.checkCancellation()
+                onPick(image)
+            } catch {
+                guard !Task.isCancelled else { return }
+                errorMessage = "Couldn’t open the photo. Choose the file again, or try another photo."
+            }
+        }
+        .calendishAlert("Couldn’t add photo", item: $errorMessage) { _ in
+            Button("OK", role: .cancel) { }
+        } message: { Text($0) }
         .fullScreenCover(isPresented: $showCamera) {
             CameraPicker(onCapture: onPick).ignoresSafeArea()
         }

@@ -16,14 +16,9 @@ struct RecipeNotesSection: View {
             RecipeCookedRow(recipeID: recipeID, stats: stats) { showHistory = true }
             Divider()
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 10) {
-                    MemberAvatar(member: store.currentMember, size: 28)
-                    Text("You").font(.headline)
-                    Spacer(minLength: 0)
-                    StarRating(rating: Binding(get: { myReview?.rating }, set: {
-                        store.saveReview(of: recipeID, rating: $0, note: myReview?.note ?? "")
-                    }))
-                }
+                RecipeRatingRow(member: store.currentMember, rating: Binding(get: { myReview?.rating }, set: {
+                    store.saveReview(of: recipeID, rating: $0, note: myReview?.note ?? "")
+                }))
                 Button { editingNote = true } label: {
                     if let note = myReview?.note, !note.isEmpty {
                         Text(note).foregroundStyle(.primary).multilineTextAlignment(.leading)

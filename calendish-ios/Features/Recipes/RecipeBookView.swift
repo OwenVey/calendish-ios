@@ -163,21 +163,14 @@ struct RecipeBookView: View {
             DocumentScanner { scannedPages = $0 }.ignoresSafeArea()
         }
         .fileImporter(isPresented: $showFilePicker, allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { result in
-            guard case .success(let urls) = result else { return }
-            do {
-                let items = try urls.map { url -> RecipeImport in
-                    let isScoped = url.startAccessingSecurityScopedResource()
-                    defer { if isScoped { url.stopAccessingSecurityScopedResource() } }
-                    let data = try Data(contentsOf: url)
-                    return UTType(filenameExtension: url.pathExtension)?.conforms(to: .pdf) == true ? .pdf(data) : .images([data])
-                }
-                if let item = RecipeImport.combined(items) { sheet = .importing(.content(item)) }
-            } catch {
-                fileError = InterfaceCopy.failure(error, action: "open the file", recovery: "Choose another file and try again.")
+            switch result {
+            case .success(let urls): sheet = .importing(.files(urls))
+            case .failure:
+                fileError = "Couldn’t open the file. Choose the file again, or try another file."
             }
         }
         .calendishAlert("Couldn’t open file", item: $fileError) { _ in
-            Button("OK", role: .cancel) {}
+            Button("OK", role: .cancel) { }
         } message: { Text($0) }
         .sheet(item: $sheet) { destination in
             switch destination {

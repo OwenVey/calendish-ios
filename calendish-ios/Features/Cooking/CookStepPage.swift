@@ -22,7 +22,7 @@ struct CookStepPage: View {
                 if let warning = timerStore.notificationWarning { Text(warning).font(.footnote).foregroundStyle(.secondary) }
                 if let duration = CookTimer.duration(in: step) {
                     if let timer = timers.first(where: { $0.stepIndex == index }) {
-                        timerControls(timer)
+                        CookTimerControls(timer: timer)
                     } else {
                         Button {
                             timerStore.start(recipe: recipe, stepIndex: index, duration: duration)
@@ -38,39 +38,4 @@ struct CookStepPage: View {
         }
     }
 
-    /// The running timer's countdown, with pause, an extra minute, and cancel underneath.
-    private func timerControls(_ timer: CookTimer) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Image(systemName: timer.isPaused ? "pause.fill" : "timer").contentTransition(.symbolEffect(.replace))
-                CookTimerCountdown(timer: timer)
-                if timer.isPaused { Text("Paused").font(.headline).foregroundStyle(Color.secondary) }
-            }
-            .font(.largeTitle.weight(.semibold)).foregroundStyle(CalendishStyle.timer)
-            .accessibilityElement(children: .combine)
-            ViewThatFits(in: .horizontal) {
-                timerButtons(timer)
-                timerButtons(timer).labelStyle(.titleOnly)
-            }
-            .controlSize(.large)
-        }
-    }
-
-    private func timerButtons(_ timer: CookTimer) -> some View {
-        HStack(spacing: 10) {
-            Button {
-                if timer.isPaused { timerStore.resume(timer) } else { timerStore.pause(timer) }
-            } label: {
-                Label(timer.isPaused ? "Resume" : "Pause", systemImage: timer.isPaused ? "play.fill" : "pause.fill").foregroundStyle(.black)
-            }
-            .buttonStyle(.glassProminent).tint(CalendishStyle.timer)
-            Button("+1 min") { timerStore.addMinute(to: timer) }
-                .buttonStyle(.glass).foregroundStyle(.primary)
-                .accessibilityLabel("Add 1 minute")
-            Button(role: .destructive) { timerStore.cancel(timer) } label: { Label("Cancel", systemImage: "xmark") }
-                .buttonStyle(.glass).foregroundStyle(.primary)
-                .accessibilityLabel("Cancel timer")
-        }
-        .fixedSize()
-    }
 }

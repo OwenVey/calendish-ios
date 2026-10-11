@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import UniformTypeIdentifiers
 
 /// The one way recipes come in from outside the app: links, pasted text, photos, scans, files,
 /// drops, and shares. Reads the recipe, then hands it to the editor to review and save.
@@ -11,6 +12,7 @@ struct RecipeImportView: View {
         case text
         case content(RecipeImport)
         case photos([PhotosPickerItem])
+        case files([URL])
     }
 
     private enum Phase {
@@ -37,7 +39,7 @@ struct RecipeImportView: View {
         switch start {
         case .link: _phase = State(initialValue: .link)
         case .text: _phase = State(initialValue: .text)
-        case .content, .photos: _phase = State(initialValue: .reading("Reading recipe…"))
+        case .content, .photos, .files: _phase = State(initialValue: .reading("Reading recipe…"))
         }
     }
 
@@ -85,6 +87,7 @@ struct RecipeImportView: View {
             case .link, .text: break
             case .content(let content): read(content)
             case .photos(let items): readPhotos(items)
+            case .files(let urls): readFiles(urls)
             }
         }
         .onDisappear { task?.cancel() }
@@ -154,14 +157,43 @@ struct RecipeImportView: View {
         phase = .reading(items.count == 1 ? "Loading photo…" : "Loading \(items.count) photos…")
         task = Task {
             var images: [Data] = []
-            for item in items {
-                if let data = try? await item.loadTransferable(type: Data.self) { images.append(data) }
+            for (index, item) in items.enumerated() {
+                do {
+                    try Task.checkCancellation()
+                    guard let data = try await item.loadTransferable(type: Data.self) else {
+                        throw CocoaError(.fileReadCorruptFile)
+                    }
+                    images.append(data)
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    phase = .failed("Couldn’t load photo \(index + 1) of \(items.count). Choose the photos again to import every page.", recognizedText: nil)
+                    return
+                }
             }
             guard !Task.isCancelled else { return }
             if images.isEmpty {
                 phase = .failed("Couldn’t load the photos. Choose them again.", recognizedText: nil)
             } else {
                 read(.images(images))
+            }
+        }
+    }
+
+    private func readFiles(_ urls: [URL]) {
+        phase = .reading(urls.count == 1 ? "Opening file…" : "Opening \(urls.count) files…")
+        task = Task {
+            do {
+                var items: [RecipeImport] = []
+                for url in urls {
+                    let data = try await ImportFileReader.shared.read(url)
+                    items.append(UTType(filenameExtension: url.pathExtension)?.conforms(to: .pdf) == true ? .pdf(data) : .images([data]))
+                }
+                try Task.checkCancellation()
+                guard let content = RecipeImport.combined(items) else { throw CocoaError(.fileReadCorruptFile) }
+                read(content)
+            } catch {
+                guard !Task.isCancelled else { return }
+                phase = .failed("Couldn’t open the file. Choose the file again, or try another file.", recognizedText: nil)
             }
         }
     }
