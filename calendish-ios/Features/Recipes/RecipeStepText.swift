@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// A recipe step with the ingredients it mentions in the accent color.
-/// Tapping one shows how much the recipe calls for, at the current scale and units, pointing at the tapped word.
+/// Cooking mode also shows cook times in the timer color.
+/// Tapping an ingredient shows how much the recipe calls for, at the current scale and units, pointing at the tapped word.
 struct RecipeStepText: View {
     let step: String
     let recipe: Recipe
@@ -9,6 +10,7 @@ struct RecipeStepText: View {
     let units: MeasurementPreference
     /// Cooking mode reveals the matching rows in its ingredients panel instead of presenting a popover.
     var onIngredientTap: (([UUID]) -> Void)? = nil
+    var highlightsTimes = false
     @State private var frames = MentionFrames()
     @State private var shown: Mention?
 
@@ -43,12 +45,21 @@ struct RecipeStepText: View {
     var body: some View {
         let displayed = Ingredient.convertTemperatures(in: step, to: units)
         let mentions = IngredientParser.mentions(in: displayed, ingredients: recipe.ingredients.map(\.text))
+        let times = highlightsTimes
+            ? CookTimer.timeRanges(in: displayed).filter { time in !mentions.contains { $0.range.overlaps(time) } }
+            : []
+        let highlights = (mentions.map { ($0.range, Optional($0.ingredients)) } + times.map { ($0, nil) })
+            .sorted { $0.0.lowerBound < $1.0.lowerBound }
         var text = Text("")
         var position = displayed.startIndex
-        for mention in mentions {
-            let word = Text(displayed[mention.range]).foregroundStyle(CalendishStyle.accent).customAttribute(Mention(ingredients: mention.ingredients))
-            text = Text("\(text)\(Text(displayed[position..<mention.range.lowerBound]))\(word)")
-            position = mention.range.upperBound
+        for (range, ingredients) in highlights {
+            let word = if let ingredients {
+                Text(displayed[range]).foregroundStyle(CalendishStyle.accent).customAttribute(Mention(ingredients: ingredients))
+            } else {
+                Text(displayed[range]).foregroundStyle(CalendishStyle.timer)
+            }
+            text = Text("\(text)\(Text(displayed[position..<range.lowerBound]))\(word)")
+            position = range.upperBound
         }
         text = Text("\(text)\(Text(displayed[position...]))")
         return text

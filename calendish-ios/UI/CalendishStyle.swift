@@ -5,6 +5,8 @@ enum CalendishStyle {
     static let accent = Color("AccentColor")
     /// Text and icons drawn on top of a solid accent fill.
     static let onAccent = Color("OnAccentColor")
+    /// Cook times and timers, matching the system Clock app and the cooking Live Activity.
+    static let timer = Color.orange
     static let background = Color(.systemGroupedBackground)
     static let surface = Color(.secondarySystemGroupedBackground)
 }

@@ -25,12 +25,20 @@ struct CookTimer: Identifiable, Codable {
 
     /// Finds the first time like "25 minutes" or "1-2 hrs" in a step. Ranges use the shorter time.
     static func duration(in step: String) -> TimeInterval? {
-        let pattern = #/(\d+)\s*(?:(?:-|–|to)\s*\d+\s*)?(hours?|hrs?|minutes?|mins?|seconds?|secs?)\b/#
-        guard let match = try? pattern.ignoresCase().firstMatch(in: step), let value = Double(match.output.1) else { return nil }
+        guard let match = try? timePattern.firstMatch(in: step), let value = Double(match.output.1) else { return nil }
         switch match.output.2.lowercased().first {
         case "h": return value * 3600
         case "m": return value * 60
         default: return value
         }
+    }
+
+    /// Every time mentioned in a step, like "25 minutes" or "1-2 hrs".
+    static func timeRanges(in step: String) -> [Range<String.Index>] {
+        step.matches(of: timePattern).map(\.range)
+    }
+
+    private static var timePattern: Regex<(Substring, Substring, Substring)> {
+        #/(\d+)\s*(?:(?:-|–|to)\s*\d+\s*)?(hours?|hrs?|minutes?|mins?|seconds?|secs?)\b/#.ignoresCase()
     }
 }

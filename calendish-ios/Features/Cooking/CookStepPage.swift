@@ -18,7 +18,7 @@ struct CookStepPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 Text("STEP \(index + 1)").font(.subheadline.weight(.semibold)).tracking(1.4).foregroundStyle(CalendishStyle.accent)
-                RecipeStepText(step: step, recipe: recipe, scale: scale, units: units, onIngredientTap: onIngredientTap).font(.title).lineSpacing(6)
+                RecipeStepText(step: step, recipe: recipe, scale: scale, units: units, onIngredientTap: onIngredientTap, highlightsTimes: true).font(.title).lineSpacing(6)
                 if let warning = session.activityWarning { Text(warning).font(.footnote).foregroundStyle(.secondary) }
                 if let warning = timerStore.notificationWarning { Text(warning).font(.footnote).foregroundStyle(.secondary) }
                 if let duration = CookTimer.duration(in: step) {
@@ -27,15 +27,17 @@ struct CookStepPage: View {
                             Label {
                                 Text(timerInterval: Date.now...max(timer.end, .now), countsDown: true).monospacedDigit()
                             } icon: { Image(systemName: "timer") }
-                                .font(.title3.weight(.semibold)).foregroundStyle(CalendishStyle.accent)
+                                .font(.title3.weight(.semibold)).foregroundStyle(CalendishStyle.timer)
                             Button("Cancel timer", role: .destructive) { timerStore.cancel(timer) }
-                                .modifier(GlassActionStyle())
+                                .foregroundStyle(.primary).controlSize(.large).buttonStyle(.glass)
                         }
                     } else {
-                        Button("Start \(CookTimer.format(duration)) timer", systemImage: "timer") {
+                        Button {
                             timerStore.start(recipe: recipe, stepIndex: index, duration: duration)
+                        } label: {
+                            Label("Start \(CookTimer.format(duration)) timer", systemImage: "timer").foregroundStyle(.black)
                         }
-                        .controlSize(.large).modifier(GlassActionStyle())
+                        .controlSize(.large).buttonStyle(.glassProminent).tint(CalendishStyle.timer)
                     }
                 }
             }

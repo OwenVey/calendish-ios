@@ -14,7 +14,7 @@ struct CookingActivityTimer: View {
                     .monospacedDigit().frame(maxWidth: 72, alignment: .leading)
             } icon: { Image(systemName: "timer") }
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
+                .foregroundStyle(.orange)
                 .accessibilityLabel("Timer for step \((context.state.timerStepIndex ?? context.state.stepIndex) + 1)")
                 .accessibilityValue(Text(timerInterval: Date.distantPast...end, countsDown: true))
         } else if let duration = context.state.suggestedDuration {
