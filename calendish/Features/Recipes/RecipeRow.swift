@@ -11,19 +11,21 @@ struct RecipeRow: View {
     var stats: RecipeStats?
     /// A line under the details, such as why a recipe is suggested.
     var caption: String?
+    /// The photo's width and height.
+    var artworkSize: CGFloat = 64
     /// Whose recipe it is. Your own recipes don't name an owner.
     private var owner: String? { !showsOwner || store.isMine(recipe) ? nil : store.ownerName(of: recipe) }
     var body: some View {
         HStack(spacing: 14) {
-            RecipeArtwork(recipe: recipe, compact: true).frame(width: 64, height: 64)
+            RecipeArtwork(recipe: recipe, compact: true).frame(width: artworkSize, height: artworkSize)
+                .overlay(alignment: .bottomLeading) {
+                    if recipe.isFavorite { FavoriteBadge(compact: true) }
+                }
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
-                    Text(recipe.title).font(.headline).foregroundStyle(.primary).lineLimit(2)
+                    Text(recipe.title).font(.headline).foregroundStyle(.primary).lineLimit(2).recipeTitleAccessibility(recipe)
                     if store.isMine(recipe), recipe.owner?.isShared == false {
                         Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary).accessibilityLabel("Only me")
-                    }
-                    if recipe.isFavorite {
-                        Image(systemName: "star.fill").font(.caption).foregroundStyle(.yellow).accessibilityLabel("Favorite")
                     }
                 }
                 if let owner {

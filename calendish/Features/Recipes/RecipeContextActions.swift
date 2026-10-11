@@ -12,7 +12,7 @@ struct RecipeContextActions: View {
             Button("Add to groceries", systemImage: "basket") { perform(.addToGroceries(recipe)) }
         }
         Section {
-            Button(recipe.isFavorite ? "Remove from favorites" : "Add to favorites", systemImage: recipe.isFavorite ? "star.slash" : "star") {
+            Button(recipe.isFavorite ? "Remove from favorites" : "Add to favorites", systemImage: recipe.isFavorite ? "heart.slash" : "heart") {
                 store.toggleFavorite(recipe)
             }
         }

@@ -41,10 +41,13 @@ struct RecipeBookView: View {
     }
     private func subtitle(count: Int) -> String {
         let count = count == 1 ? "1 recipe" : "\(count) recipes"
-        let filters = (favoritesOnly ? ["Favorites"] : []) + [selectedCategory?.title, selectedTag].compactMap(\.self)
+        let collection = scope == .all ? nil : scope.title
+        let filters = [collection].compactMap(\.self) + (favoritesOnly ? ["Favorites"] : []) + [selectedCategory?.title, selectedTag].compactMap(\.self)
         return (filters + [count]).joined(separator: " · ")
     }
     private var isFiltered: Bool { favoritesOnly || selectedCategory != nil || selectedTag != nil }
+    /// Whether anything narrows the book, including a collection other than All.
+    private var isNarrowed: Bool { isFiltered || scope != .all }
 
     private func perform(_ action: RecipeBookAction) {
         switch action {
@@ -60,9 +63,9 @@ struct RecipeBookView: View {
         ZStack {
             switch layout {
             case .list:
-                RecipeBookList(recipes: recipes, stats: stats, scope: $scope, perform: perform)
+                RecipeBookList(recipes: recipes, stats: stats, perform: perform)
             case .grid:
-                RecipeBookGrid(recipes: recipes, stats: stats, scope: $scope, perform: perform)
+                RecipeBookGrid(recipes: recipes, stats: stats, perform: perform)
             }
         }
         .overlay {
@@ -79,7 +82,7 @@ struct RecipeBookView: View {
                 } else if store.recipes.isEmpty {
                     ContentUnavailableView("Your recipe book starts here", systemImage: "book.closed", description: Text("Add a recipe or import one from a link, text, photo, or PDF."))
                 } else if favoritesOnly, search.isEmpty, !store.recipes.contains(where: \.isFavorite) {
-                    ContentUnavailableView("No favorites yet", systemImage: "star", description: Text("Open a recipe’s actions menu and choose Add to favorites."))
+                    ContentUnavailableView("No favorites yet", systemImage: "heart", description: Text("Open a recipe’s actions menu and choose Add to favorites."))
                 } else {
                     ContentUnavailableView("No matching recipes", systemImage: "book.closed", description: Text("Try another search or change the filters."))
                 }
@@ -103,7 +106,11 @@ struct RecipeBookView: View {
                         }
                     }
                     Section("Filter") {
-                        Toggle("Favorites only", systemImage: "star", isOn: $favoritesOnly)
+                        Picker("Collection", systemImage: "person.2", selection: $scope) {
+                            ForEach(RecipeScope.allCases) { Text($0.title).tag($0) }
+                        }
+                        .pickerStyle(.menu)
+                        Toggle("Favorites only", systemImage: "heart", isOn: $favoritesOnly)
                         Picker("Category", selection: $selectedCategory) {
                             Text("All categories").tag(nil as RecipeCategory?)
                             ForEach(RecipeCategory.allCases) { category in
@@ -116,8 +123,9 @@ struct RecipeBookView: View {
                             ForEach(store.recipeTags, id: \.self) { Text($0).tag(Optional($0)) }
                         }
                         .pickerStyle(.menu)
-                        if isFiltered {
+                        if isNarrowed {
                             Button("Clear filters") {
+                                scope = .all
                                 selectedCategory = nil
                                 selectedTag = nil
                                 favoritesOnly = false
@@ -125,7 +133,7 @@ struct RecipeBookView: View {
                         }
                     }
                 } label: {
-                    Label("View, sort, and filter", systemImage: isFiltered ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
+                    Label("View, sort, and filter", systemImage: isNarrowed ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease")
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {

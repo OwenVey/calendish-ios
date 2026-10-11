@@ -9,19 +9,11 @@ struct RecipeCard: View {
         VStack(alignment: .leading, spacing: 8) {
             RecipeArtwork(recipe: recipe)
                 .aspectRatio(1, contentMode: .fit)
-                .overlay(alignment: .topTrailing) {
-                    if recipe.isFavorite {
-                        Image(systemName: "star.fill")
-                            .font(.caption)
-                            .foregroundStyle(.yellow)
-                            .padding(6)
-                            .background(.ultraThinMaterial, in: .circle)
-                            .padding(8)
-                            .accessibilityLabel("Favorite")
-                    }
+                .overlay(alignment: .bottomLeading) {
+                    if recipe.isFavorite { FavoriteBadge() }
                 }
             VStack(alignment: .leading, spacing: 4) {
-                Text(recipe.title).font(.headline).lineLimit(2)
+                Text(recipe.title).font(.headline).lineLimit(2).recipeTitleAccessibility(recipe)
                 HStack(spacing: 4) {
                     if recipe.minutes > 0 {
                         Image(systemName: "clock").font(.caption2).accessibilityHidden(true)

@@ -165,7 +165,7 @@ struct RecipeDetailView: View {
                     }
                     Section {
                         if plannedMeal == nil {
-                        Button(recipe.isFavorite ? "Remove from favorites" : "Add to favorites", systemImage: recipe.isFavorite ? "star.slash" : "star") {
+                        Button(recipe.isFavorite ? "Remove from favorites" : "Add to favorites", systemImage: recipe.isFavorite ? "heart.slash" : "heart") {
                             store.toggleFavorite(recipe)
                         }
                         }
