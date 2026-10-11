@@ -33,7 +33,7 @@ struct CookModeView: View {
     @AppStorage(PreferenceKey.keepScreenAwake) private var keepScreenAwake = true
     @AppStorage(PreferenceKey.cookingHaptics) private var haptics = true
     /// This recipe's running timers, soonest first.
-    private var timers: [CookTimer] { timerStore.timers.filter { $0.recipeID == recipe.id }.sorted { $0.end < $1.end } }
+    private var timers: [CookTimer] { timerStore.timers.filter { $0.recipeID == recipe.id }.sorted(by: CookTimer.soonestFirst) }
     private var scale: Double { recipe.servings > 0 ? Double(servings) / Double(recipe.servings) : 1 }
     /// Ingredients sit beside the steps with room to spare (regular width) or when height is short,
     /// such as landscape iPhone; otherwise they open in a sheet.

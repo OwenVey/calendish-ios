@@ -5,8 +5,12 @@ struct CookTimer: Identifiable, Codable {
     let recipeID: UUID
     let recipeTitle: String
     let stepIndex: Int
-    let duration: TimeInterval
-    let end: Date
+    /// The whole length, including any added minutes.
+    var duration: TimeInterval
+    /// When a running timer finishes. Stale while paused.
+    var end: Date
+    /// Time left when the cook paused, or nil while running.
+    var pausedRemaining: TimeInterval?
     /// Whether AlarmKit rings for this timer. When it does, the system alarm is the whole alert.
     var usesAlarm: Bool?
     init(recipe: Recipe, stepIndex: Int, duration: TimeInterval) {
@@ -18,6 +22,12 @@ struct CookTimer: Identifiable, Codable {
         end = .now.addingTimeInterval(duration)
     }
     var durationText: String { Self.format(duration) }
+    var isPaused: Bool { pausedRemaining != nil }
+    /// When the timer will finish if left alone, or nil while paused.
+    var deadline: Date? { isPaused ? nil : end }
+    var remaining: TimeInterval { pausedRemaining ?? max(0, end.timeIntervalSinceNow) }
+    /// Orders timers by when they'd finish, counting a paused timer's time left from now.
+    static func soonestFirst(_ a: CookTimer, _ b: CookTimer) -> Bool { a.remaining < b.remaining }
 
     static func format(_ duration: TimeInterval) -> String {
         Duration.seconds(duration).formatted(.units(allowed: [.hours, .minutes, .seconds], width: .abbreviated))

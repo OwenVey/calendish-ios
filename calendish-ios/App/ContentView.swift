@@ -35,7 +35,7 @@ struct ContentView: View {
         .tint(CalendishStyle.accent)
         .environment(store)
         .environment(timers)
-        .task(id: timers.timers.map(\.end)) { await timers.waitForNextTimer() }
+        .task(id: timers.timers.map(\.deadline)) { await timers.waitForNextTimer() }
         .calendishAlert("Timer finished", isPresented: Binding(get: { !timers.finished.isEmpty && !timers.isCooking }, set: { if !$0 && !timers.isCooking { timers.acknowledge() } })) {
             Button("Done") { }
         } message: {

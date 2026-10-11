@@ -198,7 +198,7 @@ final class CookingSession {
 
     private func content(for snapshot: Snapshot) -> ActivityContent<CookingActivityAttributes.ContentState> {
         let timer = CookingTimers.shared.timers
-            .filter { $0.recipeID == snapshot.recipe.id }
+            .filter { $0.recipeID == snapshot.recipe.id && !$0.isPaused }
             .min { $0.end < $1.end }
         let step = Ingredient.convertTemperatures(in: snapshot.recipe.steps[snapshot.stepIndex], to: .current)
         let state = CookingActivityAttributes.ContentState(stepIndex: snapshot.stepIndex,

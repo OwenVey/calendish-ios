@@ -135,6 +135,44 @@ final class CookModeUITests: XCTestCase {
         XCTAssertGreaterThan(stepCount.frame.midY, originalY + 100)
     }
 
+    func testTimerPausesExtendsAndCancels() {
+        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
+        app.launch()
+        app.buttons["Recipes"].tap()
+        let recipe = app.staticTexts["Sheet pan lemon chicken"]
+        XCTAssertTrue(recipe.waitForExistence(timeout: 10))
+        recipe.tap()
+        app.buttons["Cook"].tap()
+        XCTAssertTrue(app.buttons["cook-ingredients-close"].waitForExistence(timeout: 5))
+        app.buttons["cook-ingredients-close"].tap()
+        let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ AND label ENDSWITH %@", "Start ", " timer")).firstMatch
+        for _ in 0..<8 where !start.exists { app.buttons["Next step"].tap() }
+        XCTAssertTrue(start.waitForExistence(timeout: 3))
+        start.tap()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        for label in ["Allow", "Always Allow"] where springboard.buttons[label].waitForExistence(timeout: 2) { springboard.buttons[label].tap() }
+
+        XCTAssertTrue(app.buttons["Pause"].waitForExistence(timeout: 5))
+        attach(app, "Running timer")
+        app.buttons["Pause"].tap()
+        XCTAssertTrue(app.staticTexts["Paused"].waitForExistence(timeout: 3))
+        attach(app, "Paused timer")
+        app.buttons["Add 1 minute"].tap()
+        app.buttons["Resume"].tap()
+        XCTAssertTrue(app.buttons["Pause"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.staticTexts["Paused"].exists)
+        app.buttons["Cancel timer"].tap()
+        XCTAssertTrue(start.waitForExistence(timeout: 3), "Cancelling returns to the start button without confirming")
+        app.buttons["Close"].firstMatch.tap()
+    }
+
+    private func attach(_ app: XCUIApplication, _ name: String) {
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = name
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
     func testVoiceCommandsKeepTouchControls() {
         let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
         app.launch()

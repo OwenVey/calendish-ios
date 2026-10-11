@@ -25,7 +25,43 @@ final class CookingTimers {
         guard duration > 0 else { return }
         let timer = CookTimer(recipe: recipe, stepIndex: stepIndex, duration: duration)
         timers.append(timer); persist()
+        reschedule(timer)
+    }
+    func pause(_ timer: CookTimer) {
+        guard let index = timers.firstIndex(where: { $0.id == timer.id }), !timers[index].isPaused else { return }
+        timers[index].pausedRemaining = max(1, timers[index].end.timeIntervalSinceNow)
+        timers[index].usesAlarm = nil
+        persist()
+        reschedule(timers[index])
+    }
+    func resume(_ timer: CookTimer) {
+        guard let index = timers.firstIndex(where: { $0.id == timer.id }), let remaining = timers[index].pausedRemaining else { return }
+        timers[index].pausedRemaining = nil
+        timers[index].end = .now.addingTimeInterval(remaining)
+        persist()
+        reschedule(timers[index])
+    }
+    func addMinute(to timer: CookTimer) {
+        guard let index = timers.firstIndex(where: { $0.id == timer.id }) else { return }
+        timers[index].duration += 60
+        if let remaining = timers[index].pausedRemaining {
+            timers[index].pausedRemaining = remaining + 60
+            persist()
+        } else {
+            timers[index].end.addTimeInterval(60)
+            persist()
+            reschedule(timers[index])
+        }
+    }
+    /// Replaces the timer's pending alert with one for its current end, or none while paused.
+    /// Runs after any earlier scheduling, so a slow request can't land after a newer one.
+    private func reschedule(_ timer: CookTimer) {
+        let previous = schedulingTask
         schedulingTask = Task {
+            await previous?.value
+            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [timer.id.uuidString])
+            try? AlarmManager.shared.cancel(id: timer.id)
+            guard isCurrent(timer) else { return }
             let alert = TimerAlert.current
             if alert == .alarm, await scheduleAlarm(for: timer) { return }
             do {
@@ -36,16 +72,20 @@ final class CookingTimers {
                     return
                 }
                 notificationWarning = nil
-                guard timers.contains(where: { $0.id == timer.id }), timer.end > .now else { return }
+                guard isCurrent(timer) else { return }
                 let content = UNMutableNotificationContent()
                 content.title = "Timer finished"
                 content.body = "\(timer.recipeTitle), step \(timer.stepIndex + 1): \(timer.durationText) timer finished."
                 if alert != .silent { content.sound = .default }
                 try await center.add(UNNotificationRequest(identifier: timer.id.uuidString, content: content,
                     trigger: UNTimeIntervalNotificationTrigger(timeInterval: max(1, timer.end.timeIntervalSinceNow), repeats: false)))
-                if !timers.contains(where: { $0.id == timer.id }) { center.removePendingNotificationRequests(withIdentifiers: [timer.id.uuidString]) }
+                if !isCurrent(timer) { center.removePendingNotificationRequests(withIdentifiers: [timer.id.uuidString]) }
             } catch { notificationWarning = "Couldn’t schedule a timer notification. Keep Calendish open for the alert." }
         }
+    }
+    /// Whether the timer is still running and still ends when it did when scheduling began.
+    private func isCurrent(_ timer: CookTimer) -> Bool {
+        timers.contains { $0.id == timer.id && $0.deadline == timer.end } && timer.end > .now
     }
     /// Schedules a system alarm for the timer's end. Returns false, so a notification takes over,
     /// when alarms aren't allowed or scheduling fails.
@@ -53,7 +93,7 @@ final class CookingTimers {
         let manager = AlarmManager.shared
         do {
             let state = manager.authorizationState == .notDetermined ? try await manager.requestAuthorization() : manager.authorizationState
-            guard state == .authorized, timers.contains(where: { $0.id == timer.id }), timer.end > .now else { return false }
+            guard state == .authorized, isCurrent(timer) else { return false }
             let title: LocalizedStringResource = "\(timer.recipeTitle) · Step \(timer.stepIndex + 1)"
             let alert: AlarmPresentation.Alert = if #available(iOS 26.1, *) {
                 AlarmPresentation.Alert(title: title)
@@ -62,7 +102,7 @@ final class CookingTimers {
             }
             let attributes = AlarmAttributes<CookTimerAlarm>(presentation: AlarmPresentation(alert: alert), tintColor: CalendishStyle.accent)
             _ = try await manager.schedule(id: timer.id, configuration: .alarm(schedule: .fixed(timer.end), attributes: attributes))
-            guard let index = timers.firstIndex(where: { $0.id == timer.id }) else {
+            guard isCurrent(timer), let index = timers.firstIndex(where: { $0.id == timer.id }) else {
                 try? manager.cancel(id: timer.id)
                 return true
             }
@@ -78,7 +118,7 @@ final class CookingTimers {
         try? AlarmManager.shared.cancel(id: timer.id)
     }
     func waitForNextTimer() async {
-        guard let next = timers.min(by: { $0.end < $1.end }) else { return }
+        guard let next = timers.filter({ !$0.isPaused }).min(by: { $0.end < $1.end }) else { return }
         do { try await Task.sleep(for: .seconds(max(0, next.end.timeIntervalSinceNow))) } catch { return }
         guard !Task.isCancelled else { return }
         timers.removeAll { $0.id == next.id }; persist()

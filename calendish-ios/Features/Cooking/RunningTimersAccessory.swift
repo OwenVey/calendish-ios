@@ -8,7 +8,7 @@ struct RunningTimersAccessory: View {
     @Environment(\.tabViewBottomAccessoryPlacement) private var placement
 
     var body: some View {
-        let timers = timerStore.timers.sorted { $0.end < $1.end }
+        let timers = timerStore.timers.sorted(by: CookTimer.soonestFirst)
         if let next = timers.first {
             Menu {
                 // One section per recipe, in the order its soonest timer ends.
@@ -17,13 +17,14 @@ struct RunningTimersAccessory: View {
                     Section(first.recipeTitle) {
                         Button("Resume cooking", systemImage: "play") { onResume(first) }
                         ForEach(recipeTimers) { timer in
+                            CookTimerPauseButton(timer: timer, title: "step \(timer.stepIndex + 1) timer")
                             Button("Cancel step \(timer.stepIndex + 1) timer", systemImage: "xmark", role: .destructive) { timerStore.cancel(timer) }
                         }
                     }
                 }
             } label: {
                 HStack(spacing: 10) {
-                    Image(systemName: "timer").foregroundStyle(CalendishStyle.timer)
+                    Image(systemName: next.isPaused ? "pause.fill" : "timer").foregroundStyle(CalendishStyle.timer)
                     if placement != .inline {
                         VStack(alignment: .leading, spacing: 0) {
                             Text(next.recipeTitle).font(.subheadline.weight(.semibold)).lineLimit(1)
@@ -32,8 +33,8 @@ struct RunningTimersAccessory: View {
                         }
                     }
                     Spacer(minLength: 8)
-                    Text(timerInterval: Date.now...max(next.end, .now), countsDown: true)
-                        .font(.body.weight(.semibold)).monospacedDigit()
+                    CookTimerCountdown(timer: next)
+                        .font(.body.weight(.semibold))
                         .foregroundStyle(CalendishStyle.timer)
                 }
                 .padding(.horizontal, 16)
