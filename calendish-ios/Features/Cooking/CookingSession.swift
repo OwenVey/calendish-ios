@@ -18,12 +18,15 @@ final class CookingSession {
     }
 
     private(set) var snapshot: Snapshot?
+    /// Where cooking left off when Cook Mode closed with timers still running, so it can pick up there.
+    private(set) var paused: Snapshot?
     private(set) var activityWarning: String?
     var stepIndex: Int { snapshot?.stepIndex ?? 0 }
     @ObservationIgnored private var photoLoad: Task<Void, Never>?
     @ObservationIgnored private var pendingUpdate: Task<Void, Never>?
     private let storageKey = "cookingSession"
     private let accountKey = "cookingSessionAccountID"
+    private let pausedKey = "pausedCookingSession"
 
     private init() {
         if let data = UserDefaults.standard.data(forKey: storageKey),
@@ -32,6 +35,26 @@ final class CookingSession {
            saved.recipe.steps.indices.contains(saved.stepIndex) {
             snapshot = saved
         }
+        if let data = UserDefaults.standard.data(forKey: pausedKey),
+           let saved = try? JSONDecoder().decode(Snapshot.self, from: data),
+           saved.startedAt > .now.addingTimeInterval(-8 * 3600),
+           saved.recipe.steps.indices.contains(saved.stepIndex) {
+            paused = saved
+        }
+    }
+
+    /// The place to reopen Cook Mode for a recipe: its open session, else where it was paused.
+    func place(for recipeID: UUID) -> Snapshot? {
+        if snapshot?.recipe.id == recipeID { return snapshot }
+        if paused?.recipe.id == recipeID { return paused }
+        return nil
+    }
+
+    /// Makes the next `begin` for this recipe start at the given place.
+    func prepareResume(_ place: Snapshot) {
+        guard snapshot?.recipe.id != place.recipe.id else { return }
+        paused = place
+        persist()
     }
 
     /// Preserve an ongoing session across launches, while clearing private photos on account changes.
@@ -39,6 +62,8 @@ final class CookingSession {
         let account = accountID?.uuidString
         guard account == nil || UserDefaults.standard.string(forKey: accountKey) != account else { return }
         end()
+        paused = nil
+        persist()
         CookingActivityPhoto.clear()
         if let account { UserDefaults.standard.set(account, forKey: accountKey) }
         else { UserDefaults.standard.removeObject(forKey: accountKey) }
@@ -48,8 +73,14 @@ final class CookingSession {
         guard !recipe.steps.isEmpty else { return }
         if snapshot?.recipe.id != recipe.id {
             end()
-            snapshot = Snapshot(recipe: recipe, servings: servings, cookedRecipeID: cookedRecipeID)
+            if let paused, paused.recipe.id == recipe.id {
+                snapshot = paused
+                snapshot?.id = UUID()
+            } else {
+                snapshot = Snapshot(recipe: recipe, servings: servings, cookedRecipeID: cookedRecipeID)
+            }
         }
+        if paused?.recipe.id == recipe.id { paused = nil }
         snapshot?.servings = servings
         persist()
         activityWarning = nil
@@ -133,10 +164,15 @@ final class CookingSession {
         }
     }
 
-    func end(finished: Bool = false) {
+    /// Ends the session. Closing with timers still running remembers the place, so the timer can lead back to it.
+    func end(finished: Bool = false, keepingPlace: Bool = false) {
         photoLoad?.cancel()
         photoLoad = nil
         let previous = snapshot
+        if keepingPlace, !finished, let previous,
+           CookingTimers.shared.timers.contains(where: { $0.recipeID == previous.recipe.id }) {
+            paused = previous
+        }
         // Only activities running now; one started later belongs to a new session.
         let activityIDs = Set(Activity<CookingActivityAttributes>.activities.map(\.id))
         snapshot = nil
@@ -192,6 +228,8 @@ final class CookingSession {
     private func persist() {
         if let snapshot { UserDefaults.standard.set(try? JSONEncoder().encode(snapshot), forKey: storageKey) }
         else { UserDefaults.standard.removeObject(forKey: storageKey) }
+        if let paused { UserDefaults.standard.set(try? JSONEncoder().encode(paused), forKey: pausedKey) }
+        else { UserDefaults.standard.removeObject(forKey: pausedKey) }
     }
 
     private func enqueue(_ action: @escaping @MainActor () async -> Void) {

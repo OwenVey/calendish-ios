@@ -159,7 +159,7 @@ struct CookModeView: View {
     }
 
     private func close() {
-        session.end()
+        session.end(keepingPlace: true)
         dismiss()
     }
 

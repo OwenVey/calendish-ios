@@ -28,7 +28,7 @@ struct ContentView: View {
             case .loading: LoadingView()
             case .signedOut: SignInView()
             case .onboarding: HouseholdSetupView()
-            case .ready: AppTabView(selection: $selectedTab)
+            case .ready: AppTabView(selection: $selectedTab, onResumeCooking: resumeCooking)
             }
         }
         .animation(.easeOut(duration: 0.3), value: store.phase)
@@ -40,18 +40,6 @@ struct ContentView: View {
             Button("Done") { }
         } message: {
             Text(timers.finished.map { "\($0.recipeTitle), step \($0.stepIndex + 1): \($0.durationText) timer finished." }.joined(separator: "\n\n"))
-        }
-        .safeAreaInset(edge: .bottom) {
-            if !timers.timers.isEmpty {
-                Menu {
-                    ForEach(timers.timers) { timer in
-                        Button("Cancel timer: \(timer.recipeTitle), step \(timer.stepIndex + 1)", role: .destructive) { timers.cancel(timer) }
-                    }
-                } label: {
-                    Label("^[\(timers.timers.count) timer](inflect: true) running", systemImage: "timer").frame(minHeight: 44)
-                }
-                .frame(maxWidth: .infinity).background(CalendishStyle.surface)
-            }
         }
         .fullScreenCover(item: $resumedCooking) { session in
             CookModeView(recipe: session.recipe, servings: session.servings, checked: $resumedChecked)
@@ -91,6 +79,21 @@ struct ContentView: View {
             Button("OK") {}
         } message: { Text($0) }
         .menuStyle(CalendishMenuStyle())
+    }
+
+    /// Reopens Cook Mode where the timer's recipe left off, or at the timer's step when that place is gone.
+    private func resumeCooking(_ timer: CookTimer) {
+        let session = CookingSession.shared
+        if let place = session.place(for: timer.recipeID) {
+            session.prepareResume(place)
+            resumedCooking = place
+        } else if let recipe = store.recipes.first(where: { $0.id == timer.recipeID }),
+                  recipe.steps.indices.contains(timer.stepIndex) {
+            let place = CookingSession.Snapshot(recipe: recipe, servings: recipe.servings, stepIndex: timer.stepIndex,
+                cookedRecipeID: CookedHistory.recipeID(cooking: recipe, plannedMeal: nil, in: store.recipes))
+            session.prepareResume(place)
+            resumedCooking = place
+        }
     }
 
     /// Recipes shared from other apps open in the Recipes tab, one at a time.
