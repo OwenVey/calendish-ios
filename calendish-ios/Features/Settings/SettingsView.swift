@@ -62,12 +62,6 @@ struct SettingsView: View {
                     SettingsLabel("Temperature", systemImage: "thermometer.medium", color: .red)
                 }
                 .tint(.secondary)
-            } header: {
-                Text("Recipes")
-            } footer: {
-                Text(units.explanation)
-            }
-            Section {
                 HStack {
                     SettingsLabel("Default servings", systemImage: "person.2.fill", color: .pink)
                     Spacer()
@@ -77,22 +71,14 @@ struct SettingsView: View {
                         .fixedSize()
                 }
                 .accessibilityElement(children: .combine)
-            } footer: {
-                Text("Used when you create a recipe, or import one that doesn’t list servings.")
-            }
-            Section {
                 Toggle(isOn: $shareNewRecipes) {
                     SettingsLabel("Share new recipes", systemImage: "person.2.wave.2.fill", color: .teal)
                 }
-            } footer: {
-                Text(shareNewRecipes
-                    ? "New recipes start shared with your household. You can make any recipe private."
-                    : "New recipes start private. You can share any recipe with your household.")
-            }
-            Section {
                 NavigationLink { CookingSettingsView() } label: {
                     SettingsLabel("Cooking", systemImage: "frying.pan.fill", color: .purple)
                 }
+            } header: {
+                Text("Recipes")
             }
             Section("Meal plan") {
                 Picker(selection: $weekStart) {
@@ -114,8 +100,6 @@ struct SettingsView: View {
                 }
             } header: {
                 Text("Groceries")
-            } footer: {
-                Text(groceryAutoClear.wrappedValue.explanation)
             }
             Section("About") {
                 Link(destination: AppLinks.feedback) {
@@ -136,9 +120,6 @@ struct SettingsView: View {
                     Link(destination: terms) {
                         SettingsLinkLabel("Terms of use", systemImage: "doc.text.fill", color: .gray)
                     }
-                }
-                NavigationLink { AcknowledgementsView() } label: {
-                    SettingsLabel("Acknowledgements", systemImage: "heart.fill", color: .pink)
                 }
                 LabeledContent {
                     Text(Bundle.main.appVersion)

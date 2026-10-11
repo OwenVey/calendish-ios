@@ -13,6 +13,6 @@ enum SampleRecipes {
                steps: ["Stir oats and oat milk together in two jars.", "Top with blueberries. Cover and refrigerate overnight."], category: .breakfast),
         Recipe(title: "Crispy chickpea salad", summary: "Crunchy chickpeas, crisp greens, and a simple lemon dressing.", prepMinutes: 10, cookMinutes: 20, servings: 2, tags: [], symbol: "fork.knife",
                ingredients: [Ingredient(text: "1 can chickpeas"), Ingredient(text: "4 cups mixed greens"), Ingredient(text: "1 lemon")],
-               steps: ["Drain and dry the chickpeas. Roast at 425°F until crisp.", "Toss the greens with lemon dressing and top with the warm chickpeas."], category: .lunch)
+               steps: ["Drain and dry the chickpeas. Roast at 425°F until crisp.", "Toss the greens with lemon dressing and top with the warm chickpeas."], category: .lunch),
     ]
 }

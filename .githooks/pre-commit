@@ -1,0 +1,30 @@
+#!/bin/zsh
+# Format staged Swift files with SwiftFormat and lint them with SwiftLint before committing.
+# Fully staged files are formatted and re-staged. Files that also have unstaged changes are only
+# checked, so re-staging can't sweep in edits you left out of the commit.
+# Installed by ./scripts/install-hooks.sh. Skip once with `git commit --no-verify`.
+set -euo pipefail
+cd "$(git rev-parse --show-toplevel)"
+
+files=("${(@0)$(git diff --cached --name-only --diff-filter=ACMR -z -- '*.swift')}")
+files=(${files:#})
+(( ${#files} )) || exit 0
+
+partial=("${(@0)$(git diff --name-only -z -- "${files[@]}")}")
+partial=(${partial:#})
+full=(${files:|partial})
+
+failed=0
+if (( ${#full} )); then
+  ./scripts/swift-tool.sh swiftformat --quiet "${full[@]}"
+  git add -- "${full[@]}"
+fi
+if (( ${#partial} )); then
+  ./scripts/swift-tool.sh swiftformat --lint "${partial[@]}" || failed=1
+fi
+./scripts/swift-tool.sh swiftlint lint --quiet --force-exclude "${files[@]}" || failed=1
+
+if (( failed )); then
+  echo "\npre-commit: fix the issues above (./scripts/lint.sh --fix applies autocorrections), re-stage, and commit again." >&2
+fi
+exit $failed

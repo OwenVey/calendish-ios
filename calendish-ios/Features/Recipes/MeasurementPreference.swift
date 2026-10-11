@@ -12,13 +12,6 @@ nonisolated enum MeasurementPreference: String, CaseIterable, Identifiable, Send
         case .metric: "Metric"
         }
     }
-    var explanation: String {
-        switch self {
-        case .original: "Ingredient quantities appear exactly as each recipe lists them."
-        case .us: "Converts ingredient quantities to US units, like cups and ounces, where possible. Saved recipes don’t change."
-        case .metric: "Converts ingredient quantities to metric units, like grams and milliliters, where possible. Saved recipes don’t change."
-        }
-    }
     static var current: MeasurementPreference {
         UserDefaults.standard.string(forKey: storageKey).flatMap(MeasurementPreference.init) ?? .original
     }

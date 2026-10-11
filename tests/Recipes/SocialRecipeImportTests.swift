@@ -83,12 +83,12 @@ struct SocialRecipeImportTests {
 
     static func tikTokCaptionFromEmbedWhenPageHasNone() async throws {
         let link = URL(string: "https://www.tiktok.com/@cook/video/7123")!
-        let oEmbed = String(data: try JSONSerialization.data(withJSONObject: ["title": noodles, "author_name": "Cook"]), encoding: .utf8)!
+        let oEmbed = try String(data: JSONSerialization.data(withJSONObject: ["title": noodles, "author_name": "Cook"]), encoding: .utf8)!
         let pages = Pages([
             link.absoluteString: .page("<html><title>TikTok - Make Your Day</title></html>"),
             "https://www.tiktok.com/oembed?url=https%3A%2F%2Fwww.tiktok.com%2F%40cook%2Fvideo%2F7123": .page(oEmbed),
         ])
-        expectNoodles(try await RecipeLinkImporter.fetch(link, loader: pages.loader, usesModel: false).recipe)
+        try await expectNoodles(RecipeLinkImporter.fetch(link, loader: pages.loader, usesModel: false).recipe)
     }
 
     static func facebookShareLinkCaption() async throws {
@@ -112,7 +112,7 @@ struct SocialRecipeImportTests {
     static func facebookCaptionFromPageTitle() async throws {
         let link = URL(string: "https://www.facebook.com/reel/7300")!
         let html = facebookPage(caption: noodles, creator: "Cook").replacingOccurrences(of: "json+oembed", with: "json")
-        expectNoodles(try await RecipeLinkImporter.fetch(link, loader: Pages([link.absoluteString: .page(html)]).loader, usesModel: false).recipe)
+        try await expectNoodles(RecipeLinkImporter.fetch(link, loader: Pages([link.absoluteString: .page(html)]).loader, usesModel: false).recipe)
     }
 
     static func facebookLoginPageFails() async throws {

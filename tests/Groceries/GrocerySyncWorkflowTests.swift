@@ -92,7 +92,7 @@ struct GrocerySyncWorkflowTests {
         interval = nil
         sync.insert([checked])
         sync.setHousehold(nil)
-        date.addTimeInterval(30 * 86_400)
+        date.addTimeInterval(30 * 86400)
         sync.setHousehold(UUID())
         sync.insert([checked])
         interval = 3600

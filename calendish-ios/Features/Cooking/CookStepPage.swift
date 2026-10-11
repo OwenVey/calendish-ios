@@ -37,5 +37,4 @@ struct CookStepPage: View {
             .padding(.horizontal, isWide ? 24 : 28).padding(.vertical, isWide ? 12 : 24)
         }
     }
-
 }

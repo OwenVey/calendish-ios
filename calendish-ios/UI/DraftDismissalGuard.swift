@@ -25,7 +25,7 @@ struct DraftDismissalGuard: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
     final class Coordinator: NSObject, UIAdaptivePresentationControllerDelegate {
         var isDirty = false
-        var onAttempt: () -> Void = {}
+        var onAttempt: () -> Void = { }
         func presentationControllerShouldDismiss(_ presentationController: UIPresentationController) -> Bool { !isDirty }
         func presentationControllerDidAttemptToDismiss(_ presentationController: UIPresentationController) { onAttempt() }
     }

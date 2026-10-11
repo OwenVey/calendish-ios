@@ -19,7 +19,7 @@ enum HouseholdSyncDiagnostics {
             "domain": nsError.domain, "code": String(nsError.code),
             "reason": failureReason,
             "version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
-            "build": Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
+            "build": Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown",
         ]
         // All fields are metadata or fixed labels; raw error descriptions can
         // contain server payloads and must never be saved or logged here.

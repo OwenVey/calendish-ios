@@ -18,15 +18,15 @@ enum RecipeSort: String, CaseIterable, Identifiable {
     /// cooked longest ago, and unrated recipes come after rated ones.
     func sorted(_ recipes: [Recipe], stats: [UUID: RecipeStats]) -> [Recipe] {
         switch self {
-        case .recent: return recipes
-        case .title: return recipes.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        case .recent: recipes
+        case .title: recipes.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
         case .rating:
-            return recipes.enumerated().sorted { a, b in
+            recipes.enumerated().sorted { a, b in
                 let ra = stats[a.element.id]?.averageRating ?? 0, rb = stats[b.element.id]?.averageRating ?? 0
                 return ra != rb ? ra > rb : a.offset < b.offset
             }.map(\.element)
         case .recentlyCooked, .leastRecentlyCooked:
-            return recipes.enumerated().sorted { a, b in
+            recipes.enumerated().sorted { a, b in
                 let da = stats[a.element.id]?.history.lastCooked ?? .distantPast, db = stats[b.element.id]?.history.lastCooked ?? .distantPast
                 guard da != db else { return a.offset < b.offset }
                 return self == .recentlyCooked ? da > db : da < db

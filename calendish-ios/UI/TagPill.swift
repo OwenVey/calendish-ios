@@ -3,7 +3,7 @@ import SwiftUI
 /// A recipe tag on a tinted capsule. Muted pills are for tags that haven't been added yet.
 struct TagPill: View {
     let tag: String
-    var systemImage: String? = nil
+    var systemImage: String?
     var compact = false
     var muted = false
     var body: some View {

@@ -257,7 +257,7 @@ enum RecipeTextImporter {
     }
 
     /// Drops bullets, checkboxes, and step numbers that come along when copying from a web page.
-    nonisolated private static func cleanLine(_ line: String) -> String {
+    private nonisolated static func cleanLine(_ line: String) -> String {
         line.replacing(#/^\s*([▢☐□•●◦▪\-–*\]\[|]|(?i:step)\s*\d+[.):]?|\d+[.):](?!\d))\s*/#, with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }

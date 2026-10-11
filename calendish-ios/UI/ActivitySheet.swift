@@ -17,5 +17,5 @@ struct ActivitySheet: UIViewControllerRepresentable {
         return controller
     }
 
-    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) { }
 }

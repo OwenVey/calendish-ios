@@ -23,7 +23,7 @@ enum GroceryAisleClassifier {
             for start in stride(from: 0, to: unsorted.count, by: batchSize) {
                 let batch = Array(unsorted[start..<min(start + batchSize, unsorted.count)])
                 do {
-                    sorted.merge(try await sortWithModel(batch)) { $1 }
+                    try await sorted.merge(sortWithModel(batch)) { $1 }
                 } catch is CancellationError {
                     break
                 } catch {

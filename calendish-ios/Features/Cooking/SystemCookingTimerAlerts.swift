@@ -13,7 +13,7 @@ struct SystemCookingTimerAlerts: CookingTimerAlerts {
 
     func scheduleAlarm(for timer: CookTimer) async throws {
         let title: LocalizedStringResource = "\(timer.recipeTitle) · Step \(timer.stepIndex + 1)"
-        let alert: AlarmPresentation.Alert = if #available(iOS 26.1, *) {
+        let alert = if #available(iOS 26.1, *) {
             AlarmPresentation.Alert(title: title)
         } else {
             AlarmPresentation.Alert(title: title, stopButton: AlarmButton(text: "Done", textColor: .white, systemImageName: "checkmark"))

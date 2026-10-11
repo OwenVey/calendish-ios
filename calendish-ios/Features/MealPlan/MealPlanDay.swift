@@ -25,7 +25,7 @@ struct MealPlanDay: View {
         VStack(alignment: .leading, spacing: 4) {
             MealPlanDayHeader(day: day, meals: meals, notes: notes, isThisWeek: isThisWeek, isToday: isToday,
                               add: add, addNote: addNote, addToGroceries: addToGroceries, remove: remove)
-            if isEmpty && isThisWeek {
+            if isEmpty, isThisWeek {
                 Button(action: add) {
                     Label("Add a meal", systemImage: "plus")
                         .font(.subheadline)

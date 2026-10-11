@@ -27,10 +27,10 @@ struct RecipeEditorView: View {
                 if isImported {
                     Section {
                         Text("Check the ingredients, steps, and servings before saving.")
-                        if importedWithoutIngredients && !editing.fields.ingredients.contains(where: { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+                        if importedWithoutIngredients, !editing.fields.ingredients.contains(where: { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
                             Text("No ingredients were imported.")
                         }
-                        if importedWithoutInstructions && !editing.fields.steps.contains(where: { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+                        if importedWithoutInstructions, !editing.fields.steps.contains(where: { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
                             Text("No instructions were imported.")
                         }
                     }

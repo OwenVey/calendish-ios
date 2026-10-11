@@ -1,8 +1,8 @@
-import SwiftUI
-import SafariServices
 import PhotosUI
-import VisionKit
+import SafariServices
+import SwiftUI
 import UniformTypeIdentifiers
+import VisionKit
 
 struct RecipeSourceBrowser: UIViewControllerRepresentable {
     @Environment(\.dismiss) private var dismiss
@@ -14,7 +14,7 @@ struct RecipeSourceBrowser: UIViewControllerRepresentable {
         return controller
     }
 
-    func updateUIViewController(_ controller: SFSafariViewController, context: Context) {}
+    func updateUIViewController(_ controller: SFSafariViewController, context: Context) { }
 
     func makeCoordinator() -> Coordinator { Coordinator(dismiss: dismiss) }
 

@@ -50,7 +50,7 @@ struct CookModeView: View {
                 let sheetHeight = min(340, max(220, geometry.size.height * 0.38))
                 let peekHeight = min(peekHeight, sheetHeight)
                 HStack(spacing: 0) {
-                    if wide && showIngredients {
+                    if wide, showIngredients {
                         ingredientPanel()
                             .frame(width: min(typeSize.isAccessibilitySize ? 380 : 320, geometry.size.width * 0.4))
                             .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 28))
@@ -140,14 +140,14 @@ struct CookModeView: View {
     private func timerAlertPresented(onIngredients: Bool) -> Binding<Bool> {
         Binding(
             get: { !timerStore.finished.isEmpty && !handsFree.isListening && !wideLayout == onIngredients },
-            set: { if !$0 && !wideLayout == onIngredients { timerStore.acknowledge() } }
+            set: { if !$0, !wideLayout == onIngredients { timerStore.acknowledge() } }
         )
     }
 
     private func handsFreeIntroPresented(onIngredients: Bool) -> Binding<Bool> {
         Binding(
             get: { showHandsFreeIntro && !wideLayout == onIngredients },
-            set: { if !$0 && !wideLayout == onIngredients { showHandsFreeIntro = false } }
+            set: { if !$0, !wideLayout == onIngredients { showHandsFreeIntro = false } }
         )
     }
 

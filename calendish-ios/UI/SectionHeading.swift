@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SectionHeading: View {
     let title: String
-    var subtitle: String? = nil
+    var subtitle: String?
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.title3.weight(.semibold))

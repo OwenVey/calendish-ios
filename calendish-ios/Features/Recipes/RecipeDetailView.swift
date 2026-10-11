@@ -47,8 +47,8 @@ struct RecipeDetailView: View {
                 RecipeArtwork(recipe: recipe)
                     .frame(height: recipe.imagePath == nil ? 190 : 260)
                     .overlay(alignment: .bottomTrailing) {
-                        if recipe.imagePath == nil && plannedMeal == nil && store.canEdit(recipe) {
-                            PhotoSourceMenu(hasPhoto: false, onPick: { store.saveRecipe(recipe, photo: .replace($0)) }, onRemove: {}) {
+                        if recipe.imagePath == nil, plannedMeal == nil, store.canEdit(recipe) {
+                            PhotoSourceMenu(hasPhoto: false, onPick: { store.saveRecipe(recipe, photo: .replace($0)) }, onRemove: { }) {
                                 Label("Add photo", systemImage: "camera")
                                     .font(.subheadline.weight(.semibold))
                                     .padding(.horizontal, 14).padding(.vertical, 10)
@@ -165,7 +165,7 @@ struct RecipeDetailView: View {
                             store.toggleFavorite(recipe)
                         }
                         }
-                        if plannedMeal == nil && !store.isMine(recipe) {
+                        if plannedMeal == nil, !store.isMine(recipe) {
                             Button("Save to my collection", systemImage: "square.and.arrow.down") {
                                 savingCopy = true
                                 Task {
@@ -185,11 +185,11 @@ struct RecipeDetailView: View {
                             }.disabled(!store.hasNewerVersion(plannedMeal))
                                 .accessibilityHint("Replaces this meal’s saved ingredients and instructions")
                         }
-                        if plannedMeal == nil && store.isMine(recipe) {
+                        if plannedMeal == nil, store.isMine(recipe) {
                             Button(recipe.owner?.isShared == true ? "Make private" : "Share with household", systemImage: "person.2") { confirmSharing = true }
                         }
                     }
-                    if plannedMeal == nil && store.canEdit(recipe) {
+                    if plannedMeal == nil, store.canEdit(recipe) {
                         Section {
                             Button("Delete recipe", systemImage: "trash", role: .destructive) { confirmDelete = true }
                         }
@@ -203,12 +203,12 @@ struct RecipeDetailView: View {
                         store.deleteRecipe(recipe)
                         dismiss()
                     }
-                    Button("Cancel", role: .cancel) {}
+                    Button("Cancel", role: .cancel) { }
                 } message: {
                     Text(store.deletionExplanation(for: recipe))
                 }
             }
-            if plannedMeal == nil && store.canEdit(recipe) {
+            if plannedMeal == nil, store.canEdit(recipe) {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Edit recipe", systemImage: "pencil") { showEditor = true }
                         .labelStyle(.iconOnly).toolbarGlyph()
@@ -222,7 +222,6 @@ struct RecipeDetailView: View {
                     .disabled(recipe.steps.isEmpty)
                     .accessibilityHint("Opens step-by-step cooking instructions")
             }
-
         }
         .confirmationDialog(recipe.owner?.isShared == true ? "Make private?" : "Share with household?", isPresented: $confirmSharing, titleVisibility: .visible) {
             Button(recipe.owner?.isShared == true ? "Make private" : "Share with household") {

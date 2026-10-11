@@ -69,14 +69,14 @@ struct GroceryRow: View {
                     .onChange(of: line) { _, updatedLine in
                         // A vertical TextField inserts a newline from the software
                         // keyboard's Done key instead of invoking onSubmit.
-                        if textFocused && updatedLine.contains("\n") {
+                        if textFocused, updatedLine.contains("\n") {
                             line = updatedLine.replacingOccurrences(of: "\n", with: "")
                             finishEditing()
                         }
                     }
                     .accessibilityLabel("Grocery item")
                     .accessibilityHint("Edit name and quantity")
-                if showsSources && item.sources.count > 1 {
+                if showsSources, item.sources.count > 1 {
                     Text(item.sources.formatted(.list(type: .and)))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)

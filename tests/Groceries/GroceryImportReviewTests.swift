@@ -66,7 +66,7 @@ struct GroceryImportReviewTests {
         precondition(items.map(\.name) == ["235 ml milk", "1 cucumber"] && changes.updated.isEmpty,
             "A selected line already on the list for the same recipe combines into it without changing it")
         precondition(items.map(\.position) == [31, 32], "Append after the latest snapshot in recipe and ingredient order")
-        precondition(items.map(\.source) == ["Soup", "Salad"] && items.allSatisfy { $0.amount.isEmpty })
+        precondition(items.map(\.source) == ["Soup", "Salad"] && items.allSatisfy(\.amount.isEmpty))
         precondition(items.map(\.name) == metricSections.flatMap(\.lines).filter(\.isSelected).map(\.text).filter { $0 != "Salt to taste" },
             "Display and output must use the same measurement preference")
         precondition(Set(items.map(\.id)).count == 2)

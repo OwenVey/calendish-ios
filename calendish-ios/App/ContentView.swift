@@ -1,6 +1,6 @@
-import SwiftUI
 import GoogleSignIn
 import Supabase
+import SwiftUI
 
 struct ContentView: View {
     @State private var store: HouseholdStore
@@ -37,7 +37,7 @@ struct ContentView: View {
         .environment(store)
         .environment(timers)
         .environment(\.openRecipe, openRecipe)
-        .calendishAlert("Timer finished", isPresented: Binding(get: { !timers.finished.isEmpty && !timers.isCooking }, set: { if !$0 && !timers.isCooking { timers.acknowledge() } })) {
+        .calendishAlert("Timer finished", isPresented: Binding(get: { !timers.finished.isEmpty && !timers.isCooking }, set: { if !$0, !timers.isCooking { timers.acknowledge() } })) {
             Button("Done") { }
         } message: {
             Text(timers.finished.map { "\($0.recipeTitle), step \($0.stepIndex + 1): \($0.durationText) timer finished." }.joined(separator: "\n\n"))
@@ -55,8 +55,7 @@ struct ContentView: View {
                    url.lastPathComponent == session.id.uuidString, !timers.isCooking {
                     resumedCooking = session
                 }
-            }
-            else if store.openInvite(url) { selectedTab = .settings }
+            } else if store.openInvite(url) { selectedTab = .settings }
             else if url.scheme == "calendish" { supabase.auth.handle(url) }
             else { GIDSignIn.sharedInstance.handle(url) }
         }
@@ -78,7 +77,7 @@ struct ContentView: View {
                 .onAppear { SharedInbox.remove(share.id) }
         }
         .calendishAlert(store.errorTitle, item: $store.errorMessage) { _ in
-            Button("OK") {}
+            Button("OK") { }
         } message: { Text($0) }
         .menuStyle(CalendishMenuStyle())
     }

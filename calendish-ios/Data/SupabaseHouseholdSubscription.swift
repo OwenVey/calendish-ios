@@ -1,7 +1,7 @@
-import SwiftUI
-import Supabase
-import GoogleSignIn
 import CryptoKit
+import GoogleSignIn
+import Supabase
+import SwiftUI
 
 @MainActor
 final class SupabaseHouseholdSubscription: HouseholdSubscription {
@@ -31,7 +31,7 @@ final class SupabaseHouseholdSubscription: HouseholdSubscription {
                     guard !Task.isCancelled, let self else { return }
                     // SDK broadcasts wrap the RLS-authorized table hint inside payload.
                     guard let table = payload["payload"]?.objectValue?["table"]?.stringValue else { continue }
-                    self.continuation.yield(table == "grocery_items" ? .groceries : table == "household_members" && personal ? .membership : .household)
+                    continuation.yield(table == "grocery_items" ? .groceries : table == "household_members" && personal ? .membership : .household)
                 }
             })
             tasks.append(Task { [weak self] in
@@ -46,7 +46,7 @@ final class SupabaseHouseholdSubscription: HouseholdSubscription {
             var reportedFailure = false
             while !Task.isCancelled {
                 guard let self else { return }
-                for channel in [self.householdChannel, self.personalChannel] where channel.status != .subscribed {
+                for channel in [householdChannel, personalChannel] where channel.status != .subscribed {
                     do { try await channel.subscribeWithError(); reportedFailure = false }
                     catch {
                         guard !Task.isCancelled else { return }

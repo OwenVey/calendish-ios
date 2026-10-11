@@ -29,7 +29,7 @@ struct FlowLayout: Layout {
         }
         for subview in subviews {
             let size = measuredSize(subview, width: width)
-            if x > 0 && x + size.width > width {
+            if x > 0, x + size.width > width {
                 centerRow()
                 x = 0
                 y += rowHeight + spacing

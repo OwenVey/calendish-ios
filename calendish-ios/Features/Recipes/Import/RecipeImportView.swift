@@ -1,5 +1,5 @@
-import SwiftUI
 import PhotosUI
+import SwiftUI
 import UniformTypeIdentifiers
 
 /// The one way recipes come in from outside the app: links, pasted text, photos, scans, files,
@@ -120,9 +120,9 @@ struct RecipeImportView: View {
         switch error {
         case is RecipeLinkImporter.ImportError, is RecipeTextImporter.ImportError,
              is RecipeImageImporter.ImportError, is RecipePDFImporter.ImportError:
-            return error.localizedDescription
+            error.localizedDescription
         default:
-            return InterfaceCopy.failure(error, action: "read the recipe", recovery: "Try another source or paste the recipe text.")
+            InterfaceCopy.failure(error, action: "read the recipe", recovery: "Try another source or paste the recipe text.")
         }
     }
 

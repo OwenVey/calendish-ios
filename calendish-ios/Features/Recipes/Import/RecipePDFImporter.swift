@@ -13,7 +13,7 @@ nonisolated enum RecipePDFImporter {
             if let text = text(of: page) {
                 pages.append(text)
             } else if let image = render(page) {
-                pages.append(try await RecipeImageImporter.text(in: image))
+                try await pages.append(RecipeImageImporter.text(in: image))
             }
         }
         let text = pages.joined(separator: "\n")

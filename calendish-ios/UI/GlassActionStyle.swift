@@ -4,7 +4,7 @@ import SwiftUI
 /// with the on-accent label color.
 struct GlassActionStyle: ViewModifier {
     var prominent = false
-    @ViewBuilder func body(content: Content) -> some View {
+    func body(content: Content) -> some View {
         if prominent { content.buttonStyle(.glassProminent).foregroundStyle(CalendishStyle.onAccent) }
         else { content.buttonStyle(.glass) }
     }

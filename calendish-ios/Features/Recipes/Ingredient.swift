@@ -22,7 +22,7 @@ nonisolated struct Ingredient: Identifiable, Codable, Hashable, Sendable {
     }
 
     private static let fractionGlyphs: [(Character, Double)] = [
-        ("⅛", 0.125), ("¼", 0.25), ("⅓", 1.0 / 3), ("⅜", 0.375), ("½", 0.5), ("⅝", 0.625), ("⅔", 2.0 / 3), ("¾", 0.75), ("⅞", 0.875)
+        ("⅛", 0.125), ("¼", 0.25), ("⅓", 1.0 / 3), ("⅜", 0.375), ("½", 0.5), ("⅝", 0.625), ("⅔", 2.0 / 3), ("¾", 0.75), ("⅞", 0.875),
     ]
 
     /// The value of a quantity token such as "1½", "1 1/2", or "1.5".

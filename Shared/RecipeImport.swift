@@ -1,5 +1,5 @@
-import Foundation
 import CoreTransferable
+import Foundation
 import UniformTypeIdentifiers
 
 /// Something a recipe can be imported from. Transferable, so the same type loads from paste, drag and drop,
@@ -39,7 +39,7 @@ nonisolated enum RecipeImport: Sendable {
 nonisolated extension RecipeImport: Transferable {
     // Earlier representations win when another app offers several, as Safari does with a page's link and title.
     static var transferRepresentation: some TransferRepresentation {
-        FileRepresentation(importedContentType: .pdf) { received in .pdf(try Data(contentsOf: received.file)) }
+        FileRepresentation(importedContentType: .pdf) { received in try .pdf(Data(contentsOf: received.file)) }
         DataRepresentation(importedContentType: .image) { data in .images([data]) }
         ProxyRepresentation { (url: URL) in from(text: url.absoluteString) }
         ProxyRepresentation { (text: String) in from(text: text) }

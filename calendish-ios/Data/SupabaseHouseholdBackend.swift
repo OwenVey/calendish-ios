@@ -1,7 +1,7 @@
-import SwiftUI
-import Supabase
-import GoogleSignIn
 import CryptoKit
+import GoogleSignIn
+import Supabase
+import SwiftUI
 
 /// The production adapter owns SDK auth, pagination, query shapes, storage, and private broadcasts.
 @MainActor
@@ -215,5 +215,4 @@ final class SupabaseHouseholdBackend: HouseholdBackend {
             cursor = last[keyPath: key]
         }
     }
-
 }

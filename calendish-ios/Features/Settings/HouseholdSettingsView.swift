@@ -32,7 +32,7 @@ struct HouseholdSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        if store.isOwner && member.role != "owner" {
+                        if store.isOwner, member.role != "owner" {
                             Menu {
                                 Button("Make owner", systemImage: "person.badge.key") { memberToOwn = member }
                                 Button("Remove member", systemImage: "person.badge.minus", role: .destructive) { memberToRemove = member }

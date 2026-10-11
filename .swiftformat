@@ -1,0 +1,29 @@
+# SwiftFormat config. Run ./scripts/format.sh (or ./scripts/format.sh --lint to check only).
+
+--swiftversion 6.0
+--exclude .build,DerivedData,supabase,BuildTools
+
+# Layout
+--indent 4
+--maxwidth none
+--wraparguments preserve
+--wrapparameters preserve
+--wrapcollections preserve
+--self remove
+--importgrouping alpha
+--stripunusedargs closure-only
+--ifdef no-indent
+--ranges no-space
+--emptybraces spaced
+
+# The codebase keeps members tightly packed; don't insert blank lines between scopes or after/before marks.
+--disable blankLinesBetweenScopes,blankLinesAroundMark,blankLineAfterImports
+# Keep existing doc-comment and organization choices.
+--disable docComments,docCommentsBeforeModifiers,organizeDeclarations,markTypes,fileHeader
+# Allow `if x { return }`-style one-liners and trailing closures as written.
+--disable wrapMultilineStatementBraces,wrapSingleLineComments,wrapConditionalBodies,wrapIfStatementBodies,wrapPropertyBodies,wrapFunctionBodies,wrapLoopBodies,wrapIfExpressionBodies
+# Match the existing `case let .foo(x)` vs `case .foo(let x)` choices file-by-file.
+--disable hoistPatternLet
+# Wrapped arguments use Xcode's one-level continuation indent (Ctrl-I), which SwiftFormat's indent rule
+# would realign to the opening paren. Leave indentation to Xcode.
+--disable indent,wrapArguments

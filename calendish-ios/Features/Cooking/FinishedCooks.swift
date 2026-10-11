@@ -51,11 +51,11 @@ final class FinishedCooks {
         let delivery = UUID()
         activeDelivery = delivery
         recorder.record(cook) { [weak self] acknowledged in
-            guard let self, session == self.recordingSession, self.activeDelivery == delivery else { return }
-            self.activeDelivery = nil
+            guard let self, session == recordingSession, activeDelivery == delivery else { return }
+            activeDelivery = nil
             guard acknowledged else { return }
-            self.save(self.pending.filter { $0 != cook })
-            self.drain()
+            save(pending.filter { $0 != cook })
+            drain()
         }
     }
 

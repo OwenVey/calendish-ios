@@ -143,13 +143,13 @@ struct GroceryListView: View {
             }
             .animation(reduceMotion ? nil : .default, value: store.groceries.items.map(\.isComplete))
             .overlay {
-                if searchPresented && activeItems.isEmpty && completedItems.isEmpty && !canAddSearch && !store.groceries.items.isEmpty {
+                if searchPresented, activeItems.isEmpty, completedItems.isEmpty, !canAddSearch, !store.groceries.items.isEmpty {
                     if isSearching {
                         ContentUnavailableView.search(text: query)
                     } else {
                         ContentUnavailableView(scope == .completed ? "No checked items" : "Nothing left to buy", systemImage: scope == .completed ? "checkmark.circle" : "basket")
                     }
-                } else if store.groceries.items.isEmpty && !addingItem {
+                } else if store.groceries.items.isEmpty, !addingItem {
                     ContentUnavailableView("All set for now", systemImage: "basket", description: Text("Add an item to start your household grocery list."))
                         .allowsHitTesting(false)
                 }
@@ -232,5 +232,4 @@ struct GroceryListView: View {
         newItem = ""
         if let item = added.first { lastAddedItemID = item.id }
     }
-
 }

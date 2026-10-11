@@ -36,7 +36,7 @@ struct MealNoteEditor: View {
                     DatePicker("Day", selection: $date, displayedComponents: .date)
                         .environment(\.calendar, weekStart.calendar)
                 } footer: {
-                    if isNew && trimmedText.isEmpty {
+                    if isNew, trimmedText.isEmpty {
                         FlowLayout(spacing: 8) {
                             ForEach(Self.suggestions, id: \.self) { suggestion in
                                 Button(suggestion) { text = suggestion }

@@ -12,14 +12,14 @@ enum GroceryMutation {
 
     var changes: [GrocerySyncState.Change] {
         switch self {
-        case .insert(let items): return items.map { .insert($0) }
+        case .insert(let items): items.map { .insert($0) }
         case let .edit(id, fields):
-            return [.edit(id, name: fields.name, amount: fields.amount, source: fields.source,
+            [.edit(id, name: fields.name, amount: fields.amount, source: fields.source,
                 isComplete: fields.isComplete, position: nil)]
-        case .delete(let ids): return ids.map { .delete($0) }
+        case .delete(let ids): ids.map { .delete($0) }
         case .reorder(let positions):
-            return positions.map { .edit($0.id, name: nil, amount: nil, source: nil, isComplete: nil, position: $0.value) }
-        case .sort(let aisles): return aisles.map { .sort($0.id, aisle: $0.value) }
+            positions.map { .edit($0.id, name: nil, amount: nil, source: nil, isComplete: nil, position: $0.value) }
+        case .sort(let aisles): aisles.map { .sort($0.id, aisle: $0.value) }
         }
     }
 }

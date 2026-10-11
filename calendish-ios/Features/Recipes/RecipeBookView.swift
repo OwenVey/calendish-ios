@@ -1,7 +1,7 @@
-import SwiftUI
 import PhotosUI
-import VisionKit
+import SwiftUI
 import UniformTypeIdentifiers
+import VisionKit
 
 struct RecipeBookView: View {
     @Environment(HouseholdStore.self) private var store
@@ -41,7 +41,7 @@ struct RecipeBookView: View {
     }
     private func subtitle(count: Int) -> String {
         let count = count == 1 ? "1 recipe" : "\(count) recipes"
-        let filters = (favoritesOnly ? ["Favorites"] : []) + [selectedCategory?.title, selectedTag].compactMap { $0 }
+        let filters = (favoritesOnly ? ["Favorites"] : []) + [selectedCategory?.title, selectedTag].compactMap(\.self)
         return (filters + [count]).joined(separator: " · ")
     }
     private var isFiltered: Bool { favoritesOnly || selectedCategory != nil || selectedTag != nil }
@@ -69,7 +69,7 @@ struct RecipeBookView: View {
             if recipes.isEmpty {
                 if store.recipes.isEmpty {
                     ContentUnavailableView("Your recipe book starts here", systemImage: "book.closed", description: Text("Add a recipe or import one from a link, text, photo, or PDF."))
-                } else if favoritesOnly && search.isEmpty && !store.recipes.contains(where: \.isFavorite) {
+                } else if favoritesOnly, search.isEmpty, !store.recipes.contains(where: \.isFavorite) {
                     ContentUnavailableView("No favorites yet", systemImage: "star", description: Text("Open a recipe’s actions menu and choose Add to favorites."))
                 } else {
                     ContentUnavailableView("No matching recipes", systemImage: "book.closed", description: Text("Try another search or change the filters."))

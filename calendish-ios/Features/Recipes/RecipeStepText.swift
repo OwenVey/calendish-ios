@@ -8,7 +8,7 @@ struct RecipeStepText: View {
     let scale: Double
     let units: MeasurementPreference
     /// Cooking mode reveals the matching rows in its ingredients panel instead of presenting a popover.
-    var onIngredientTap: (([UUID]) -> Void)? = nil
+    var onIngredientTap: (([UUID]) -> Void)?
     @AppStorage(TemperatureUnit.storageKey) private var temperatureUnit = TemperatureUnit.system
     @State private var frames = MentionFrames()
     @State private var shown: Mention?
@@ -107,5 +107,4 @@ struct RecipeStepText: View {
             shown = mention
         }
     }
-
 }

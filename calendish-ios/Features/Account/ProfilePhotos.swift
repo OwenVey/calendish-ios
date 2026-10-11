@@ -1,7 +1,7 @@
-import PhotosUI
-import SwiftUI
 import ImageIO
+import PhotosUI
 import Supabase
+import SwiftUI
 
 /// Private avatar references remain stable across household moves. A fresh path avoids stale caches.
 final class ProfilePhotos {

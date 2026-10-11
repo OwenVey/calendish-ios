@@ -16,16 +16,8 @@ enum GroceryAutoClear: String, CaseIterable, Identifiable {
         switch self {
         case .never: nil
         case .hour: 3600
-        case .day: 86_400
+        case .day: 86400
         case .week: 604_800
-        }
-    }
-    var explanation: String {
-        switch self {
-        case .never: "Checked items stay on the list until someone clears them."
-        case .hour: "Checked items are removed an hour after they’re checked off. This applies to everyone in your household."
-        case .day: "Checked items are removed a day after they’re checked off. This applies to everyone in your household."
-        case .week: "Checked items are removed a week after they’re checked off. This applies to everyone in your household."
         }
     }
 }

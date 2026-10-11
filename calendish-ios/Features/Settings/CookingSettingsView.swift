@@ -30,7 +30,7 @@ struct CookingSettingsView: View {
             }
             Section {
                 Toggle("Live Activity", isOn: $liveActivity)
-                if liveActivity && !activitiesAllowed {
+                if liveActivity, !activitiesAllowed {
                     Button("Open Calendish settings") {
                         if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
                     }
@@ -48,7 +48,7 @@ struct CookingSettingsView: View {
                 if timerAlert == .alarm {
                     if alarms == .notDetermined {
                         Button("Allow alarms") {
-                            Task { alarms = (try? await AlarmManager.shared.requestAuthorization()) ?? AlarmManager.shared.authorizationState }
+                            Task { alarms = await (try? AlarmManager.shared.requestAuthorization()) ?? AlarmManager.shared.authorizationState }
                         }
                     } else if alarms == .denied {
                         Button("Open Calendish settings") {

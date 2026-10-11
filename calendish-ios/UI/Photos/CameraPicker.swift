@@ -1,7 +1,7 @@
-import SwiftUI
 import PhotosUI
-import UniformTypeIdentifiers
 import Supabase
+import SwiftUI
+import UniformTypeIdentifiers
 import VisionKit
 
 /// The system camera. SwiftUI has no camera picker of its own.
@@ -15,7 +15,7 @@ struct CameraPicker: UIViewControllerRepresentable {
         picker.delegate = context.coordinator
         return picker
     }
-    func updateUIViewController(_ picker: UIImagePickerController, context: Context) {}
+    func updateUIViewController(_ picker: UIImagePickerController, context: Context) { }
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
     final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {

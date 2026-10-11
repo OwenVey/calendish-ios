@@ -4,7 +4,7 @@ import SwiftUI
 struct HouseholdMoveView: View {
     @Environment(HouseholdStore.self) private var store
     @Environment(\.dismiss) private var dismiss
-    var code: String? = nil
+    var code: String?
     var leaving = false
     @State private var enteredCode = ""
     @State private var preview: HouseholdMovePreview?
@@ -18,7 +18,7 @@ struct HouseholdMoveView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if !leaving && preview == nil {
+                if !leaving, preview == nil {
                     Section {
                         TextField("Invite code", text: $enteredCode)
                             .textInputAutocapitalization(.characters).autocorrectionDisabled()
@@ -26,7 +26,7 @@ struct HouseholdMoveView: View {
                             .disabled(normalizedCode.isEmpty || working)
                     } footer: { Text("Review the household and changes before joining. Nothing changes until you confirm.") }
                 }
-                if leaving && preview == nil && !working {
+                if leaving, preview == nil, !working {
                     Button("Review changes") { Task { await loadPreview() } }
                 }
                 if let preview {

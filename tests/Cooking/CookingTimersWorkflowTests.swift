@@ -61,7 +61,7 @@ struct CookingTimersWorkflowApp: App {
                                 symbol: "fork.knife", ingredients: [], steps: ["Proof for 1 hour.", "Bake for 30 minutes."])
 
     /// Fresh timers with nothing saved, alerting through `style`.
-    private func timers(_ alerts: ControlledAlerts, style: TimerAlert = .notification, onChange: @escaping () -> Void = {}) -> CookingTimers {
+    private func timers(_ alerts: ControlledAlerts, style: TimerAlert = .notification, onChange: @escaping () -> Void = { }) -> CookingTimers {
         UserDefaults.standard.set(style.rawValue, forKey: PreferenceKey.timerAlert)
         let defaults = UserDefaults(suiteName: "cooking-timers-workflow")!
         defaults.removePersistentDomain(forName: "cooking-timers-workflow")
@@ -78,7 +78,7 @@ struct CookingTimersWorkflowApp: App {
             ("notificationsOff", notificationsOff),
             ("expiration", expiration),
             ("alarmExpiration", alarmExpiration),
-            ("restoredExpiration", restoredExpiration)
+            ("restoredExpiration", restoredExpiration),
         ]
         for (name, workflow) in workflows {
             do { try await workflow() }

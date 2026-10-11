@@ -13,7 +13,7 @@ struct CookIngredientPanel: View {
     /// The sheet's state, or nil beside the steps, where the panel closes instead of collapsing.
     var isCollapsed: Bool?
     let onClose: () -> Void
-    var onExpand: () -> Void = {}
+    var onExpand: () -> Void = { }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(MeasurementPreference.storageKey) private var units = MeasurementPreference.original
 

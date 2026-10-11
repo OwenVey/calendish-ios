@@ -85,7 +85,7 @@ nonisolated enum GroceryAisle: String, CaseIterable, Identifiable, Sendable {
         if keywords[word] != nil || word.count <= 3 { return word }
         if word.hasSuffix("ies") { return word.dropLast(3) + "y" }
         if word.hasSuffix("oes") || word.hasSuffix("ches") || word.hasSuffix("shes") { return String(word.dropLast(2)) }
-        if word.hasSuffix("s") && !word.hasSuffix("ss") { return String(word.dropLast()) }
+        if word.hasSuffix("s"), !word.hasSuffix("ss") { return String(word.dropLast()) }
         return word
     }
 

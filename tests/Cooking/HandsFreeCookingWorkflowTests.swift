@@ -111,7 +111,7 @@ struct HandsFreeWorkflowApp: App {
             ("timerCompletion", timerCompletion),
             ("activation", activation),
             ("preparation", preparation),
-            ("interruptions", interruptions)
+            ("interruptions", interruptions),
         ]
         for (name, workflow) in workflows {
             do { try await workflow() }

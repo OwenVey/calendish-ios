@@ -1,5 +1,5 @@
-import SwiftUI
 import Observation
+import SwiftUI
 
 /// End dates persist independently of cooking screens; system alarms or notifications cover background expiration.
 /// Timers finish themselves while Calendish is open, and keep their system alerts in step with every change.
@@ -18,7 +18,7 @@ final class CookingTimers {
     private let storageKey = "activeCookingTimers"
 
     /// - Parameter onChange: Called after every change to the running timers, such as to update a Live Activity.
-    init(alerts: CookingTimerAlerts = SystemCookingTimerAlerts(), defaults: UserDefaults = .standard, onChange: @escaping () -> Void = {}) {
+    init(alerts: CookingTimerAlerts = SystemCookingTimerAlerts(), defaults: UserDefaults = .standard, onChange: @escaping () -> Void = { }) {
         self.alerts = alerts
         self.defaults = defaults
         self.onChange = onChange

@@ -42,7 +42,7 @@ struct RecipeDraftTestApp: App {
         try expect(recovered.fields.id == id && recovered.fields.title == "  Noodles  " && recovered.isDirty,
                    "Autosave restores content and new recipe identity")
         var firstAcknowledgment: (() -> Void)?
-        try expect(recovered.save(knownTags: ["Dinner"]) { recipe, photo, acknowledge in
+        try expect(recovered.save(knownTags: ["Dinner"]) { _, _, acknowledge in
             firstAcknowledgment = acknowledge
         }, "Valid recipe submitted")
         // Explicitly inspect the submitted result, rather than letting an assertion disappear inside a callback.
@@ -117,7 +117,7 @@ struct RecipeDraftTestApp: App {
         let legacyKey = "recipeDraft.\(account.uuidString).\(original.id.uuidString)"
         let legacy: [String: Any] = ["id": original.id.uuidString, "title": "Legacy draft", "summary": "", "servings": 4,
             "prepMinutes": 10, "cookMinutes": 20, "tags": [], "newTag": "", "ingredients": [], "steps": ["Cook."], "removesPhoto": false]
-        defaults.set(try JSONSerialization.data(withJSONObject: legacy), forKey: legacyKey)
+        try defaults.set(JSONSerialization.data(withJSONObject: legacy), forKey: legacyKey)
         let migrated = draft(original)
         try expect(migrated.fields.title == "Legacy draft" && migrated.fields.isShared && migrated.canSave, "Existing stored draft format remains readable")
 

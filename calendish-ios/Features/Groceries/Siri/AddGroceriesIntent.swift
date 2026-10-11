@@ -11,7 +11,7 @@ struct AddGroceriesIntent: AppIntent {
 
     static var parameterSummary: some ParameterSummary { Summary("Add \(\.$items) to groceries") }
 
-    init() {}
+    init() { }
     init(items: [String]) { self.items = items }
 
     @MainActor

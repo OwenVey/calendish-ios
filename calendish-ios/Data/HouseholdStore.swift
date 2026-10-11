@@ -1,5 +1,5 @@
-import SwiftUI
 import Observation
+import SwiftUI
 
 /// The signed-in person's household, the recipes available to them, and the household's meal plan and grocery list.
 /// Edits apply locally right away, then save to Supabase; changes from other members arrive over Realtime.
@@ -81,23 +81,23 @@ final class HouseholdStore {
         store.meals = [
             PlannedMeal(date: today, recipe: recipes[2], recipeID: recipes[2].id, servings: 2),
             PlannedMeal(date: today, recipe: recipes[0], recipeID: recipes[0].id, servings: 4),
-            PlannedMeal(date: Calendar.current.date(byAdding: .day, value: 1, to: today)!, recipe: recipes[1], recipeID: recipes[1].id, servings: 4)
+            PlannedMeal(date: Calendar.current.date(byAdding: .day, value: 1, to: today)!, recipe: recipes[1], recipeID: recipes[1].id, servings: 4),
         ]
         store.notes = [MealPlanNote(date: Calendar.current.date(byAdding: .day, value: 2, to: today)!, text: "Leftovers", items: ["Baguette"])]
         store.reviews = [
             RecipeReview(userID: me, recipeID: recipes[0].id, rating: 5, note: "Use half the salt."),
             RecipeReview(userID: partner, recipeID: recipes[0].id, rating: 4, note: "Great with feta on top."),
-            RecipeReview(userID: partner, recipeID: recipes[1].id, rating: 5)
+            RecipeReview(userID: partner, recipeID: recipes[1].id, rating: 5),
         ]
         store.cooks = [
             RecipeCook(recipeID: recipes[0].id, date: Calendar.current.date(byAdding: .day, value: -21, to: today)!, cookedBy: me),
-            RecipeCook(recipeID: recipes[1].id, date: Calendar.current.date(byAdding: .day, value: -45, to: today)!, cookedBy: partner)
+            RecipeCook(recipeID: recipes[1].id, date: Calendar.current.date(byAdding: .day, value: -45, to: today)!, cookedBy: partner),
         ]
         store.groceries.setHousehold(store.household?.id, items: [
             GroceryItem(name: "Cherry tomatoes", amount: "2 cups", source: "Lemon & herb orzo", position: 0),
             GroceryItem(name: "Orzo", amount: "1½ cups", source: "Lemon & herb orzo", position: 1),
             GroceryItem(name: "Greek yogurt", amount: "1 tub", source: "General", position: 2),
-            GroceryItem(name: "Olive oil", amount: "2 tbsp", source: "Lemon & herb orzo", isComplete: true, position: 3)
+            GroceryItem(name: "Olive oil", amount: "2 tbsp", source: "Lemon & herb orzo", isComplete: true, position: 3),
         ])
         memory.account = HouseholdAccount(id: me, email: "owen@example.com")
         memory.seed(HouseholdSnapshot(household: store.household, members: store.members, recipes: store.recipes,
@@ -284,7 +284,7 @@ final class HouseholdStore {
         if let userID {
             finishedCooks.record(for: userID) { [weak self] cook, acknowledge in
                 guard let self else { acknowledge(false); return }
-                self.recordFinishedCook(cook, acknowledge: acknowledge)
+                recordFinishedCook(cook, acknowledge: acknowledge)
             }
         }
         syncAvatar()
@@ -506,12 +506,12 @@ final class HouseholdStore {
         subscription = subscribed
         realtimeTasks.append(Task { [weak self] in
             for await change in subscribed.changes {
-                guard !Task.isCancelled, let self, session == self.syncSession else { return }
+                guard !Task.isCancelled, let self, session == syncSession else { return }
                 switch change {
-                case .groceries: self.groceries.requestReload()
-                case .membership: self.checkMembership()
-                case .household: self.scheduleReload()
-                case .failure(let error): self.report(error, source: "realtime-subscription")
+                case .groceries: groceries.requestReload()
+                case .membership: checkMembership()
+                case .household: scheduleReload()
+                case .failure(let error): report(error, source: "realtime-subscription")
                 }
             }
         })
@@ -646,7 +646,7 @@ final class HouseholdStore {
     /// Ratings and cooked days for every recipe with either, keyed by recipe ID.
     /// Only current members' ratings count, even before a refetch drops a departed member's.
     var recipeStats: [UUID: RecipeStats] {
-        let people = Set(members.map(\.userID) + [userID].compactMap { $0 })
+        let people = Set(members.map(\.userID) + [userID].compactMap(\.self))
         return RecipeStats.make(reviews: reviews.filter { people.contains($0.userID) }, cooks: cooks, meals: meals)
     }
 

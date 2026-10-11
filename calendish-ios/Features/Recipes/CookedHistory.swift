@@ -53,7 +53,7 @@ struct CookedHistory: Hashable {
         let formatter = RelativeDateTimeFormatter()
         // Named styles read "last week" past a few days, which doesn't follow "Last cooked" well.
         formatter.dateTimeStyle = days < 7 ? .named : .numeric
-        let components: DateComponents = switch days {
+        let components = switch days {
         case ..<7: DateComponents(day: -days)
         case ..<30: DateComponents(weekOfMonth: -(days / 7))
         case ..<365: DateComponents(month: -max(1, days / 30))

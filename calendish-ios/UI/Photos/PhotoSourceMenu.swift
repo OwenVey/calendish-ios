@@ -1,5 +1,5 @@
-import SwiftUI
 import PhotosUI
+import SwiftUI
 
 /// The usual ways to add a photo: the camera, the photo library, Files, and the clipboard.
 /// Wraps `label` in a menu of those choices, plus Remove Photo when there's one to remove.

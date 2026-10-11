@@ -26,7 +26,7 @@ final class GrocerySync {
     private var aisleTask: Task<Void, Never>?
     private var sortedNames: [UUID: String] = [:]
 
-    init(transport: (any GrocerySyncTransport)?, onChange: @escaping () -> Void = {},
+    init(transport: (any GrocerySyncTransport)?, onChange: @escaping () -> Void = { },
          onError: @escaping (Error) -> Void = { _ in },
          retryDelay: @escaping () async throws -> Void = { try await Task.sleep(for: .seconds(3)) },
          defaults: UserDefaults? = nil, now: @escaping () -> Date = { .now },
@@ -82,7 +82,7 @@ final class GrocerySync {
         let date = now()
         let checks = Dictionary(items.map { ($0.id.uuidString, $0.isComplete) }, uniquingKeysWith: { first, _ in first })
         // Missing items may not have loaded yet. Retain their stamps for up to a month.
-        var stamps = checkedAt.filter { id, stamp in checks[id] ?? (date.timeIntervalSince(stamp) < 30 * 86_400) }
+        var stamps = checkedAt.filter { id, stamp in checks[id] ?? (date.timeIntervalSince(stamp) < 30 * 86400) }
         for (id, checked) in checks where checked && stamps[id] == nil { stamps[id] = date }
         if stamps != checkedAt {
             checkedAt = stamps
@@ -100,14 +100,14 @@ final class GrocerySync {
             guard let self else { return }
             defer { if session == self.session { self.aisleTask = nil } }
             while !Task.isCancelled, session == self.session {
-                let unsorted = self.items.filter { $0.aisle == nil && self.sortedNames[$0.id] != $0.name }
+                let unsorted = items.filter { $0.aisle == nil && self.sortedNames[$0.id] != $0.name }
                 guard !unsorted.isEmpty else { return }
                 let aisles = await classifyAisles(Array(Set(unsorted.map(\.name))))
                 guard !Task.isCancelled, session == self.session else { return }
                 // Remember attempted names even if classification omitted one or its save fails.
                 // New or renamed items are picked up by the next batch.
-                for item in unsorted { self.sortedNames[item.id] = item.name }
-                self.assignAisles(aisles)
+                for item in unsorted { sortedNames[item.id] = item.name }
+                assignAisles(aisles)
             }
         }
     }
@@ -206,10 +206,10 @@ final class GrocerySync {
             guard let self, !Task.isCancelled, session == self.session else { return }
             defer { self.writes[token] = nil }
             do { try await transport.write(mutation, householdID: householdID) }
-            catch { if session == self.session, !Task.isCancelled { self.onError(error) } }
+            catch { if session == self.session, !Task.isCancelled { onError(error) } }
             guard !Task.isCancelled, session == self.session else { return }
-            self.state.finish(token)
-            self.requestReload()
+            state.finish(token)
+            requestReload()
         }
         writes[token] = writeTask
         itemsChanged()
@@ -222,26 +222,26 @@ final class GrocerySync {
         let id = UUID()
         reloadID = id
         let task = Task { [weak self] in
-            guard let self, let transport = self.transport, let householdID = self.householdID else { return }
+            guard let self, let transport, let householdID else { return }
             defer {
                 if self.reloadID == id { self.reloadTask = nil; self.retryReload = false }
             }
             var reportedFailure = false
             while !Task.isCancelled, session == self.session {
-                let revision = self.state.revision
+                let revision = state.revision
                 do {
                     let serverItems = try await transport.fetch(householdID: householdID)
                     try Task.checkCancellation()
                     guard session == self.session else { return }
-                    if revision != self.state.revision { continue }
-                    self.items = self.state.merging(serverItems)
-                    self.itemsChanged()
+                    if revision != state.revision { continue }
+                    items = state.merging(serverItems)
+                    itemsChanged()
                     return
                 } catch {
                     guard !Task.isCancelled, session == self.session else { throw CancellationError() }
-                    guard self.retryReload else { throw error }
-                    if !reportedFailure { self.onError(error); reportedFailure = true }
-                    try await self.retryDelay()
+                    guard retryReload else { throw error }
+                    if !reportedFailure { onError(error); reportedFailure = true }
+                    try await retryDelay()
                 }
             }
             throw CancellationError()

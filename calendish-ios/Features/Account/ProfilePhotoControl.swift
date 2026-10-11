@@ -1,6 +1,6 @@
+import ImageIO
 import PhotosUI
 import SwiftUI
-import ImageIO
 
 struct ProfilePhotoControl: View {
     @Environment(HouseholdStore.self) private var store
@@ -67,7 +67,7 @@ struct ProfilePhotoControl: View {
                       let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, [
                         kCGImageSourceCreateThumbnailFromImageAlways: true,
                         kCGImageSourceCreateThumbnailWithTransform: true,
-                        kCGImageSourceThumbnailMaxPixelSize: 2048
+                        kCGImageSourceThumbnailMaxPixelSize: 2048,
                       ] as CFDictionary) else { throw CocoaError(.fileReadCorruptFile) }
                 try Task.checkCancellation()
                 draft = ProfilePhotoDraft(image: UIImage(cgImage: cgImage))

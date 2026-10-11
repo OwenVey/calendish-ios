@@ -8,7 +8,7 @@ struct CookingTimerIntent: LiveActivityIntent {
     @Parameter(title: "Session") var sessionID: String
     @Parameter(title: "Step") var stepIndex: Int
 
-    init() {}
+    init() { }
     init(sessionID: UUID, stepIndex: Int) {
         self.sessionID = sessionID.uuidString
         self.stepIndex = stepIndex

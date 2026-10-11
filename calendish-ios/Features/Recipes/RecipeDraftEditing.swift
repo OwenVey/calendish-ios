@@ -1,5 +1,5 @@
-import SwiftUI
 import Observation
+import SwiftUI
 
 /// Editing a recipe, including recovery of unsaved work and acknowledgment of a submitted save.
 @Observable

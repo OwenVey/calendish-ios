@@ -12,11 +12,11 @@ struct SettingsLinkLabel: View {
     }
     var body: some View {
         HStack {
-            SettingsLabel(title, systemImage: systemImage, color: color).foregroundStyle(.primary)
+            SettingsLabel(title, systemImage: systemImage, color: color).foregroundStyle(Color.primary)
             Spacer()
             Image(systemName: "arrow.up.right")
                 .font(.footnote.weight(.semibold))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(Color(.tertiaryLabel))
         }
     }
 }

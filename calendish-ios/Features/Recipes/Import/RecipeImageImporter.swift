@@ -8,7 +8,7 @@ nonisolated enum RecipeImageImporter {
         var lines: [String] = []
         for image in images {
             try Task.checkCancellation()
-            lines = merged(lines, try await text(in: image).components(separatedBy: .newlines))
+            lines = try await merged(lines, text(in: image).components(separatedBy: .newlines))
         }
         let text = lines.joined(separator: "\n")
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ImportError.noText }
@@ -31,11 +31,11 @@ nonisolated enum RecipeImageImporter {
     }
 
     static func text(in image: Data) async throws -> String {
-        text(of: try await RecognizeDocumentsRequest().perform(on: image).first?.document)
+        try await text(of: RecognizeDocumentsRequest().perform(on: image).first?.document)
     }
 
     static func text(in image: CGImage) async throws -> String {
-        text(of: try await RecognizeDocumentsRequest().perform(on: image).first?.document)
+        try await text(of: RecognizeDocumentsRequest().perform(on: image).first?.document)
     }
 
     private static func text(of document: DocumentObservation.Container?) -> String {

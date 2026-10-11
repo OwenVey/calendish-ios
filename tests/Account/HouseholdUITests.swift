@@ -1,5 +1,5 @@
-import XCTest
 import UIKit
+import XCTest
 
 final class HouseholdUITests: XCTestCase {
     private func launch(_ argument: String = "--ui-fixture") -> XCUIApplication {
@@ -219,8 +219,8 @@ final class HouseholdUITests: XCTestCase {
         var green = 0, red = 0
         for index in stride(from: 0, to: pixels.count, by: 4) {
             let r = Int(pixels[index]), g = Int(pixels[index + 1]), b = Int(pixels[index + 2])
-            if g > r + 30 && g > b + 10 { green += 1 }
-            if r > g + 30 && r > b + 30 { red += 1 }
+            if g > r + 30, g > b + 10 { green += 1 }
+            if r > g + 30, r > b + 30 { red += 1 }
         }
         return (green, red)
     }

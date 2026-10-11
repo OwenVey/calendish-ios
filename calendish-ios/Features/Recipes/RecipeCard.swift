@@ -30,7 +30,7 @@ struct RecipeCard: View {
                         Image(systemName: "star.fill").font(.caption2).padding(.leading, 4).accessibilityHidden(true)
                         Text(RecipeRow.formatted(rating)).accessibilityLabel(InterfaceCopy.rating(RecipeRow.formatted(rating)))
                     }
-                    if store.isMine(recipe) && recipe.owner?.isShared == false {
+                    if store.isMine(recipe), recipe.owner?.isShared == false {
                         Image(systemName: "lock.fill").font(.caption2).accessibilityLabel("Only me")
                     }
                 }

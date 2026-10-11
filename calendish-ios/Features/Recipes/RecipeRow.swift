@@ -20,7 +20,7 @@ struct RecipeRow: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
                     Text(recipe.title).font(.headline).foregroundStyle(.primary).lineLimit(2)
-                    if store.isMine(recipe) && recipe.owner?.isShared == false {
+                    if store.isMine(recipe), recipe.owner?.isShared == false {
                         Image(systemName: "lock.fill").font(.caption).foregroundStyle(.secondary).accessibilityLabel("Only me")
                     }
                     if recipe.isFavorite {

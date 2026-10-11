@@ -8,10 +8,10 @@ private actor HouseholdWireRequests {
     func record(_ request: URLRequest) { requests.append(request) }
     func last() -> URLRequest { requests.last! }
 }
-private nonisolated final class HouseholdWireProtocol: URLProtocol, @unchecked Sendable {
-    nonisolated override class func canInit(with request: URLRequest) -> Bool { true }
-    nonisolated override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
-    nonisolated override func startLoading() {
+private final nonisolated class HouseholdWireProtocol: URLProtocol, @unchecked Sendable {
+    override nonisolated class func canInit(with request: URLRequest) -> Bool { true }
+    override nonisolated class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override nonisolated func startLoading() {
         Task {
             await HouseholdWireRequests.shared.record(request)
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
@@ -20,7 +20,7 @@ private nonisolated final class HouseholdWireProtocol: URLProtocol, @unchecked S
             client?.urlProtocolDidFinishLoading(self)
         }
     }
-    nonisolated override func stopLoading() { }
+    override nonisolated func stopLoading() { }
 }
 private final class HouseholdWireAuthStorage: AuthLocalStorage, @unchecked Sendable {
     func store(key: String, value: Data) { }
@@ -64,7 +64,7 @@ enum SupabaseHouseholdBackendContractTests {
             "Keeping a meal version sends the required explicit null recipe argument")
         try await backend.write(.saveMeal(meal, household: household, keepVersion: false))
         let captured = await HouseholdWireRequests.shared.last()
-        try expect((try body(captured)["meal_recipe"] as? String)?.lowercased() == recipe.id.uuidString.lowercased(), "Capturing a meal sends its source recipe ID")
+        try expect(try (body(captured)["meal_recipe"] as? String)?.lowercased() == recipe.id.uuidString.lowercased(), "Capturing a meal sends its source recipe ID")
         try await backend.write(.saveRecipe(recipe, isNew: false, upload: nil, stalePhoto: nil))
         let edited = await HouseholdWireRequests.shared.last()
         let editedBody = try body(edited)

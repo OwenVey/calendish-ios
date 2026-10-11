@@ -1,3 +1,3 @@
 import AlarmKit
 
-nonisolated struct CookTimerAlarm: AlarmMetadata {}
+nonisolated struct CookTimerAlarm: AlarmMetadata { }
