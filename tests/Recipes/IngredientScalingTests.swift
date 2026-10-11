@@ -20,6 +20,10 @@ struct IngredientScalingTests {
             ("2 cups stock", 1, "2 cups stock"),
             ("3 eggs", 1.0 / 3, "1 eggs"),
             ("24 cookies", 1.5, "36 cookies"),
+            ("1/3 cup water", 1.25, "⅜ cup water"),
+            ("1 tsp cumin", 1.06, "1 tsp cumin"),
+            ("1 tsp cumin", 0.05, "⅛ tsp cumin"),
+            ("1 tsp cumin", 1.95, "2 tsp cumin"),
         ]
         for (input, factor, expected) in cases {
             let actual = Ingredient.scale(input, by: factor)

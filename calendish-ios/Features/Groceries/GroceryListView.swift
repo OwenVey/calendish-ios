@@ -68,10 +68,7 @@ struct GroceryListView: View {
             List {
                 if canAddSearch {
                     Section {
-                        Button {
-                            store.groceries.add(name: query)
-                            search = ""
-                        } label: {
+                        Button(action: addSearchItem) {
                             Label { Text("Add “\(query)”") } icon: {
                                 Image(systemName: "plus.circle.fill").font(.title2).foregroundStyle(CalendishStyle.accent)
                             }
@@ -158,6 +155,7 @@ struct GroceryListView: View {
             .tabRootStyle()
             .navigationSubtitle(subtitle)
             .searchable(text: $search, isPresented: $searchPresented, prompt: "Search or add an item")
+            .onSubmit(of: .search) { if canAddSearch { addSearchItem() } }
             .searchScopes($scope, activation: .onSearchPresentation) {
                 ForEach(GroceryScope.allCases) { Text($0.title).tag($0) }
             }
@@ -208,6 +206,11 @@ struct GroceryListView: View {
         addingItem = true
         if newItemFocused { return }
         // The composer's task focuses its field once it enters the layout.
+    }
+
+    private func addSearchItem() {
+        store.groceries.add(name: query)
+        search = ""
     }
 
     private func addAnotherItem() {

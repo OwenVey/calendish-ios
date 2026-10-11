@@ -80,8 +80,8 @@ struct RecipeDetailView: View {
                             .accessibilityLabel("Preparation time: \(InterfaceCopy.minutes(recipe.prepMinutes))")
                         Label("Cook: \(recipe.cookMinutes) min", systemImage: "flame")
                             .accessibilityLabel("Cooking time: \(InterfaceCopy.minutes(recipe.cookMinutes))")
-                        Label(InterfaceCopy.servings(recipe.servings), systemImage: "person.2")
-                        if let yieldText = recipe.yieldText { Label("Makes \(yieldText)", systemImage: "square.grid.2x2") }
+                        Label(InterfaceCopy.servings(servings), systemImage: "person.2")
+                        if let yieldText = recipe.yieldText { Label("Makes \(Ingredient.scale(yieldText, by: scale))", systemImage: "square.grid.2x2") }
                     }.font(.subheadline).foregroundStyle(.secondary)
                     if !recipe.tags.isEmpty {
                         FlowLayout {
@@ -266,7 +266,6 @@ extension RecipeDetailView {
 
     private var ingredientsSubtitle: String {
         guard isScaled else { return "Check things off as you cook." }
-        let scaledYield = recipe.yieldText.map { " · Makes \(Ingredient.scale($0, by: scale))" } ?? ""
-        return "Scaled from \(InterfaceCopy.servings(recipe.servings))\(scaledYield)."
+        return "Scaled from \(InterfaceCopy.servings(recipe.servings))."
     }
 }

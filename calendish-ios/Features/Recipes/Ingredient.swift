@@ -55,9 +55,11 @@ nonisolated struct Ingredient: Identifiable, Codable, Hashable, Sendable {
             let remainder = value - whole
             if remainder < 0.03 { return whole.formatted(.number.precision(.fractionLength(0))) }
             if remainder > 0.97 { return (whole + 1).formatted(.number.precision(.fractionLength(0))) }
-            if let glyph = fractionGlyphs.first(where: { abs($0.1 - remainder) < 0.03 }) {
-                return (whole > 0 ? whole.formatted(.number.precision(.fractionLength(0))) : "") + String(glyph.0)
-            }
+            // Round to the nearest eighth or third so scaling never shows "0.42 cup".
+            let nearest = fractionGlyphs.min { abs($0.1 - remainder) < abs($1.1 - remainder) }!
+            if whole > 0, remainder < nearest.1 / 2 { return whole.formatted(.number.precision(.fractionLength(0))) }
+            if remainder > (1 + nearest.1) / 2 { return (whole + 1).formatted(.number.precision(.fractionLength(0))) }
+            return (whole > 0 ? whole.formatted(.number.precision(.fractionLength(0))) : "") + String(nearest.0)
         }
         return value.formatted(.number.precision(.fractionLength(0...2)))
     }
