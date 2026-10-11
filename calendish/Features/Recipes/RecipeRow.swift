@@ -33,11 +33,11 @@ struct RecipeRow: View {
                 }
                 HStack(spacing: 10) {
                     if recipe.minutes > 0 {
-                        Label("\(recipe.minutes) min", systemImage: "clock")
+                        Label("\(recipe.minutes) min", systemImage: "clock.fill")
                     }
-                    Label(InterfaceCopy.servings(servings ?? recipe.servings), systemImage: "person.2")
+                    Label(InterfaceCopy.servings(servings ?? recipe.servings), systemImage: "person.2.fill")
                     if let rating = stats?.averageRating {
-                        Label(Self.formatted(rating), systemImage: "star")
+                        Label(Self.formatted(rating), systemImage: "star.fill")
                             .accessibilityLabel(InterfaceCopy.rating(Self.formatted(rating)))
                     }
                 }
