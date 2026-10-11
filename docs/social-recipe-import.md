@@ -1,12 +1,12 @@
 ## Problem Statement
 
-People discover recipes on Instagram, TikTok, and YouTube and want to bring them into Calendish through a shared or pasted link. A recipe may be written in the post caption or video description, or published on a recipe page linked from that text. Today, the link importer primarily reads structured recipe metadata from websites, so a social link can yield little useful cooking content even when a written recipe exists.
+People discover recipes on Instagram, TikTok, YouTube, and Facebook and want to bring them into Calendish through a shared or pasted link. A recipe may be written in the post caption or video description, or published on a recipe page linked from that text. Today, the link importer primarily reads structured recipe metadata from websites, so a social link can yield little useful cooking content even when a written recipe exists.
 
 People should not have to copy captions, take screenshots, supply videos, or complete every missing field to make an import useful. They also need to see what was recovered before saving a recipe to their collection.
 
 ## Solution
 
-Extend the existing link import flow to automatically recover written recipe content from public Instagram, TikTok, and YouTube links, including explicitly linked recipe pages. Prefer the linked recipe page when it contains recipe content; otherwise use the caption or description.
+Extend the existing link import flow to automatically recover written recipe content from public Instagram, TikTok, YouTube, and Facebook links, including explicitly linked recipe pages. Prefer the linked recipe page when it contains recipe content; otherwise use the caption or description.
 
 Prefill the existing New Recipe screen with the available fields. At least one recognizable ingredient or cooking instruction is enough to open that screen. Allow saving with a title and at least one ingredient OR instruction, without requiring the other section. Nothing becomes a saved recipe until the person sees the screen and explicitly taps Save.
 
@@ -103,3 +103,5 @@ Existing share extension and review-before-save behavior already provide the mai
 Competitor documentation supports the distinction between written-content import and broader video import. ReciMe documents caption-first extraction with an audio fallback; Sugo documents captions, subtitle/transcript routes, and linked-page precedence. Those broader video routes are deliberately deferred here. Competitor claims have not been independently benchmarked: [ReciMe import behavior](https://www.recime.app/help/en/articles/14773584-why-didn-t-my-recipe-import-correctly), [Sugo import behavior](https://sugo.kitchen/blog/every-way-to-import-a-recipe).
 
 Bounded Mac probes found caption-like text on two TikTok samples, caption text on one Instagram recipe post, and a recipe description on one YouTube page. These samples did not establish recipe completeness or native-device reliability. YouTube's immediate subtitle fetch returned no content; no video/audio retrieval route was verified. Platform references for acquisition evaluation: [YouTube video descriptions](https://developers.google.com/youtube/v3/docs/videos/list), [TikTok video embeds](https://developers.tiktok.com/docs/en/embed-videos), [Instagram oEmbed restrictions](https://developers.facebook.com/docs/instagram-platform/oembed).
+
+A later Mac probe (2026-10-11) of a public Facebook reel found its full caption in the video page's embed-link title and `og:title`, while `og:description` held only its start. Facebook redirected the default app user agent to a login page but served the page to Safari's iPhone user agent, so Facebook requests send that user agent. The page is read directly; Facebook's oEmbed endpoint is not called. Share links (`/share/r/`, `fb.watch`) and on-device acquisition were not verified.

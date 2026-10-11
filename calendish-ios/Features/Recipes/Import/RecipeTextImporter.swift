@@ -160,7 +160,7 @@ enum RecipeTextImporter {
     // MARK: Headings
 
     private static let ingredientsHeading = #/(?i)(ingredients?|(what )?you(’|')ll need|shopping list)/#
-    private static let stepsHeading = #/(?i)(instructions|directions|method|preparation|steps|how to make( it)?|to make)/#
+    private static let stepsHeading = #/(?i)(instructions|directions|method|preparation|steps|how to( make( it)?)?|to make)/#
     /// A part of the ingredients, like "For the sauce:", which can stand in for an ingredients heading.
     private static let sectionHeading = #/(?i)for the [\p{L} ]+/#
     private static let endHeading = #/(?i)(notes?|recipe notes|tips|nutrition( facts| information)?|equipment|video|did you make this.*)/#

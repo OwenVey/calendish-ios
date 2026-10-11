@@ -63,7 +63,7 @@ struct RecipeImportView: View {
                 } header: {
                     Text("Recipe link")
                 } footer: {
-                    Text("Paste a link to a recipe page, or to an Instagram, TikTok, or YouTube post.")
+                    Text("Paste a link to a recipe page, or to an Instagram, TikTok, YouTube, or Facebook post.")
                 }
             case .text:
                 RecipeImportComposeForm(title: "Import from text", draft: $drafts.text, error: composeError,

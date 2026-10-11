@@ -9,7 +9,7 @@ nonisolated enum RecipeLinkImporter {
         return url
     }
 
-    /// Reads a recipe site's metadata, or the written recipe in an Instagram, TikTok, or YouTube post.
+    /// Reads a recipe site's metadata, or the written recipe in an Instagram, TikTok, YouTube, or Facebook post.
     /// `sharedText` is text another app shared along with the link, such as a post's caption.
     @concurrent static func fetch(_ url: URL, sharedText: String? = nil, loader: PageLoader = .network,
                       usesModel: Bool = RecipeTextImporter.modelIsAvailable) async throws -> ImportedRecipe {

@@ -1,10 +1,10 @@
 import Foundation
 
-/// What a creator wrote with an Instagram, TikTok, or YouTube post: its caption or description, read from public pages.
+/// What a creator wrote with an Instagram, TikTok, YouTube, or Facebook post: its caption or description, read from public pages.
 /// Only written text is read, not audio, subtitles, on-screen text, or comments.
 nonisolated struct SocialPost {
     enum Platform {
-        case instagram, tikTok, youTube
+        case instagram, tikTok, youTube, facebook
 
         init?(_ url: URL) {
             let host = url.host?.lowercased() ?? ""
@@ -12,6 +12,7 @@ nonisolated struct SocialPost {
             if matches("instagram.com", "instagr.am") { self = .instagram }
             else if matches("tiktok.com") { self = .tikTok }
             else if matches("youtube.com", "youtu.be") { self = .youTube }
+            else if matches("facebook.com", "fb.watch", "fb.com") { self = .facebook }
             else { return nil }
         }
     }
@@ -27,6 +28,7 @@ nonisolated struct SocialPost {
         case .youTube: await readYouTube(url, loader: loader)
         case .instagram: await readInstagram(url, loader: loader)
         case .tikTok: await readTikTok(url, loader: loader)
+        case .facebook: await readFacebook(url, loader: loader)
         case nil: nil
         }
     }
@@ -104,6 +106,28 @@ nonisolated struct SocialPost {
               let details = try? JSONSerialization.jsonObject(with: oEmbed.data) as? [String: Any],
               let caption = details["title"] as? String, !caption.isEmpty else { return nil }
         return SocialPost(text: caption, imageURL: (details["thumbnail_url"] as? String).flatMap(URL.init(string:)))
+    }
+
+    // MARK: Facebook
+
+    /// The video page's description cuts long captions short, but its titles have the whole caption.
+    /// Share links, like fb.watch or /share/r/, redirect to the video.
+    private static func readFacebook(_ url: URL, loader: PageLoader) async -> SocialPost? {
+        guard let page = try? await loader.load(url), page.isSuccess, let html = page.text else { return nil }
+        // The embed link's title is "caption | creator", sometimes followed by " | Facebook".
+        // The page's title starts with its views and reactions too.
+        var parts: [String]
+        if let title = RecipeLinkImporter.captures("<link\\b[^>]*\\btitle=\"([^\"]*)\"[^>]*application/json\\+oembed", in: html).first {
+            parts = RecipeLinkImporter.plainText(title).components(separatedBy: " | ")
+        } else if let title = RecipeLinkImporter.meta("og:title", html: html) {
+            parts = Array(RecipeLinkImporter.plainText(title).components(separatedBy: " | ").dropFirst())
+        } else {
+            return nil
+        }
+        if parts.last == "Facebook" { parts.removeLast() }
+        guard parts.count > 1 else { return nil }
+        let caption = parts.dropLast().joined(separator: " | ")
+        return SocialPost(text: caption, imageURL: RecipeLinkImporter.imageURL(html: html, baseURL: page.url))
     }
 
     // MARK: Helpers

@@ -25,7 +25,7 @@ Save recipes from anywhere, plan the week together, shop from one live list, and
 
 - **Recipe book** with grid and list layouts, search across titles, ingredients, and tags, separate category and tag filters, and **All / Mine / Household** scopes.
 - **Sorting** by recently added, title, rating, or when a recipe was last cooked or planned.
-- **Import from anywhere.** Paste or share a web link, Instagram, TikTok, or YouTube post, plain text, photos, a PDF, or a document scan. Imports always open as an editable draft before saving, and processing stays on the device.
+- **Import from anywhere.** Paste or share a web link, Instagram, TikTok, YouTube, or Facebook post, plain text, photos, a PDF, or a document scan. Imports always open as an editable draft before saving, and processing stays on the device.
 - **Reviews and history.** Each member keeps a star rating and note, and Cooked History tracks every day a recipe was cooked or planned.
 - **Personal and household recipes.** Personal recipes follow their owner between households, can be shared with the household or kept private, and others can save their own copies.
 - **Scale servings** in recipe details and Cook Mode; planned meals open at their planned serving count.

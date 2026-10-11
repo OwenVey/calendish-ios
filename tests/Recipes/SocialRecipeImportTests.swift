@@ -8,6 +8,9 @@ struct SocialRecipeImportTests {
         try await instagramShareLinkCaption()
         try await tikTokShortLinkCaption()
         try await tikTokCaptionFromEmbedWhenPageHasNone()
+        try await facebookShareLinkCaption()
+        try await facebookCaptionFromPageTitle()
+        try await facebookLoginPageFails()
         try await linkedRecipePageWinsOverConflictingDescription()
         try await captionWhenLinkedPageIsUnavailableOrNotARecipe()
         try await metadataOnlyPostFails()
@@ -86,6 +89,39 @@ struct SocialRecipeImportTests {
             "https://www.tiktok.com/oembed?url=https%3A%2F%2Fwww.tiktok.com%2F%40cook%2Fvideo%2F7123": .page(oEmbed),
         ])
         expectNoodles(try await RecipeLinkImporter.fetch(link, loader: pages.loader, usesModel: false).recipe)
+    }
+
+    static func facebookShareLinkCaption() async throws {
+        let link = URL(string: "https://www.facebook.com/share/r/1AbCdEfGh/")!
+        let pages = Pages([
+            link.absoluteString: .page(at: "https://www.facebook.com/61552152101386/videos/apple-fritter-loaf-cake/972153655943201/",
+                                       facebookPage(caption: appleFritter, creator: "Sarah Krafft")),
+        ])
+        let recipe = try await RecipeLinkImporter.fetch(link, loader: pages.loader, usesModel: false).recipe
+        expect(recipe.title, "Apple fritter loaf cake 🍎🍁")
+        expect(recipe.ingredients.map(\.text), ["2-3 apples peeled and diced", "2 tbsp granulated sugar", "1 tsp cinnamon",
+                                                "1/3 cup brown sugar", "2 tsp cinnamon", "1/2 cup softened butter", "2/3 cup granulated sugar",
+                                                "2 large eggs", "1 & 1/2 tsp vanilla extract", "1 & 1/2 cups all purpose flour",
+                                                "1 & 3/4 tsp baking powder", "1 tsp salt", "1/2 cup whole milk",
+                                                "2-3 tbsp whole milk", "1 cup powdered sugar"])
+        expect(recipe.steps.count, 4)
+        expect(recipe.steps.last, "Bake at 350 degrees for 1 hour or until a toothpick comes out clean. Add powdered sugar and milk in a bowl to make the glaze mix well -top hot fritter cake with the glaze and serve!")
+        expect(recipe.recipeLink, link.absoluteString)
+    }
+
+    static func facebookCaptionFromPageTitle() async throws {
+        let link = URL(string: "https://www.facebook.com/reel/7300")!
+        let html = facebookPage(caption: noodles, creator: "Cook").replacingOccurrences(of: "json+oembed", with: "json")
+        expectNoodles(try await RecipeLinkImporter.fetch(link, loader: Pages([link.absoluteString: .page(html)]).loader, usesModel: false).recipe)
+    }
+
+    static func facebookLoginPageFails() async throws {
+        let link = URL(string: "https://fb.watch/abc123/")!
+        let pages = Pages([
+            link.absoluteString: .page(at: "https://m.facebook.com/login/?next=https%3A%2F%2Fm.facebook.com%2Freel%2F7301",
+                                       "<html><meta property=\"og:title\" content=\"Log in to Facebook\"><meta property=\"og:description\" content=\"See posts, photos and more on Facebook.\"></html>"),
+        ])
+        try await expectNoRecipe(link, pages)
     }
 
     static func expectNoodles(_ recipe: Recipe) {
@@ -388,6 +424,58 @@ struct SocialRecipeImportTests {
         let html = caption.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "\n", with: "<br />")
         return """
         <html><body><div class="Caption"><a class="CaptionUsername" href="https://www.instagram.com/\(user)/" target="_blank">\(user)</a><br /><br />\(html)<div class="CaptionComments"><a href="#">View all comments</a></div></div></body></html>
+        """
+    }
+
+    /// A public reel's caption, as recorded from facebook.com/reel/972153655943201 on 2026-10-11.
+    static let appleFritter = """
+        Apple fritter loaf cake 🍎🍁
+        Thanks to tiffany starr for this recipe!\u{20}
+
+        Ingredients:
+        For the apples:
+        2-3 apples peeled and diced\u{20}
+        2 tbsp granulated sugar
+        1 tsp cinnamon\u{20}
+
+        Topping:
+        1/3 cup brown sugar
+        2 tsp cinnamon\u{20}
+
+        Ingredients:
+        1/2 cup softened butter\u{20}
+        2/3 cup granulated sugar
+        2 large eggs\u{20}
+        1 & 1/2 tsp vanilla extract\u{20}
+        1 & 1/2 cups all purpose flour
+        1 & 3/4 tsp baking powder\u{20}
+        1 tsp salt
+        1/2 cup whole milk\u{20}
+
+        Glaze:
+        2-3 tbsp whole milk
+        1 cup powdered sugar
+
+        How to:
+        Start by combining brown sugar & cinnamon in bowl. Mix well. In a separate bowl add peeled and diced apples, cinnamon, and granulated sugar. Mix until well combined.\u{20}
+
+        In a separate bowl add softened butter and granulated sugar- mix on high speed for 2 minutes until light and fluffy. Add in eggs and vanilla extract and mix well. Next add in: all purpose flour, baking powder, and salt. Mix well. Lastly add in whole milk and mix.\u{20}
+
+        Laney loaf pan with parchment paper. Add half of your cake mixture in the bottom of the pan. Top with 1/2 of your apples and 1/2 of your cinnamon brown sugar mixture. Repeat one more time. Next use a butter knife to swirl it around a few times. My loaf pan is 9 x 5 x 2.5
+        Bake at 350 degrees for 1 hour or until a toothpick comes out clean. Add powdered sugar and milk in a bowl to make the glaze mix well -top hot fritter cake with the glaze and serve!\u{20}
+
+        #apples #fallrecipe #applefritter #fall #trending
+        """
+
+    /// The shape of a Facebook video page, as served to Safari on iPhone: the embed link and page titles have the whole caption,
+    /// the descriptions only its start.
+    static func facebookPage(caption: String, creator: String) -> String {
+        let html = caption.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "\"", with: "&quot;")
+        return """
+        <html><head><link rel="alternate" href="https://graph.facebook.com/v26.0/oembed_video?url=x" title="\(html) | \(creator) | Facebook" type="application/json+oembed" />
+        <meta property="og:type" content="video.other" /><meta property="og:title" content="1.2M views &#xb7; 29K reactions | \(html) | \(creator) | Facebook" />
+        <meta property="og:description" content="\(html.prefix(60))..." /><meta property="og:image" content="https://scontent.xx.fbcdn.net/v/cover.jpg" />
+        </head><body></body></html>
         """
     }
 

@@ -14,13 +14,16 @@ struct RecipeLinkImporterTests {
             ("https://youtu.be/abc123?si=xyz", "https://www.youtube.com/watch?v=abc123&feature=shared"),
             ("https://youtube.com/shorts/abc123", "https://m.youtube.com/watch?v=abc123"),
             ("https://www.instagram.com/reel/C1x2y3/?igsh=abc", "https://instagram.com/p/C1x2y3"),
+            ("https://www.facebook.com/reel/972153655943201?mibextid=abc", "https://m.facebook.com/61552152101386/videos/apple-fritter-loaf-cake/972153655943201/"),
+            ("https://www.facebook.com/watch/?v=972153655943201", "https://facebook.com/cook/videos/972153655943201"),
             ("https://example.com/r?b=2&a=1", "https://example.com/r?a=1&b=2"),
         ]
         for (first, second) in sameSources {
             precondition(RecipeSourceLink.key(first) == RecipeSourceLink.key(second), "\(first) ≠ \(second)")
         }
         for (first, second) in [("https://example.com/soup", "https://example.com/stew"), ("https://example.com/r?id=1", "https://example.com/r?id=2"),
-                                ("https://youtu.be/abc", "https://youtu.be/abd"), ("https://example.com/soup", "https://example.org/soup")] {
+                                ("https://youtu.be/abc", "https://youtu.be/abd"),
+                                ("https://www.facebook.com/reel/123", "https://www.facebook.com/reel/124"), ("https://example.com/soup", "https://example.org/soup")] {
             precondition(RecipeSourceLink.key(first) != RecipeSourceLink.key(second), "\(first) = \(second)")
         }
         var saved = SampleRecipes.all[0], other = SampleRecipes.all[1]

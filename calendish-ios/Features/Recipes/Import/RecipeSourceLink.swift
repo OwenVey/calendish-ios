@@ -1,7 +1,7 @@
 import Foundation
 
 /// Compares recipe links by the page they lead to, so the same recipe shared twice is recognized
-/// despite tracking parameters, `www.`, trailing slashes, or a short YouTube link.
+/// despite tracking parameters, `www.`, trailing slashes, or the different links one video can have.
 nonisolated enum RecipeSourceLink {
     /// Query parameters that only say where a link was shared from.
     private static let trackingParameters: Set<String> = [
@@ -34,6 +34,14 @@ nonisolated enum RecipeSourceLink {
         // As does one Instagram post.
         if host == "instagram.com", let range = path.range(of: #"^/(reels?|p|tv)/"#, options: .regularExpression) {
             path.replaceSubrange(range, with: "/p/")
+        }
+        // And one Facebook video.
+        if host == "facebook.com" {
+            let video = path.hasPrefix("/watch") ? query.first { $0.name == "v" }?.value
+                : RecipeLinkImporter.captures(#"^/(?:reel|[^/]+/videos(?:/[^/]+)?)/([0-9]+)$"#, in: path).first
+            if let video, !video.isEmpty {
+                path = "/reel/\(video)"; query = []
+            }
         }
 
         components.host = host
