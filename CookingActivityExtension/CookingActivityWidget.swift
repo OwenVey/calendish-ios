@@ -24,8 +24,13 @@ struct CookingActivityWidget: Widget {
             } minimal: {
                 if let end = context.state.timerEnd, !context.state.isFinished {
                     ProgressView(timerInterval: (context.state.timerStart ?? end.addingTimeInterval(-60))...end,
-                        countsDown: true) { Image(systemName: "timer") }
-                        .progressViewStyle(.circular).tint(.orange)
+                        countsDown: true) {
+                        Image(systemName: "timer")
+                    } currentValueLabel: {
+                        Image(systemName: "fork.knife").font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.orange)
+                    }
+                    .progressViewStyle(.circular).tint(.orange)
                 } else {
                     Image(systemName: context.state.isFinished ? "checkmark" : "fork.knife").foregroundStyle(.orange)
                 }
