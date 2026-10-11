@@ -2,6 +2,76 @@
 import XCTest
 
 final class CookModeUITests: XCTestCase {
+    func testIngredientSwipeDismissalKeepsStep() {
+        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
+        app.launch()
+        app.buttons["Recipes"].firstMatch.tap()
+        let recipe = app.staticTexts["Sheet Pan Hot Honey Sausage and Gnocchi"]
+        XCTAssertTrue(recipe.waitForExistence(timeout: 10))
+        recipe.tap()
+        app.buttons["Cook"].tap()
+        if app.buttons["Show ingredients"].exists { app.buttons["Show ingredients"].tap() }
+        let close = app.buttons["cook-ingredients-close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        app.staticTexts["Step 1 of 14"].tap()
+        app.buttons["Step 11"].tap()
+        let count = app.staticTexts["Step 11 of 14"]
+        XCTAssertTrue(count.waitForExistence(timeout: 5))
+        for _ in 0..<3 {
+            let originalY = count.frame.midY
+            let origin = app.coordinate(withNormalizedOffset: .zero)
+            let grabber = origin.withOffset(CGVector(dx: app.frame.midX, dy: close.frame.minY - 8))
+            let bottom = origin.withOffset(CGVector(dx: app.frame.midX, dy: app.frame.maxY - 20))
+            grabber.press(forDuration: 0.1, thenDragTo: bottom)
+            XCTAssertTrue(app.buttons["Show ingredients"].waitForExistence(timeout: 5))
+            XCTAssertTrue(count.exists)
+            XCTAssertGreaterThan(count.frame.midY, originalY + 100)
+            app.buttons["Show ingredients"].tap()
+            XCTAssertTrue(close.waitForExistence(timeout: 5))
+        }
+        close.tap()
+        app.buttons["Close"].firstMatch.tap()
+    }
+
+    // Fixture: Sheet Pan Hot Honey Sausage and Gnocchi includes a long timed step.
+    func testStepControlsStayAboveIngredientSheet() {
+        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
+        app.launch()
+        // A persisted session can reopen Cook Mode on launch.
+        if app.buttons["Next step"].exists { app.buttons["Close"].firstMatch.tap() }
+        app.buttons["Recipes"].firstMatch.tap()
+        let recipe = app.staticTexts["Sheet Pan Hot Honey Sausage and Gnocchi"]
+        XCTAssertTrue(recipe.waitForExistence(timeout: 10))
+        recipe.tap()
+        app.buttons["Cook"].tap()
+        if app.buttons["Show ingredients"].exists { app.buttons["Show ingredients"].tap() }
+        let close = app.buttons["cook-ingredients-close"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        let next = app.buttons["Next step"]
+        let count = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@ AND label CONTAINS %@", "Step ", " of ")).firstMatch
+        let anchored = NSPredicate { _, _ in
+            let gap = close.frame.minY - next.frame.maxY
+            return gap >= 16 && gap <= 48
+        }
+        expectation(for: anchored, evaluatedWith: nil)
+        waitForExpectations(timeout: 5)
+        XCTAssertEqual(count.frame.midY, next.frame.midY, accuracy: 1)
+        let controlsY = count.frame.midY
+        attach(app, "Step controls above ingredients")
+
+        let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ AND label ENDSWITH %@", "Start ", " timer")).firstMatch
+        for _ in 0..<13 where !start.exists { next.tap() }
+        XCTAssertTrue(start.exists)
+        XCTAssertTrue(anchored.evaluate(with: nil), "Timed steps keep the same bottom anchor")
+        XCTAssertEqual(count.frame.midY, controlsY, accuracy: 1)
+        attach(app, "Timed step above ingredients")
+        close.tap()
+        let lowered = NSPredicate { _, _ in count.frame.midY > controlsY + 100 }
+        expectation(for: lowered, evaluatedWith: nil)
+        waitForExpectations(timeout: 5)
+        app.buttons["Close"].firstMatch.tap()
+    }
+
     func testLiveActivityAdvancesCookingStep() {
         let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
         app.launch()

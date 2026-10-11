@@ -68,8 +68,15 @@ struct CookModeView: View {
                         CookStepControls(stepIndex: stepSelection, stepCount: recipe.steps.count,
                                          recordsCook: session.snapshot?.cookedRecipeID != nil, onFinish: finish)
                     }
-                    .padding(.bottom, !wide && showIngredients ? sheetHeight + geometry.safeAreaInsets.bottom + 12 : 0)
-                    .animation(reduceMotion ? nil : .smooth(duration: 0.32), value: showIngredients)
+                    // The stack already ends above the bottom safe area. Counting that inset
+                    // again leaves a gap above the sheet and shrinks the step's scroll area.
+                    .padding(.bottom, !wide && showIngredients ? sheetHeight + 12 : 0)
+                    .transaction(value: showIngredients) { transaction in
+                        // Interactive sheet dismissal can suppress implicit animations.
+                        // Keep the controls' layout animation independent of that transaction.
+                        transaction.disablesAnimations = reduceMotion
+                        transaction.animation = reduceMotion ? nil : .smooth(duration: 0.32)
+                    }
                 }
                 .sheet(isPresented: Binding(
                     get: { showIngredients && !wideLayout },

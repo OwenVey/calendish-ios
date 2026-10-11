@@ -40,7 +40,7 @@ cat > "$TEST_DIR/CookModeUITests.xcodeproj/xcshareddata/xcschemes/CookModeUITest
 EOF
 xcodebuild test -project "$TEST_DIR/CookModeUITests.xcodeproj" -scheme CookModeUITests \
   -destination "platform=iOS Simulator,id=$DEVICE_ID" -derivedDataPath "$TEST_DIR/derived" \
-  -parallel-testing-enabled NO > "$TEST_DIR/test.log" 2>&1 || {
+  -parallel-testing-enabled NO "$@" > "$TEST_DIR/test.log" 2>&1 || {
     tail -60 "$TEST_DIR/test.log"
     exit 1
   }
