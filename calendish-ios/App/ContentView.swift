@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var resumedCooking: CookingSession.Snapshot?
     @State private var resumedChecked: Set<UUID> = []
     @State private var selectedTab: AppTab = .recipes
+    @State private var recipePath = NavigationPath()
     @AppStorage("appearance") private var appearance: AppAppearance = .system
     @Environment(\.scenePhase) private var scenePhase
     @State private var sharedImport: SharedImport?
@@ -28,13 +29,14 @@ struct ContentView: View {
             case .loading: LoadingView()
             case .signedOut: SignInView()
             case .onboarding: HouseholdSetupView()
-            case .ready: AppTabView(selection: $selectedTab, onResumeCooking: resumeCooking)
+            case .ready: AppTabView(selection: $selectedTab, recipePath: $recipePath, onResumeCooking: resumeCooking)
             }
         }
         .animation(.easeOut(duration: 0.3), value: store.phase)
         .tint(CalendishStyle.accent)
         .environment(store)
         .environment(timers)
+        .environment(\.openRecipe, openRecipe)
         .calendishAlert("Timer finished", isPresented: Binding(get: { !timers.finished.isEmpty && !timers.isCooking }, set: { if !$0 && !timers.isCooking { timers.acknowledge() } })) {
             Button("Done") { }
         } message: {
@@ -72,6 +74,7 @@ struct ContentView: View {
             // Sheets attached out here sit outside the `.environment` modifiers above.
             RecipeImportView(start: .content(share.item), drafts: $shareDrafts)
                 .environment(store)
+                .environment(\.openRecipe, openRecipe)
                 .onAppear { SharedInbox.remove(share.id) }
         }
         .calendishAlert(store.errorTitle, item: $store.errorMessage) { _ in
@@ -93,6 +96,12 @@ struct ContentView: View {
             session.prepareResume(place)
             resumedCooking = place
         }
+    }
+
+    /// Shows the recipe on its own in the Recipes tab.
+    private func openRecipe(_ recipe: Recipe) {
+        selectedTab = .recipes
+        recipePath = NavigationPath([recipe])
     }
 
     /// Recipes shared from other apps open in the Recipes tab, one at a time.

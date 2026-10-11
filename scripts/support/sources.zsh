@@ -53,6 +53,7 @@ GROCERY_SYNC_SOURCES=(
 )
 RECIPE_LINK_IMPORTER_SOURCES=(
   calendish-ios/Features/Recipes/Import/RecipeLinkImporter.swift
+  calendish-ios/Features/Recipes/Import/RecipeSourceLink.swift
   calendish-ios/Features/Recipes/Import/ImportedRecipe.swift
   calendish-ios/Features/Recipes/Import/LoadedPage.swift
   calendish-ios/Features/Recipes/Import/PageLoader.swift

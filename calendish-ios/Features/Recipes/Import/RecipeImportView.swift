@@ -21,10 +21,14 @@ struct RecipeImportView: View {
         case reading(String)
         /// Reading failed. Text recognized from images or a PDF can still be fixed up by hand.
         case failed(String, recognizedText: String?)
+        /// The link was already imported. Importing again reads `content` anyway.
+        case duplicate(Recipe, content: RecipeImport)
         case done(ImportedRecipe)
     }
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openRecipe) private var openRecipe
+    @Environment(HouseholdStore.self) private var store
     let start: Start
     @Binding var drafts: RecipeImportDrafts
     @State private var phase: Phase
@@ -77,6 +81,15 @@ struct RecipeImportView: View {
                 RecipeImportStatus {
                     RecipeImportFailure(message: message, recognizedText: recognizedText, onEditText: editRecognizedText)
                 }
+            case .duplicate(let recipe, let content):
+                RecipeImportStatus {
+                    RecipeImportDuplicate(recipe: recipe) {
+                        dismiss()
+                        openRecipe(recipe)
+                    } onImportAgain: {
+                        read(content, allowsDuplicate: true)
+                    }
+                }
             case .done(let imported): RecipeEditorView(imported: imported)
             }
         }
@@ -97,7 +110,7 @@ struct RecipeImportView: View {
         switch phase {
         case .link: [.medium, .large]
         case .text, .done: [.large]
-        case .reading, .failed: [.medium]
+        case .reading, .failed, .duplicate: [.medium]
         }
     }
 
@@ -113,8 +126,12 @@ struct RecipeImportView: View {
         }
     }
 
-    private func read(_ content: RecipeImport) {
+    private func read(_ content: RecipeImport, allowsDuplicate: Bool = false) {
         composeError = nil
+        if !allowsDuplicate, case .link(let url, _) = content, let saved = RecipeSourceLink.recipe(from: url, in: store.recipes) {
+            phase = .duplicate(saved, content: content)
+            return
+        }
         phase = .reading(progressMessage(for: content))
         task = Task {
             var recognizedText: String?

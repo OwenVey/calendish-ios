@@ -7,6 +7,27 @@ struct RecipeLinkImporterTests {
         for invalid in ["", "example.com", "https://", "file:///recipe", "javascript:alert(1)", "https://user:secret@example.com"] {
             precondition(RecipeLinkImporter.validatedURL(invalid) == nil, invalid)
         }
+
+        // The same page shared twice is recognized; different pages aren't.
+        let sameSources = [
+            ("https://www.example.com/soup/?utm_source=pinterest#recipe", "http://example.com/soup"),
+            ("https://youtu.be/abc123?si=xyz", "https://www.youtube.com/watch?v=abc123&feature=shared"),
+            ("https://youtube.com/shorts/abc123", "https://m.youtube.com/watch?v=abc123"),
+            ("https://www.instagram.com/reel/C1x2y3/?igsh=abc", "https://instagram.com/p/C1x2y3"),
+            ("https://example.com/r?b=2&a=1", "https://example.com/r?a=1&b=2"),
+        ]
+        for (first, second) in sameSources {
+            precondition(RecipeSourceLink.key(first) == RecipeSourceLink.key(second), "\(first) ≠ \(second)")
+        }
+        for (first, second) in [("https://example.com/soup", "https://example.com/stew"), ("https://example.com/r?id=1", "https://example.com/r?id=2"),
+                                ("https://youtu.be/abc", "https://youtu.be/abd"), ("https://example.com/soup", "https://example.org/soup")] {
+            precondition(RecipeSourceLink.key(first) != RecipeSourceLink.key(second), "\(first) = \(second)")
+        }
+        var saved = SampleRecipes.all[0], other = SampleRecipes.all[1]
+        saved.recipeLink = "https://www.example.com/soup/"
+        other.recipeLink = "https://example.com/stew"
+        precondition(RecipeSourceLink.recipe(from: URL(string: "https://example.com/soup?fbclid=1")!, in: [other, saved])?.id == saved.id)
+        precondition(RecipeSourceLink.recipe(from: URL(string: "https://example.com/stew")!, in: [saved]) == nil)
         let html = """
         <script type='application/ld+json'>
         {"@graph":[{"@type":"WebPage","name":"Ignore me"},{"@type":["Recipe"],

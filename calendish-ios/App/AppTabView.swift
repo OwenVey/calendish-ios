@@ -3,13 +3,14 @@ import SwiftUI
 /// The app's four tabs, each with its own navigation stack.
 struct AppTabView: View {
     @Binding var selection: AppTab
+    @Binding var recipePath: NavigationPath
     var onResumeCooking: (CookTimer) -> Void = { _ in }
     @Environment(CookingTimers.self) private var timers
 
     var body: some View {
         TabView(selection: $selection) {
             Tab("Recipes", systemImage: "book.closed", value: .recipes) {
-                NavigationStack { RecipeBookView() }
+                NavigationStack(path: $recipePath) { RecipeBookView() }
             }
             Tab("Meal plan", systemImage: "calendar", value: .plan) {
                 NavigationStack { MealPlanView() }
