@@ -144,7 +144,10 @@ final class CookModeUITests: XCTestCase {
         recipe.tap()
         app.buttons["Cook"].tap()
         XCTAssertTrue(app.buttons["cook-ingredients-close"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Hide ingredients"].exists)
+        attach(app, "Ingredients open")
         app.buttons["cook-ingredients-close"].tap()
+        XCTAssertTrue(app.buttons["Show ingredients"].waitForExistence(timeout: 3))
         let start = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@ AND label ENDSWITH %@", "Start ", " timer")).firstMatch
         for _ in 0..<8 where !start.exists { app.buttons["Next step"].tap() }
         XCTAssertTrue(start.waitForExistence(timeout: 3))

@@ -98,14 +98,11 @@ struct CookModeView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(handsFree.keepsScreenAwake ? "Turn off voice commands" : "Voice commands",
                            systemImage: handsFree.keepsScreenAwake ? "mic.fill" : "mic", action: toggleVoiceCommands)
-                        .toolbarGlyph()
+                        .modifier(ToolbarToggleStyle(isOn: handsFree.keepsScreenAwake))
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(showIngredients ? "Hide ingredients" : "Show ingredients", systemImage: "list.bullet", action: toggleIngredients)
                         .toolbarGlyph()
-                }
-                if !timers.isEmpty {
-                    ToolbarItem(placement: .topBarTrailing) { CookTimerMenu(timers: timers, onGoToStep: go(toStep:)) }
                 }
             }
         }
@@ -185,10 +182,6 @@ struct CookModeView: View {
 
     private func hideIngredients() {
         withAnimation(reduceMotion ? nil : .default) { showIngredients = false }
-    }
-
-    private func go(toStep index: Int) {
-        withAnimation(reduceMotion ? nil : .default) { stepIndex = index }
     }
 
     private func revealIngredients(_ ingredients: [UUID]) {
