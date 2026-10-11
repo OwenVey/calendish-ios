@@ -228,11 +228,9 @@ struct GroceryListView: View {
     }
 
     private func addNewItem() {
-        let name = newItem.trimmingCharacters(in: .whitespacesAndNewlines)
+        let added = store.groceries.add(names: [newItem])
         newItem = ""
-        guard !name.isEmpty else { return }
-        store.groceries.add(name: name)
-        lastAddedItemID = store.groceries.items.last?.id
+        if let item = added.first { lastAddedItemID = item.id }
     }
 
 }

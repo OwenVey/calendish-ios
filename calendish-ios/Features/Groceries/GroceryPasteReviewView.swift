@@ -5,16 +5,8 @@ struct GroceryPasteReviewView: View {
     @State var items: [GroceryItem]
     let onAdded: () -> Void
 
-    private var reviewedItems: [GroceryItem] {
-        items.compactMap { item in
-            var item = item
-            item.name = item.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            return item.name.isEmpty ? nil : item
-        }
-    }
-
     var body: some View {
-        let reviewed = reviewedItems
+        let count = GrocerySync.addableNames(items.map(\.name)).count
         List {
             Section {
                 ForEach($items) { $item in
@@ -31,18 +23,12 @@ struct GroceryPasteReviewView: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button {
-                    let start = store.groceries.items.map(\.position).max() ?? 0
-                    let positioned = reviewed.enumerated().map { index, item in
-                        var item = item
-                        item.position = start + Double(index + 1)
-                        return item
-                    }
-                    store.groceries.insert(positioned)
+                    store.groceries.add(names: items.map(\.name))
                     onAdded()
                 } label: {
-                    OnAccentLabel(title: reviewed.count == 1 ? "Add 1 item" : "Add \(reviewed.count) items")
+                    OnAccentLabel(title: count == 1 ? "Add 1 item" : "Add \(count) items")
                 }
-                .disabled(reviewed.isEmpty)
+                .disabled(count == 0)
                 .modifier(GlassActionStyle(prominent: true))
             }
         }

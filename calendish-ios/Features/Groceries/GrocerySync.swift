@@ -112,8 +112,23 @@ final class GrocerySync {
         }
     }
 
-    func add(name: String, amount: String = "", source: String = "General") {
-        insert([GroceryItem(name: name, amount: amount, source: source, position: (items.map(\.position).max() ?? 0) + 1)])
+    func add(name: String) { add(names: [name]) }
+
+    /// Adds ordinary groceries after everything on the list, in the given order.
+    /// Names are trimmed and blank ones skipped; a repeated name gets its own row.
+    @discardableResult
+    func add(names: [String]) -> [GroceryItem] {
+        let start = items.map(\.position).max() ?? 0
+        let added = Self.addableNames(names).enumerated().map { index, name in
+            GroceryItem(name: name, amount: "", source: "General", position: start + Double(index + 1))
+        }
+        insert(added)
+        return added
+    }
+
+    /// The names `add(names:)` would add, trimmed and without blanks.
+    static func addableNames(_ names: [String]) -> [String] {
+        names.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
     }
 
     func insert(_ items: [GroceryItem]) {

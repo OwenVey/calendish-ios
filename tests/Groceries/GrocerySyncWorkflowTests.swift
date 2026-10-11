@@ -41,6 +41,7 @@ struct GrocerySyncWorkflowTests {
         await failedWriteAndReadRecovery()
         await householdLifetime()
         await insertionAndDeletion()
+        await addedNames()
         await editOrderAndAisles()
         try await sharedRefresh()
         try await explicitRefreshFailure()
@@ -313,6 +314,31 @@ struct GrocerySyncWorkflowTests {
         await until { sync.items.count == 1 }
         sync.update(edited, original: milk)
         precondition(sync.items.count == 1 && remote.writes.count == 4)
+        sync.setHousehold(nil)
+    }
+
+    @MainActor
+    static func addedNames() async {
+        let remote = ControlledGroceries()
+        let milk = GroceryItem(name: "Milk", amount: "1", source: "General", position: 7)
+        let sync = GrocerySync(transport: remote)
+        sync.setHousehold(UUID(), items: [milk])
+        // A reviewed paste: edited blanks are skipped, names trimmed, and repeats kept in order.
+        let pasted = sync.add(names: ["  Eggs ", "", " \n", "Eggs", "Flour\n"])
+        precondition(pasted.map(\.name) == ["Eggs", "Eggs", "Flour"] && pasted.map(\.position) == [8, 9, 10])
+        precondition(pasted.allSatisfy { $0.amount.isEmpty && $0.source == "General" && !$0.isComplete })
+        precondition(sync.items.map(\.name) == ["Milk", "Eggs", "Eggs", "Flour"])
+        await until { remote.writes.count == 1 }
+        if case let .insert(written) = remote.writes[0].mutation { precondition(written.map(\.id) == pasted.map(\.id)) }
+        else { preconditionFailure("A reviewed paste is one insert") }
+        // The list changing while a paste is reviewed still places the paste after everything.
+        sync.add(name: "Bread")
+        let later = sync.add(names: ["Butter"])
+        precondition(later.map(\.position) == [12] && sync.items.map(\.name).suffix(2) == ["Bread", "Butter"])
+        precondition(sync.add(names: ["", "   "]).isEmpty, "Blank additions write nothing")
+        remote.writes[0].completion.resume()
+        await until { remote.writes.count == 2 }
+        precondition(GrocerySync.addableNames([" Salt ", ""]) == ["Salt"])
         sync.setHousehold(nil)
     }
 
