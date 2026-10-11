@@ -1,44 +1,53 @@
-import AlarmKit
-import AudioToolbox
 import SwiftUI
-import UserNotifications
 import Observation
 
 /// End dates persist independently of cooking screens; system alarms or notifications cover background expiration.
+/// Timers finish themselves while Calendish is open, and keep their system alerts in step with every change.
 @Observable
 final class CookingTimers {
-    static let shared = CookingTimers()
+    static let shared = CookingTimers(onChange: { CookingSession.shared.refresh() })
     private(set) var timers: [CookTimer] = []
     var finished: [CookTimer] = []
     var isCooking = false
     var notificationWarning: String?
-    @ObservationIgnored private(set) var schedulingTask: Task<Void, Never>?
+    @ObservationIgnored private var scheduling: Task<Void, Never>?
+    @ObservationIgnored private var expiration: Task<Void, Never>?
+    @ObservationIgnored private let alerts: CookingTimerAlerts
+    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private let onChange: () -> Void
     private let storageKey = "activeCookingTimers"
-    init() {
-        if let data = UserDefaults.standard.data(forKey: storageKey), let saved = try? JSONDecoder().decode([CookTimer].self, from: data) { timers = saved }
+
+    /// - Parameter onChange: Called after every change to the running timers, such as to update a Live Activity.
+    init(alerts: CookingTimerAlerts = SystemCookingTimerAlerts(), defaults: UserDefaults = .standard, onChange: @escaping () -> Void = {}) {
+        self.alerts = alerts
+        self.defaults = defaults
+        self.onChange = onChange
+        if let data = defaults.data(forKey: storageKey), let saved = try? JSONDecoder().decode([CookTimer].self, from: data) { timers = saved }
+        watchNextExpiration()
     }
-    private func persist() {
-        UserDefaults.standard.set(try? JSONEncoder().encode(timers), forKey: storageKey)
-        CookingSession.shared.refresh()
+    private func changed() {
+        defaults.set(try? JSONEncoder().encode(timers), forKey: storageKey)
+        watchNextExpiration()
+        onChange()
     }
     func start(recipe: Recipe, stepIndex: Int, duration: TimeInterval) {
         guard duration > 0 else { return }
         let timer = CookTimer(recipe: recipe, stepIndex: stepIndex, duration: duration)
-        timers.append(timer); persist()
+        timers.append(timer); changed()
         reschedule(timer)
     }
     func pause(_ timer: CookTimer) {
         guard let index = timers.firstIndex(where: { $0.id == timer.id }), !timers[index].isPaused else { return }
         timers[index].pausedRemaining = max(1, timers[index].end.timeIntervalSinceNow)
         timers[index].usesAlarm = nil
-        persist()
+        changed()
         reschedule(timers[index])
     }
     func resume(_ timer: CookTimer) {
         guard let index = timers.firstIndex(where: { $0.id == timer.id }), let remaining = timers[index].pausedRemaining else { return }
         timers[index].pausedRemaining = nil
         timers[index].end = .now.addingTimeInterval(remaining)
-        persist()
+        changed()
         reschedule(timers[index])
     }
     func addMinute(to timer: CookTimer) {
@@ -46,40 +55,42 @@ final class CookingTimers {
         timers[index].duration += 60
         if let remaining = timers[index].pausedRemaining {
             timers[index].pausedRemaining = remaining + 60
-            persist()
+            changed()
         } else {
             timers[index].end.addTimeInterval(60)
-            persist()
+            changed()
             reschedule(timers[index])
         }
     }
+    func acknowledge() { finished.removeAll() }
+    func cancel(_ timer: CookTimer) {
+        timers.removeAll { $0.id == timer.id }; changed()
+        alerts.withdraw(timer.id)
+    }
+
+    /// Returns once every timer change made so far has its system alert in place, or withdrawn.
+    /// Live Activity buttons wait for this so the system can't suspend Calendish before the alert exists.
+    func alertsScheduled() async { await scheduling?.value }
+
     /// Replaces the timer's pending alert with one for its current end, or none while paused.
     /// Runs after any earlier scheduling, so a slow request can't land after a newer one.
     private func reschedule(_ timer: CookTimer) {
-        let previous = schedulingTask
-        schedulingTask = Task {
+        let previous = scheduling
+        scheduling = Task {
             await previous?.value
-            UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [timer.id.uuidString])
-            try? AlarmManager.shared.cancel(id: timer.id)
+            alerts.withdraw(timer.id)
             guard isCurrent(timer) else { return }
             let alert = TimerAlert.current
             if alert == .alarm, await scheduleAlarm(for: timer) { return }
             do {
-                let center = UNUserNotificationCenter.current()
-                let granted = try await center.requestAuthorization(options: [.alert, .sound])
-                guard granted else {
+                guard try await alerts.authorizeNotifications() else {
                     notificationWarning = "Notifications are off. Keep Calendish open to see timer alerts, or allow notifications in Settings."
                     return
                 }
                 notificationWarning = nil
                 guard isCurrent(timer) else { return }
-                let content = UNMutableNotificationContent()
-                content.title = "Timer finished"
-                content.body = "\(timer.recipeTitle), step \(timer.stepIndex + 1): \(timer.durationText) timer finished."
-                if alert != .silent { content.sound = .default }
-                try await center.add(UNNotificationRequest(identifier: timer.id.uuidString, content: content,
-                    trigger: UNTimeIntervalNotificationTrigger(timeInterval: max(1, timer.end.timeIntervalSinceNow), repeats: false)))
-                if !isCurrent(timer) { center.removePendingNotificationRequests(withIdentifiers: [timer.id.uuidString]) }
+                try await alerts.scheduleNotification(for: timer, withSound: alert != .silent)
+                if !isCurrent(timer) { alerts.withdraw(timer.id) }
             } catch { notificationWarning = "Couldn’t schedule a timer notification. Keep Calendish open for the alert." }
         }
     }
@@ -90,40 +101,32 @@ final class CookingTimers {
     /// Schedules a system alarm for the timer's end. Returns false, so a notification takes over,
     /// when alarms aren't allowed or scheduling fails.
     private func scheduleAlarm(for timer: CookTimer) async -> Bool {
-        let manager = AlarmManager.shared
-        do {
-            let state = manager.authorizationState == .notDetermined ? try await manager.requestAuthorization() : manager.authorizationState
-            guard state == .authorized, isCurrent(timer) else { return false }
-            let title: LocalizedStringResource = "\(timer.recipeTitle) · Step \(timer.stepIndex + 1)"
-            let alert: AlarmPresentation.Alert = if #available(iOS 26.1, *) {
-                AlarmPresentation.Alert(title: title)
-            } else {
-                AlarmPresentation.Alert(title: title, stopButton: AlarmButton(text: "Done", textColor: .white, systemImageName: "checkmark"))
-            }
-            let attributes = AlarmAttributes<CookTimerAlarm>(presentation: AlarmPresentation(alert: alert), tintColor: CalendishStyle.accent)
-            _ = try await manager.schedule(id: timer.id, configuration: .alarm(schedule: .fixed(timer.end), attributes: attributes))
-            guard isCurrent(timer), let index = timers.firstIndex(where: { $0.id == timer.id }) else {
-                try? manager.cancel(id: timer.id)
-                return true
-            }
-            timers[index].usesAlarm = true; persist()
-            notificationWarning = nil
+        guard await alerts.authorizeAlarms(), isCurrent(timer) else { return false }
+        do { try await alerts.scheduleAlarm(for: timer) } catch { return false }
+        guard isCurrent(timer), let index = timers.firstIndex(where: { $0.id == timer.id }) else {
+            alerts.withdraw(timer.id)
             return true
-        } catch { return false }
+        }
+        timers[index].usesAlarm = true; changed()
+        notificationWarning = nil
+        return true
     }
-    func acknowledge() { finished.removeAll() }
-    func cancel(_ timer: CookTimer) {
-        timers.removeAll { $0.id == timer.id }; persist()
-        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [timer.id.uuidString])
-        try? AlarmManager.shared.cancel(id: timer.id)
+
+    /// Waits for the running timer that ends soonest, replacing any earlier wait.
+    private func watchNextExpiration() {
+        expiration?.cancel()
+        guard let next = timers.filter({ !$0.isPaused }).min(by: { $0.end < $1.end }) else { expiration = nil; return }
+        expiration = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(max(0, next.end.timeIntervalSinceNow))) } catch { return }
+            self?.expire(next)
+        }
     }
-    func waitForNextTimer() async {
-        guard let next = timers.filter({ !$0.isPaused }).min(by: { $0.end < $1.end }) else { return }
-        do { try await Task.sleep(for: .seconds(max(0, next.end.timeIntervalSinceNow))) } catch { return }
-        guard !Task.isCancelled else { return }
-        timers.removeAll { $0.id == next.id }; persist()
-        guard next.usesAlarm != true else { return }
-        finished.append(next)
-        if TimerAlert.current != .silent { AudioServicesPlayAlertSound(SystemSoundID(1005)) }
+    /// Finishes a timer that reached its end. A system alarm is the whole alert, so it isn't repeated in the app.
+    private func expire(_ timer: CookTimer) {
+        guard let current = timers.first(where: { $0.id == timer.id && $0.deadline == timer.end }) else { return }
+        timers.removeAll { $0.id == timer.id }; changed()
+        guard current.usesAlarm != true else { return }
+        finished.append(current)
+        if TimerAlert.current != .silent { alerts.playFinishedSound() }
     }
 }

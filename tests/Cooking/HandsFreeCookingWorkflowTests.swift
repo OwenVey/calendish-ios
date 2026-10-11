@@ -212,8 +212,7 @@ struct HandsFreeWorkflowApp: App {
         session.setStep(3)
         try await say("start timer", to: handsFree, speech)
         try await until("a short timer starts") { timers.timers.count == 1 }
-        await timers.waitForNextTimer()
-        try expect(timers.finished.count == 1, "The finished timer is delivered in-app")
+        try await until("the finished timer is delivered in-app") { timers.finished.count == 1 }
         handsFree.announceFinishedTimers()
         try expect(timers.finished.isEmpty && handsFree.finishedTimers.count == 1,
             "While listening, completion shows a banner instead of the blocking alert")
@@ -225,14 +224,14 @@ struct HandsFreeWorkflowApp: App {
         other.id = UUID()
         other.title = "Other bread"
         timers.start(recipe: other, stepIndex: 0, duration: 1)
-        await timers.waitForNextTimer()
+        try await until("the timer finishes") { timers.finished.count == 1 }
         handsFree.announceFinishedTimers()
         try await until("another recipe's timer is named") { speech.spoken.last == "Other bread, Step 1 timer finished" }
         try expect(handsFree.finishedTimers.map(\.recipeTitle) == ["Other bread"], "Another recipe's timer shows in the banner")
         handsFree.stop()
         try expect(handsFree.finishedTimers.isEmpty, "Turning voice commands off removes the banner")
         timers.start(recipe: session.snapshot!.recipe, stepIndex: 3, duration: 1)
-        await timers.waitForNextTimer()
+        try await until("the timer finishes") { timers.finished.count == 1 }
         handsFree.announceFinishedTimers()
         try expect(timers.finished.count == 1 && handsFree.finishedTimers.isEmpty,
             "Outside hands-free use, the existing alert still delivers completion")

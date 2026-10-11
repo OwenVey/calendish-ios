@@ -171,7 +171,7 @@ Swift checks compile production sources with focused tests from `tests/`. UI che
 | Area       | Command                                                                                                                                         |
 | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | Recipes    | `test-recipe-import.sh`, `test-recipe-import-ui.sh`, `test-recipe-draft.sh`, `test-recipe-observation.sh`, `test-recipe-stats.sh`, `test-cooked-history.sh` |
-| Cooking    | `test-hands-free-cooking.sh`, `test-cook-mode-ui.sh`                                                                                            |
+| Cooking    | `test-cooking-timers.sh`, `test-hands-free-cooking.sh`, `test-cook-mode-ui.sh`                                                                  |
 | Groceries  | `test-grocery-sync.sh`, `test-grocery-import-review.sh`, `test-grocery-aisles.sh`, `test-grocery-search-ui.sh`, `test-spoken-grocery-add.sh`      |
 | Households | `test-household-workflow.sh`, then `test-household-ui.sh`                                                                                       |
 

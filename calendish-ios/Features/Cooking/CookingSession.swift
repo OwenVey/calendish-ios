@@ -132,7 +132,7 @@ final class CookingSession {
     func startTimer(sessionID: String, at index: Int) async {
         guard snapshot?.id.uuidString == sessionID, snapshot?.stepIndex == index,
               case .started = startCurrentStepTimer() else { return }
-        await CookingTimers.shared.schedulingTask?.value
+        await CookingTimers.shared.alertsScheduled()
         await pendingUpdate?.value
     }
 
