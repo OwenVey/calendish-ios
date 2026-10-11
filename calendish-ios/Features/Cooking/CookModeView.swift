@@ -28,7 +28,7 @@ struct CookModeView: View {
     @State private var handsFree = HandsFreeCooking(speech: LocalHandsFreeSpeech())
     @State private var showHandsFreeIntro = false
     @AppStorage(PreferenceKey.handsFreeIntroSeen) private var handsFreeIntroSeen = false
-    @State private var ingredientScope = CookIngredientScope.all
+    @State private var ingredientScope = CookIngredientScope.currentStep
     @State private var ingredientFocus: CookIngredientFocus?
     @AppStorage(PreferenceKey.keepScreenAwake) private var keepScreenAwake = true
     @AppStorage(PreferenceKey.cookingHaptics) private var haptics = true

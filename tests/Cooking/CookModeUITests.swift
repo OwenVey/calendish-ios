@@ -102,7 +102,7 @@ final class CookModeUITests: XCTestCase {
         XCTAssertTrue(recipe.waitForExistence(timeout: 10))
         recipe.tap()
         app.buttons["Cook"].tap()
-        let sheetTitle = app.staticTexts["All ingredients"]
+        let sheetTitle = app.staticTexts["Current step"]
         XCTAssertTrue(sheetTitle.waitForExistence(timeout: 5))
         let instruction = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Heat the oven to 425")).firstMatch
         XCTAssertTrue(instruction.waitForExistence(timeout: 5))

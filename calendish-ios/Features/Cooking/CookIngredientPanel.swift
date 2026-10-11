@@ -43,17 +43,13 @@ struct CookIngredientPanel: View {
                 .tint(Color.primary)
                 .accessibilityHint("Show all ingredients or only those mentioned in the current step")
                 Spacer(minLength: 0)
-                Button(action: onClose) {
-                    Label("Hide ingredients", systemImage: "xmark")
-                        .labelStyle(.iconOnly)
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(Color.primary)
-                        .frame(width: 44, height: 44)
-                }
+                Button("Hide ingredients", systemImage: "xmark", role: .close, action: onClose)
+                .labelStyle(.iconOnly)
                 .accessibilityIdentifier("cook-ingredients-close")
                 .tint(Color.primary)
                 .buttonStyle(.glass)
                 .buttonBorderShape(.circle)
+                .controlSize(.large)
             }
             .padding(.horizontal, 20)
             .padding(.top, 16)
