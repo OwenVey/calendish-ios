@@ -3,7 +3,7 @@ import Foundation
 /// Recipes shared to Calendish from other apps. The share extension saves them in the App Group,
 /// and the app imports them the next time it's open, one at a time.
 nonisolated enum SharedInbox {
-    static let appGroup = "group.owenvey.calendish-ios"
+    static let appGroup = "group.owenvey.calendish"
 
     private struct Manifest: Codable {
         var kind: String

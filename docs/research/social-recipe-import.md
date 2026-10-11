@@ -75,10 +75,10 @@ These are local source observations, not proposed changes:
 
 - [ShareViewController.swift](../../ShareExtension/ShareViewController.swift) saves a shared attachment to the inbox and closes; parsing happens when Calendish opens.
 - [RecipeImport.swift](../../Shared/RecipeImport.swift) represents one link, text, images or PDF. Combining attachments prefers PDF, then images, then link, then text. Complementary caption text can be discarded when a link is also present.
-- [RecipeLinkImporter.swift](../../calendish-ios/Features/Recipes/Import/RecipeLinkImporter.swift) fetches HTML and extracts schema.org Recipe JSON-LD plus page metadata. It does not acquire social transcripts or pass social captions to the text importer. `ImportedRecipe` holds a recipe and optional photo, without extraction evidence or uncertainty.
-- [RecipeTextImporter.swift](../../calendish-ios/Features/Recipes/Import/RecipeTextImporter.swift) uses Foundation Models with a heading parser fallback. It requires ingredients and steps. Its ingredient grounding test checks word overlap for at least half of ingredients, not fidelity of all quantities or instructions.
-- [RecipeImageImporter.swift](../../calendish-ios/Features/Recipes/Import/RecipeImageImporter.swift) already supplies an OCR route for screenshots. This can recover captions/comments the URL importer cannot read.
-- [ContentView.swift](../../calendish-ios/App/ContentView.swift) removes the shared inbox item when the import view appears, before a successful recipe save. The editor requires a title, ingredient and step; an editor draft may persist once reached, but the original inbox source is removed earlier. This is a retry-source preservation concern, not evidence that all editor drafts are lost.
+- [RecipeLinkImporter.swift](../../calendish/Features/Recipes/Import/RecipeLinkImporter.swift) fetches HTML and extracts schema.org Recipe JSON-LD plus page metadata. It does not acquire social transcripts or pass social captions to the text importer. `ImportedRecipe` holds a recipe and optional photo, without extraction evidence or uncertainty.
+- [RecipeTextImporter.swift](../../calendish/Features/Recipes/Import/RecipeTextImporter.swift) uses Foundation Models with a heading parser fallback. It requires ingredients and steps. Its ingredient grounding test checks word overlap for at least half of ingredients, not fidelity of all quantities or instructions.
+- [RecipeImageImporter.swift](../../calendish/Features/Recipes/Import/RecipeImageImporter.swift) already supplies an OCR route for screenshots. This can recover captions/comments the URL importer cannot read.
+- [ContentView.swift](../../calendish/App/ContentView.swift) removes the shared inbox item when the import view appears, before a successful recipe save. The editor requires a title, ingredient and step; an editor draft may persist once reached, but the original inbox source is removed earlier. This is a retry-source preservation concern, not evidence that all editor drafts are lost.
 
 ADR 0003's on-device/no-audio-retention decision concerns hands-free cook mode. It does not decide whether a future importer may process a public social video's audio remotely. [ADR 0003](../adr/0003-on-device-cook-mode-recognition.md)
 
@@ -129,7 +129,7 @@ The accepted design was published using to-spec as [GitHub issue #3](https://git
 
 ## Implementation acquisition check
 
-Date: 2026-10-09. Routes shipped in [SocialPost.swift](../../calendish-ios/Features/Recipes/Import/SocialPost.swift); all requests go directly from the device to the platform, without credentials, a proxy, or server processing.
+Date: 2026-10-09. Routes shipped in [SocialPost.swift](../../calendish/Features/Recipes/Import/SocialPost.swift); all requests go directly from the device to the platform, without credentials, a proxy, or server processing.
 
 | Platform | Route | Mac `URLSession` live import (real importer code) |
 | --- | --- | --- |

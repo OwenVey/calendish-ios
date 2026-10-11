@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 extension UTType {
     /// A planned meal dragged between days. Declared in Info.plist so drags stay within Calendish.
-    nonisolated static let plannedMeal = UTType(exportedAs: "owenvey.calendish-ios.planned-meal")
+    nonisolated static let plannedMeal = UTType(exportedAs: "owenvey.calendish.planned-meal")
 }
 
 /// Days from the start of this week onward, each with the recipes planned for it. More days load as you

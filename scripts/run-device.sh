@@ -3,12 +3,12 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SCHEME="calendish-ios"
-BUNDLE_ID="owenvey.calendish-ios"
+SCHEME="calendish"
+BUNDLE_ID="owenvey.calendish"
 DERIVED_DATA="$PROJECT_ROOT/.build/device"
 DEVICE="${1:-${IPHONE_DEVICE:-Owen’s iPhone}}"
 
-xcodebuild -project "$PROJECT_ROOT/calendish-ios.xcodeproj" \
+xcodebuild -project "$PROJECT_ROOT/calendish.xcodeproj" \
   -scheme "$SCHEME" -configuration Debug \
   -destination "platform=iOS,name=$DEVICE" \
   -derivedDataPath "$DERIVED_DATA" -allowProvisioningUpdates build -quiet

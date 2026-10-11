@@ -1,8 +1,8 @@
-# calendish-ios
+# calendish
 
 After making code changes, run `./scripts/run-sim.sh` to build and relaunch the app in the booted iOS simulator so the user can see the changes immediately.
 
-When the T3 Code device tools are available (`device_list`, `device_open`, `device_screenshot`), use them to check UI changes after `run-sim.sh`: open the booted simulator, drive the app (bundle ID `owenvey.calendish-ios`) to the affected screen with the returned `agent-device` CLI, and verify the result. Use `wait text`, `is`, or `find` for behavior, and screenshots for visuals. These tools only cover simulators; `run-device.sh` still handles the physical iPhone.
+When the T3 Code device tools are available (`device_list`, `device_open`, `device_screenshot`), use them to check UI changes after `run-sim.sh`: open the booted simulator, drive the app (bundle ID `owenvey.calendish`) to the affected screen with the returned `agent-device` CLI, and verify the result. Use `wait text`, `is`, or `find` for behavior, and screenshots for visuals. These tools only cover simulators; `run-device.sh` still handles the physical iPhone.
 
 Also run `./scripts/run-device.sh` after making code changes to build, install, and relaunch the app on Owen’s physical iPhone. The script defaults to `Owen’s iPhone`; override its device name with the first argument or `IPHONE_DEVICE` environment variable. Keep simulator and device builds sequential. If the iPhone is disconnected, locked, or deployment fails, report that the phone was not updated and why; do not claim it has the latest changes. The user needs to keep the phone reachable via USB or paired Wi-Fi and unlocked for deployment.
 

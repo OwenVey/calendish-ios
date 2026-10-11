@@ -1,6 +1,6 @@
 //
-//  calendish_iosApp.swift
-//  calendish-ios
+//  CalendishApp.swift
+//  calendish
 //
 //  Created by Owen Vey on 10/4/26.
 //
@@ -8,7 +8,7 @@
 import SwiftUI
 
 @main
-struct calendish_iosApp: App {
+struct CalendishApp: App {
     init() { PreferenceKey.registerDefaults() }
 
     var body: some Scene {

@@ -26,7 +26,7 @@ A00000000000000000000007 = {isa = PBXFileReference; lastKnownFileType = sourceco
 A00000000000000000000008 = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = GrocerySearchUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 A00000000000000000000009 = {isa = XCConfigurationList; buildConfigurations = (A0000000000000000000000B); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug; };
 A0000000000000000000000A = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A0000000000000000000000C); runOnlyForDeploymentPostprocessing = 0; };
-A0000000000000000000000B = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGNING_ALLOWED = NO; GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = "owenvey.calendish-ios.grocerysearch-uitests"; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2";}; name = Debug; };
+A0000000000000000000000B = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGNING_ALLOWED = NO; GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = "owenvey.calendish.grocerysearch-uitests"; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2";}; name = Debug; };
 A0000000000000000000000C = {isa = PBXBuildFile; fileRef = A00000000000000000000007; };
 }; rootObject = A00000000000000000000001;
 }

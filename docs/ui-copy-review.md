@@ -35,7 +35,7 @@ Use sentence case for app-owned labels, buttons, titles, and sentences. Preserve
 
 ### H1. Grocery review describes the initial choice as the current choice
 
-Source: `calendish-ios/Features/Groceries/GroceryImportReviewView.swift:90`, `calendish-ios/Features/Groceries/GroceryImportReview.swift:74`.
+Source: `calendish/Features/Groceries/GroceryImportReviewView.swift:90`, `calendish/Features/Groceries/GroceryImportReview.swift:74`.
 
 - Original: “These ingredients are already on your grocery list, so none are selected.” / “Ingredients already on your grocery list aren’t selected.”
 - Rewrite: “Matching ingredients start unselected. Select them to add more.”
@@ -46,7 +46,7 @@ The person can select these lines, and later grocery updates do not override the
 
 ### H2. The recipe editor gives contradictory requirements
 
-Source: `calendish-ios/RecipeViews.swift:613`, `:659`, `:686`; `calendish-ios/Features/Recipes/RecipeDraftEditing.swift:72`.
+Source: `calendish/RecipeViews.swift:613`, `:659`, `:686`; `calendish/Features/Recipes/RecipeDraftEditing.swift:72`.
 
 - Keep: “To save, add a title and at least one ingredient or instruction.”
 - Original ingredients footer: “At least one entry is required. Drag the handles to reorder.”
@@ -72,7 +72,7 @@ The extension saves source material to a local inbox; the recipe is not yet in t
 
 ### H4. Deletion failures assert an outcome the request may not establish
 
-Source: `calendish-ios/Features/Settings/SettingsView.swift:234`, `:380`.
+Source: `calendish/Features/Settings/SettingsView.swift:234`, `:380`.
 
 - Original: “Your account wasn’t deleted. [raw error]”
 - Rewrite for an unconfirmed response: “Couldn’t confirm account deletion. Check your account before trying again.”
@@ -83,7 +83,7 @@ A server rejection can support a definite failure message; a lost response canno
 
 ### H5. Account deletion has conflicting explanations for the last member
 
-Source: `calendish-ios/Features/Settings/SettingsView.swift:216`, `:227`.
+Source: `calendish/Features/Settings/SettingsView.swift:216`, `:227`.
 
 - Original persistent footer: “Permanently deletes your account and personal recipes. Your household keeps the recipes you shared with it.”
 - Rewrite for multiple members: keep the existing footer.
@@ -93,7 +93,7 @@ The confirmation already switches to the last-member consequence, but the footer
 
 ### H6. Raw errors and a generic sync title hide what failed
 
-Source: `calendish-ios/App/ContentView.swift:94`; `calendish-ios/Data/HouseholdStore.swift:828`; raw-error displays in account, import, household move, and photo views.
+Source: `calendish/App/ContentView.swift:94`; `calendish/Data/HouseholdStore.swift:828`; raw-error displays in account, import, household move, and photo views.
 
 - Original: title “Couldn’t sync”; body `error.localizedDescription`; button “OK”.
 - Recommended pattern: operation-specific title + verified state + available next action.
@@ -106,7 +106,7 @@ Do not replace every error with “Check your connection”: permission, input, 
 
 ### H7. “Cooked” is presented as a fact when history includes unconfirmed plans
 
-Source: `calendish-ios/Features/Recipes/CookedHistory.swift:39`, `:60`; `calendish-ios/RecipeReviewViews.swift:120`, `:247`; `calendish-ios/Features/MealPlan/MealPlanView.swift:457`; sort labels in `Preferences.swift:46`.
+Source: `calendish/Features/Recipes/CookedHistory.swift:39`, `:60`; `calendish/RecipeReviewViews.swift:120`, `:247`; `calendish/Features/MealPlan/MealPlanView.swift:457`; sort labels in `Preferences.swift:46`.
 
 - Original summary: “Last cooked [time]”, “Cooked [count] times”, “Not cooked yet”.
 - Source-aware rewrite: “Last marked cooked [time]” for a marked cook; “Last planned [date]” for an unmarked past plan; “No cooking recorded” when there are no marked cooks.
@@ -119,7 +119,7 @@ Keep the distinction in every summary, count, sort label, and suggestion. A cons
 
 ### H8. Weekly grocery review does not explain repeated-meal quantities
 
-Source: `calendish-ios/Features/Groceries/GroceryImportReview.swift:8`; `calendish-ios/Features/MealPlan/MealPlanView.swift:154`.
+Source: `calendish/Features/Groceries/GroceryImportReview.swift:8`; `calendish/Features/MealPlan/MealPlanView.swift:154`.
 
 - Original: menu “Add to Groceries” → “This Week” / “Next Week”; review shows a serving count with no repeat explanation.
 - Add when the same saved recipe version occurs more than once: “Planned more than once. This amount uses the largest serving count for one meal, not the total for the week.”

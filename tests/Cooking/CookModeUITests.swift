@@ -3,7 +3,7 @@ import XCTest
 
 final class CookModeUITests: XCTestCase {
     func testIngredientSwipeCollapsesSheetAndKeepsStep() {
-        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
+        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish")
         app.launch()
         app.buttons["Recipes"].firstMatch.tap()
         let recipe = app.staticTexts["Sheet Pan Hot Honey Sausage and Gnocchi"]
@@ -40,7 +40,7 @@ final class CookModeUITests: XCTestCase {
 
     // Fixture: Sheet Pan Hot Honey Sausage and Gnocchi includes a long timed step.
     func testStepControlsStayAboveIngredientSheet() {
-        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
+        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish")
         app.launch()
         // A persisted session can reopen Cook Mode on launch.
         if app.buttons["Next step"].exists { app.buttons["Close"].firstMatch.tap() }
@@ -83,7 +83,7 @@ final class CookModeUITests: XCTestCase {
     }
 
     func testLiveActivityAdvancesCookingStep() {
-        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
+        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish")
         app.launch()
         app.buttons["Recipes"].tap()
         let recipe = app.staticTexts["Sheet Pan Hot Honey Sausage and Gnocchi"]
@@ -175,7 +175,7 @@ final class CookModeUITests: XCTestCase {
     }
 
     func testIngredientTapKeepsSheetOpen() {
-        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
+        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish")
         app.launch()
         app.buttons["Recipes"].tap()
         let recipe = app.staticTexts["Sheet Pan Hot Honey Sausage and Gnocchi"]
@@ -216,7 +216,7 @@ final class CookModeUITests: XCTestCase {
     }
 
     func testTimerPausesExtendsAndCancels() {
-        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
+        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish")
         app.launch()
         app.buttons["Recipes"].tap()
         let recipe = app.staticTexts["Sheet Pan Hot Honey Sausage and Gnocchi"]
@@ -272,7 +272,7 @@ final class CookModeUITests: XCTestCase {
     }
 
     func testVoiceCommandsKeepTouchControls() {
-        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
+        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish")
         app.launch()
         app.buttons["Recipes"].tap()
         let recipe = app.staticTexts["Sheet Pan Hot Honey Sausage and Gnocchi"]

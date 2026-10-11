@@ -2,8 +2,8 @@
 # Build the app and relaunch it in the booted iOS simulator.
 set -euo pipefail
 
-SCHEME="calendish-ios"
-BUNDLE_ID="owenvey.calendish-ios"
+SCHEME="calendish"
+BUNDLE_ID="owenvey.calendish"
 DERIVED_DATA="$(cd "$(dirname "$0")/.." && pwd)/.build/sim"
 
 DEVICE_ID="$(xcrun simctl list devices booted -j | python3 -c 'import json,sys; d=[x for v in json.load(sys.stdin)["devices"].values() for x in v]; print(d[0]["udid"] if d else "")')"

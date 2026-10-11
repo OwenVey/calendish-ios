@@ -11,7 +11,7 @@ root = pathlib.Path(__file__).resolve().parents[2]
 dest = root / '.build' / harness / 'Workflow.xcodeproj'
 dest.mkdir(parents=True, exist_ok=True)
 converted = dest.parent / 'project.json'
-subprocess.run(['plutil', '-convert', 'json', '-o', str(converted), str(root / 'calendish-ios.xcodeproj/project.pbxproj')], check=True)
+subprocess.run(['plutil', '-convert', 'json', '-o', str(converted), str(root / 'calendish.xcodeproj/project.pbxproj')], check=True)
 project = json.loads(converted.read_text())
 objects = project['objects']
 target_id = '05BDE75B3072DA7B00C5B9A0'
@@ -31,7 +31,7 @@ for config in objects[target['buildConfigurationList']]['buildConfigurations']:
                     GENERATE_INFOPLIST_FILE='YES', CODE_SIGNING_ALLOWED='NO', ASSETCATALOG_COMPILER_APPICON_NAME='')
     settings.pop('CODE_SIGN_ENTITLEMENTS', None)
     settings.pop('INFOPLIST_FILE', None)
-objects['05BDE7763072DA7C00C5B9A0']['membershipExceptions'].append('App/calendish_iosApp.swift')
+objects['05BDE7763072DA7C00C5B9A0']['membershipExceptions'].append('App/CalendishApp.swift')
 file_id, build_id = 'ABCDEF000000000000000001', 'ABCDEF000000000000000002'
 objects[file_id] = dict(isa='PBXFileReference', lastKnownFileType='sourcecode.swift',
                         path=str(root / test_file), sourceTree='<absolute>')
@@ -52,4 +52,4 @@ subprocess.run(['plutil', '-convert', 'xml1', str(path)], check=True)
 # Pin the harness to the app's checked-in dependency versions.
 workspace = dest / 'project.xcworkspace/xcshareddata/swiftpm'
 workspace.mkdir(parents=True, exist_ok=True)
-(workspace / 'Package.resolved').write_bytes((root / 'calendish-ios.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved').read_bytes())
+(workspace / 'Package.resolved').write_bytes((root / 'calendish.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved').read_bytes())

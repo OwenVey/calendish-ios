@@ -3,7 +3,7 @@ import XCTest
 final class GrocerySearchUITests: XCTestCase {
     func testPastedListCanBeReviewedWithoutAddingItems() {
         continueAfterFailure = false
-        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
+        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish")
         app.launch()
         XCTAssertTrue(app.buttons["Groceries"].waitForExistence(timeout: 10))
         app.buttons["Groceries"].tap()
@@ -41,7 +41,7 @@ final class GrocerySearchUITests: XCTestCase {
 
     func testSearchClosesWithOneTapAndStaysClosed() {
         continueAfterFailure = false
-        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
+        let app = XCUIApplication(bundleIdentifier: "owenvey.calendish")
         app.launch()
         let groceries = app.buttons["Groceries"]
         XCTAssertTrue(groceries.waitForExistence(timeout: 10), app.debugDescription)

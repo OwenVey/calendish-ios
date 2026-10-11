@@ -5,7 +5,7 @@ import OSLog
 /// request URLs, credentials, response bodies, or user content are recorded.
 @MainActor
 enum HouseholdSyncDiagnostics {
-    private static let logger = Logger(subsystem: "owenvey.calendish-ios", category: "HouseholdSync")
+    private static let logger = Logger(subsystem: "owenvey.calendish", category: "HouseholdSync")
     static let fileURL = URL.cachesDirectory.appending(path: "household-sync-diagnostics.json")
 
     static func record(_ error: Error, source: String, action: String, phase: String) {

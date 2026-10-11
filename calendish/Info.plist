@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>calendish</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.728572783584-nsnkc0bhchjkcvpek7i8253b627rpng7</string>
+			</array>
+		</dict>
+	</array>
+	<key>GIDClientID</key>
+	<string>728572783584-nsnkc0bhchjkcvpek7i8253b627rpng7.apps.googleusercontent.com</string>
+	<key>NSAlarmKitUsageDescription</key>
+	<string>Cooking timers ring like an alarm so you hear them even when your iPhone is on silent.</string>
+	<key>UILaunchScreen</key>
+	<dict>
+		<key>UIColorName</key>
+		<string>LaunchBackground</string>
+	</dict>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Calendish Planned Meal</string>
+			<key>UTTypeIdentifier</key>
+			<string>owenvey.calendish.planned-meal</string>
+		</dict>
+	</array>
+</dict>
+</plist>

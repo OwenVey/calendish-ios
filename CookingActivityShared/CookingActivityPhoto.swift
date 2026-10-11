@@ -4,7 +4,7 @@ import UIKit
 /// Live Activities can't fetch photos themselves. Share only a small, local thumbnail.
 enum CookingActivityPhoto {
     private static var directory: URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.owenvey.calendish-ios")?
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.owenvey.calendish")?
             .appending(path: "CookingActivityPhotos", directoryHint: .isDirectory)
     }
 

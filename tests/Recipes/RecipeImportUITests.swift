@@ -5,7 +5,7 @@ import XCTest
 final class RecipeImportUITests: XCTestCase {
     override func setUp() { continueAfterFailure = false }
 
-    private let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
+    private let app = XCUIApplication(bundleIdentifier: "owenvey.calendish")
 
     func testIngredientsOnlyImportCanBeSaved() {
         importText("Weeknight Garlic Noodles\nIngredients:\n200g noodles\n4 cloves garlic\n")

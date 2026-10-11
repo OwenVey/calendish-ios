@@ -57,7 +57,7 @@ This is a design and interaction audit, not an App Store policy certification. T
 
 ### 5. High — Cooking forces rotation and assumes a fixed sidebar
 
-**What:** Cooking locks the app to landscape and initially reserves 300 points for ingredients. The step pane receives the remaining width; neither available width nor accessibility text size changes the composition. Exiting explicitly requests portrait. Source: `CookModeView.swift:17–25, 77–85`, `calendish_iosApp.swift:28–47`.
+**What:** Cooking locks the app to landscape and initially reserves 300 points for ingredients. The step pane receives the remaining width; neither available width nor accessibility text size changes the composition. Exiting explicitly requests portrait. Source: `CookModeView.swift:17–25, 77–85`, `CalendishApp.swift:28–47`.
 
 **Why:** `layout.md › Adaptability` calls for layouts based on available space; `designing-for-ios.md › Best practices` calls for seamless adaptation to orientation and Dynamic Type. [Apple Layout](https://developer.apple.com/design/human-interface-guidelines/layout).
 

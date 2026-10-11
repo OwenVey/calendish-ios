@@ -45,19 +45,19 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		05BDE75C3072DA7B00C5B9A0 /* Calendish.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Calendish.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		05BDE75C3072DA7B00C5B9A0 /* Calendish.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Calendish.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5E0A11CE0000000000000002 /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C00CA11E0000000000000002 /* CookingActivityExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CookingActivityExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		CA1E0D150000000000000001 /* design/Calendish.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = design/Calendish.icon; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		05BDE7763072DA7C00C5B9A0 /* Exceptions for "calendish-ios" folder in "calendish-ios" target */ = {
+		05BDE7763072DA7C00C5B9A0 /* Exceptions for "calendish" folder in "calendish" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 05BDE75B3072DA7B00C5B9A0 /* calendish-ios */;
+			target = 05BDE75B3072DA7B00C5B9A0 /* calendish */;
 		};
 		5E0A11CE000000000000000F /* Exceptions for "ShareExtension" folder in "ShareExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
@@ -76,12 +76,12 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		05BDE75E3072DA7B00C5B9A0 /* calendish-ios */ = {
+		05BDE75E3072DA7B00C5B9A0 /* calendish */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				05BDE7763072DA7C00C5B9A0 /* Exceptions for "calendish-ios" folder in "calendish-ios" target */,
+				05BDE7763072DA7C00C5B9A0 /* Exceptions for "calendish" folder in "calendish" target */,
 			);
-			path = "calendish-ios";
+			path = calendish;
 			sourceTree = "<group>";
 		};
 		5E0A11CE0000000000000003 /* ShareExtension */ = {
@@ -136,7 +136,7 @@
 		05BDE7533072DA7B00C5B9A0 = {
 			isa = PBXGroup;
 			children = (
-				05BDE75E3072DA7B00C5B9A0 /* calendish-ios */,
+				05BDE75E3072DA7B00C5B9A0 /* calendish */,
 				5E0A11CE0000000000000004 /* Shared */,
 				5E0A11CE0000000000000003 /* ShareExtension */,
 				C00CA11E0000000000000003 /* CookingActivityExtension */,
@@ -159,9 +159,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		05BDE75B3072DA7B00C5B9A0 /* calendish-ios */ = {
+		05BDE75B3072DA7B00C5B9A0 /* calendish */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 05BDE7673072DA7C00C5B9A0 /* Build configuration list for PBXNativeTarget "calendish-ios" */;
+			buildConfigurationList = 05BDE7673072DA7C00C5B9A0 /* Build configuration list for PBXNativeTarget "calendish" */;
 			buildPhases = (
 				05BDE7583072DA7B00C5B9A0 /* Sources */,
 				05BDE7593072DA7B00C5B9A0 /* Frameworks */,
@@ -175,16 +175,16 @@
 				C00CA11E000000000000000E /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				05BDE75E3072DA7B00C5B9A0 /* calendish-ios */,
+				05BDE75E3072DA7B00C5B9A0 /* calendish */,
 				5E0A11CE0000000000000004 /* Shared */,
 				C00CA11E0000000000000004 /* CookingActivityShared */,
 			);
-			name = "calendish-ios";
+			name = calendish;
 			packageProductDependencies = (
 				05BDE7713072DA7C00C5B9A0 /* Supabase */,
 				05BDE7743072DA7C00C5B9A0 /* GoogleSignIn */,
 			);
-			productName = "calendish-ios";
+			productName = calendish;
 			productReference = 05BDE75C3072DA7B00C5B9A0 /* Calendish.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -244,7 +244,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 05BDE7573072DA7B00C5B9A0 /* Build configuration list for PBXProject "calendish-ios" */;
+			buildConfigurationList = 05BDE7573072DA7B00C5B9A0 /* Build configuration list for PBXProject "calendish" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -262,7 +262,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				05BDE75B3072DA7B00C5B9A0 /* calendish-ios */,
+				05BDE75B3072DA7B00C5B9A0 /* calendish */,
 				5E0A11CE0000000000000001 /* ShareExtension */,
 				C00CA11E0000000000000001 /* CookingActivityExtension */,
 			);
@@ -320,7 +320,7 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		05BDE7653072DA7C00C5B9A0 /* Debug configuration for PBXProject "calendish-ios" */ = {
+		05BDE7653072DA7C00C5B9A0 /* Debug configuration for PBXProject "calendish" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -383,7 +383,7 @@
 			};
 			name = Debug;
 		};
-		05BDE7663072DA7C00C5B9A0 /* Release configuration for PBXProject "calendish-ios" */ = {
+		05BDE7663072DA7C00C5B9A0 /* Release configuration for PBXProject "calendish" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -439,23 +439,24 @@
 			};
 			name = Release;
 		};
-		05BDE7683072DA7C00C5B9A0 /* Debug configuration for PBXNativeTarget "calendish-ios" */ = {
+		05BDE7683072DA7C00C5B9A0 /* Debug configuration for PBXNativeTarget "calendish" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = Calendish;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "calendish-ios/calendish-ios.entitlements";
+				CODE_SIGN_ENTITLEMENTS = calendish/calendish.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Q97ES87SKW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "calendish-ios/Info.plist";
+				INFOPLIST_FILE = calendish/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Calendish;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take profile and recipe photos, or scan printed recipes.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "With voice commands on, Calendish listens for “next”, “back”, and “start timer” while you cook. Speech is recognized on this iPhone and never saved.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -463,7 +464,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "owenvey.calendish-ios";
+				PRODUCT_BUNDLE_IDENTIFIER = owenvey.calendish;
 				PRODUCT_NAME = Calendish;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) CALENDISH_APP";
@@ -476,23 +477,24 @@
 			};
 			name = Debug;
 		};
-		05BDE7693072DA7C00C5B9A0 /* Release configuration for PBXNativeTarget "calendish-ios" */ = {
+		05BDE7693072DA7C00C5B9A0 /* Release configuration for PBXNativeTarget "calendish" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = Calendish;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "calendish-ios/calendish-ios.entitlements";
+				CODE_SIGN_ENTITLEMENTS = calendish/calendish.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = Q97ES87SKW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "calendish-ios/Info.plist";
+				INFOPLIST_FILE = calendish/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Calendish;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take profile and recipe photos, or scan printed recipes.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "With voice commands on, Calendish listens for “next”, “back”, and “start timer” while you cook. Speech is recognized on this iPhone and never saved.";
+				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -500,7 +502,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "owenvey.calendish-ios";
+				PRODUCT_BUNDLE_IDENTIFIER = owenvey.calendish;
 				PRODUCT_NAME = Calendish;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) CALENDISH_APP";
@@ -529,7 +531,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "owenvey.calendish-ios.ShareExtension";
+				PRODUCT_BUNDLE_IDENTIFIER = owenvey.calendish.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -557,7 +559,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "owenvey.calendish-ios.ShareExtension";
+				PRODUCT_BUNDLE_IDENTIFIER = owenvey.calendish.ShareExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -585,7 +587,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "owenvey.calendish-ios.CookingActivityExtension";
+				PRODUCT_BUNDLE_IDENTIFIER = owenvey.calendish.CookingActivityExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -613,7 +615,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "owenvey.calendish-ios.CookingActivityExtension";
+				PRODUCT_BUNDLE_IDENTIFIER = owenvey.calendish.CookingActivityExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -628,19 +630,19 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		05BDE7573072DA7B00C5B9A0 /* Build configuration list for PBXProject "calendish-ios" */ = {
+		05BDE7573072DA7B00C5B9A0 /* Build configuration list for PBXProject "calendish" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				05BDE7653072DA7C00C5B9A0 /* Debug configuration for PBXProject "calendish-ios" */,
-				05BDE7663072DA7C00C5B9A0 /* Release configuration for PBXProject "calendish-ios" */,
+				05BDE7653072DA7C00C5B9A0 /* Debug configuration for PBXProject "calendish" */,
+				05BDE7663072DA7C00C5B9A0 /* Release configuration for PBXProject "calendish" */,
 			);
 			defaultConfigurationName = Release;
 		};
-		05BDE7673072DA7C00C5B9A0 /* Build configuration list for PBXNativeTarget "calendish-ios" */ = {
+		05BDE7673072DA7C00C5B9A0 /* Build configuration list for PBXNativeTarget "calendish" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				05BDE7683072DA7C00C5B9A0 /* Debug configuration for PBXNativeTarget "calendish-ios" */,
-				05BDE7693072DA7C00C5B9A0 /* Release configuration for PBXNativeTarget "calendish-ios" */,
+				05BDE7683072DA7C00C5B9A0 /* Debug configuration for PBXNativeTarget "calendish" */,
+				05BDE7693072DA7C00C5B9A0 /* Release configuration for PBXNativeTarget "calendish" */,
 			);
 			defaultConfigurationName = Release;
 		};

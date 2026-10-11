@@ -73,9 +73,9 @@ Liquid Glass tabs, toolbars, and sheets; semantic colors for light and dark mode
 
 ### Run the app
 
-1. Clone the repo and open `calendish-ios.xcodeproj`.
+1. Clone the repo and open `calendish.xcodeproj`.
 2. Let Xcode resolve the Swift packages.
-3. Run the `calendish-ios` scheme.
+3. Run the `calendish` scheme.
 
 Or build and relaunch from the terminal:
 
@@ -102,14 +102,14 @@ SwiftUI previews use `HouseholdStore.preview()`, which has sample data and makes
 
 | Target                     | Purpose                                                    |
 | -------------------------- | ---------------------------------------------------------- |
-| `calendish-ios`            | The app                                                    |
+| `calendish`                | The app                                                    |
 | `ShareExtension`           | Import recipes shared from other apps                       |
 | `CookingActivityExtension` | Cook Mode Live Activity and Dynamic Island                 |
 
 ### Project structure
 
 ```text
-calendish-ios/
+calendish/
 ├── App/                         Entry point, root navigation, links, preferences
 ├── Features/
 │   ├── Recipes/                 Recipe book, detail, editing, reviews, history
@@ -128,7 +128,7 @@ calendish-ios/
 │   └── Parameters/              Backend operation inputs
 ├── Assets.xcassets/             App colors and images
 ├── Info.plist
-└── calendish-ios.entitlements
+└── calendish.entitlements
 ShareExtension/                  Share extension target
 Shared/                          Code shared by the app and share extension
 CookingActivityExtension/        Live Activity extension target

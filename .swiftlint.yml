@@ -2,7 +2,7 @@
 # so style rules that overlap with it are disabled here.
 
 included:
-  - calendish-ios
+  - calendish
   - CookingActivityExtension
   - CookingActivityShared
   - ShareExtension
