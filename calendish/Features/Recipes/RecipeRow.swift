@@ -17,7 +17,10 @@ struct RecipeRow: View {
     private var owner: String? { !showsOwner || store.isMine(recipe) ? nil : store.ownerName(of: recipe) }
     var body: some View {
         HStack(spacing: 14) {
-            RecipeArtwork(recipe: recipe, compact: true).frame(width: artworkSize, height: artworkSize)
+            // The photo grows taller with a long title, keeping even space around it.
+            RecipeArtwork(recipe: recipe, compact: true)
+                .frame(width: artworkSize)
+                .frame(minHeight: artworkSize, maxHeight: .infinity)
                 .overlay(alignment: .bottomLeading) {
                     if recipe.isFavorite { FavoriteBadge(compact: true) }
                 }
@@ -56,8 +59,11 @@ struct RecipeRow: View {
                         }
                     }
                 }
-            }.padding(.vertical, 4)
+            }
         }
+        // Rows size to their details, and the photo fills that height.
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.vertical, 4)
     }
 }
 
