@@ -30,13 +30,18 @@ struct SignInView: View {
                         Task { await signInWithGoogle() }
                     } label: {
                         HStack(spacing: 10) {
-                            if working {
-                                ProgressView("Signing in with Google").tint(.black)
-                            } else {
-                                Image("GoogleLogo").resizable().frame(width: 20, height: 20)
-                                Text("Continue with Google").fixedSize(horizontal: false, vertical: true)
+                            ZStack {
+                                if working {
+                                    ProgressView().tint(.black)
+                                } else {
+                                    Image("GoogleLogo").resizable()
+                                }
                             }
+                            .frame(width: 20, height: 20)
+                            Text("Continue with Google").fixedSize(horizontal: false, vertical: true)
                         }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(working ? "Signing in with Google" : "Continue with Google")
                         .font(.title3.weight(.semibold))
                         .foregroundStyle(.black)
                         .padding(16)
@@ -56,11 +61,13 @@ struct SignInView: View {
                     .modifier(GlassActionStyle())
                     .tint(.primary)
                     .disabled(working)
-                    Text(message ?? "Your household’s data stays private to its members.")
-                        .font(.footnote)
-                        .foregroundStyle(message == nil ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.red))
-                        .multilineTextAlignment(.center)
-                        .padding(.top, 4)
+                    if let message {
+                        Text(message)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 4)
+                    }
                 }
             }
             .padding(.horizontal, 32)
