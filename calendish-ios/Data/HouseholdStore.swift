@@ -458,7 +458,11 @@ final class HouseholdStore {
     }
 
     func refresh() async {
-        do { try await reload() } catch { report(error) }
+        let session = syncSession
+        do { try await reload() } catch {
+            guard session == syncSession else { return }
+            report(error, source: "household-refresh")
+        }
     }
 
     func resumeSync() async {
@@ -490,7 +494,7 @@ final class HouseholdStore {
                 case .groceries: self.groceries.requestReload()
                 case .membership: self.checkMembership()
                 case .household: self.scheduleReload()
-                case .failure(let error): self.report(error)
+                case .failure(let error): self.report(error, source: "realtime-subscription")
                 }
             }
         })
@@ -829,8 +833,13 @@ final class HouseholdStore {
         savingTasks[token] = writeTask
     }
 
-    private func report(_ error: Error, action: String = "update household data", recovery: String = "Reopen Calendish to try again.") {
-        if error is CancellationError { return }
+    private func report(_ error: Error, action: String = "update household data", recovery: String = "Reopen Calendish to try again.", source: String = "household-operation") {
+        let network = error as NSError
+        // URLSession cancellation is distinct from Swift task cancellation. Both
+        // are expected when a newer broadcast supersedes an in-flight refresh.
+        if Task.isCancelled || error is CancellationError ||
+            (network.domain == NSURLErrorDomain && network.code == URLError.cancelled.rawValue) { return }
+        HouseholdSyncDiagnostics.record(error, source: source, action: action, phase: String(describing: phase))
         errorTitle = "Couldn’t \(action)"
         errorMessage = InterfaceCopy.recoveryMessage(error, fallback: recovery)
     }

@@ -96,6 +96,39 @@ struct HouseholdWorkflowApp: App {
         try expect(store.meals.first?.id == savedMeal.id && Calendar.current.isDate(store.meals.first!.date, inSameDayAs: tomorrow)
             && store.meals.first?.recipe.steps == ["Cook rice."], "Moving a meal keeps its identity and saved version")
 
+        // A new broadcast cancels the previous HTTP refresh. URLSession reports this
+        // as URLError.cancelled, rather than Swift's CancellationError.
+        let cancelledRefresh = OperationGate()
+        backend.beforeSnapshot = { _ in
+            await cancelledRefresh.wait()
+            while !Task.isCancelled { await Task.yield() }
+            throw URLError(.cancelled)
+        }
+        backend.emit(.household, household: home.id)
+        try await until { cancelledRefresh.entered }
+        backend.beforeSnapshot = nil
+        backend.emit(.household, household: home.id)
+        cancelledRefresh.release()
+        // Await the canceled refresh's error handler and the replacement debounce.
+        try await Task.sleep(for: .milliseconds(650))
+        try expect(store.errorMessage == nil,
+            "Superseded Realtime refresh must not show Couldn't update household data")
+
+        // Real connection failures still surface, with metadata that survives relaunch.
+        let privatePayload = "fixture-private-response-content"
+        backend.emit(.failure(NSError(domain: "RealtimeFixture", code: 7,
+            userInfo: [NSLocalizedDescriptionKey: privatePayload])), household: home.id)
+        try await until { store.errorMessage != nil }
+        try expect(store.errorTitle == "Couldn’t update household data" &&
+            store.errorMessage == "Reopen Calendish to try again.", "Real Realtime failures retain the alert")
+        let diagnosticData = try Data(contentsOf: HouseholdSyncDiagnostics.fileURL)
+        let diagnostics = try JSONDecoder().decode([[String: String]].self, from: diagnosticData)
+        try expect(diagnostics.last?["source"] == "realtime-subscription" && diagnostics.last?["code"] == "7",
+            "Record the actual failing source and code")
+        try expect(!String(decoding: diagnosticData, as: UTF8.self).contains(privatePayload),
+            "Diagnostics must not retain private error payloads")
+        store.errorMessage = nil
+
         // A snapshot spanning a write acknowledgment must not roll the optimistic edit back.
         let readGate = OperationGate()
         backend.beforeSnapshot = { _ in await readGate.wait() }
