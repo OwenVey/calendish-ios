@@ -1,7 +1,10 @@
-// UI checks for partial recipe imports. They review the imported draft and cancel, so nothing is saved.
+// UI checks for imports and recipe-book regressions against the installed, signed-in app.
+// Fixture: Weeknight Beef Tacos. Imported recipes are reviewed and canceled; nothing is saved.
 import XCTest
 
 final class RecipeImportUITests: XCTestCase {
+    override func setUp() { continueAfterFailure = false }
+
     private let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
 
     func testIngredientsOnlyImportCanBeSaved() {
@@ -36,6 +39,68 @@ final class RecipeImportUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Lemon Butter Pasta"].exists)
     }
 
+    func testSearchSurvivesLayoutChangesAndReturningFromSettings() {
+        app.launch()
+        app.tabBars.buttons["Recipes"].firstMatch.tap()
+        for layout in ["Grid", "List"] {
+            app.buttons["View, sort, and filter"].tap()
+            app.buttons[layout].tap()
+            XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 5), "Search remains available in \(layout)")
+            app.tabBars.buttons["Settings"].tap()
+            app.tabBars.buttons["Recipes"].tap()
+            XCTAssertTrue(app.searchFields.firstMatch.exists)
+        }
+        app.tabBars.buttons["Groceries"].tap()
+        XCTAssertTrue(app.searchFields.firstMatch.waitForExistence(timeout: 5))
+    }
+
+    func testRatingLabelsAndTimerStatusAcrossSteps() {
+        app.launch()
+        app.tabBars.buttons["Recipes"].firstMatch.tap()
+        let recipe = app.staticTexts["Weeknight Beef Tacos"].firstMatch
+        XCTAssertTrue(recipe.waitForExistence(timeout: 5))
+        recipe.tap()
+        for star in 1...5 {
+            XCTAssertTrue(app.buttons[star == 1 ? "Rate 1 star" : "Rate \(star) stars"].exists)
+        }
+        app.buttons["Cook"].tap()
+        // A kept cooking session may resume on a later step.
+        let previous = app.buttons["Previous step"]
+        XCTAssertTrue(previous.waitForExistence(timeout: 5))
+        for _ in 0..<5 where previous.isEnabled { previous.tap() }
+        app.buttons["Start 4 min timer"].tap()
+        app.buttons["Next step"].tap()
+        let status = app.buttons["Cook Mode running timers"]
+        XCTAssertTrue(status.waitForExistence(timeout: 5))
+        XCTAssertTrue(status.label.contains("Step 1 timer"))
+        status.tap()
+        XCTAssertTrue(app.buttons["Pause step 1 timer"].exists)
+        app.buttons["Cancel step 1 timer"].tap()
+        XCTAssertFalse(status.exists)
+        app.buttons["Close"].firstMatch.tap()
+        app.navigationBars.buttons["Recipes"].tap()
+    }
+
+    func testInvalidLinkKeepsItsFormAndExplainsRecovery() {
+        app.launch()
+        app.tabBars.buttons["Recipes"].firstMatch.tap()
+        app.buttons["New recipe"].tap()
+        app.buttons["Import from link"].tap()
+        let link = app.textFields["Recipe link"]
+        XCTAssertTrue(link.waitForExistence(timeout: 5))
+        link.tap()
+        link.typeText("not-a-url")
+        app.buttons["Import"].tap()
+        let error = app.staticTexts["Recipe import error"]
+        XCTAssertTrue(error.waitForExistence(timeout: 5))
+        XCTAssertTrue(error.label.contains("https://"))
+        XCTAssertTrue(app.navigationBars["Import from link"].exists)
+        XCTAssertEqual(link.value as? String, "not-a-url")
+        app.buttons["Clear"].tap()
+        XCTAssertFalse(error.exists)
+        app.buttons["Cancel"].firstMatch.tap()
+    }
+
     private var saveButton: XCUIElement { app.navigationBars.buttons["Save"] }
 
     private func importText(_ text: String) {
@@ -46,8 +111,11 @@ final class RecipeImportUITests: XCTestCase {
         XCTAssertTrue(app.buttons["New recipe"].waitForExistence(timeout: 10))
         app.buttons["New recipe"].tap()
         app.buttons["Paste recipe text"].tap()
-        let field = app.textViews["Recipe text"]
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        // SwiftUI multiline fields use either editable type across simulator versions.
+        let field = app.descendants(matching: .any).matching(NSPredicate(
+            format: "(label == %@ OR label == %@) AND (elementType == %d OR elementType == %d)",
+            "Recipe text", "Paste a recipe", XCUIElement.ElementType.textField.rawValue, XCUIElement.ElementType.textView.rawValue)).firstMatch
+        XCTAssertTrue(field.waitForExistence(timeout: 5), app.debugDescription)
         field.tap()
         field.typeText(text)
         app.buttons["Import"].tap()

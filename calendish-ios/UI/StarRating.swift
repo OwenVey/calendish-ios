@@ -17,10 +17,14 @@ struct StarRating: View {
                         .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(star == 1 ? "Rate 1 star" : "Rate \(star) stars")
+                .accessibilityValue(rating == star ? "Selected" : "Not selected")
+                .accessibilityAddTraits(rating == star ? .isSelected : [])
+                .accessibilityHint(rating == star ? "Tap again to clear your rating." : "Sets your rating.")
             }
         }
         .hapticFeedback(.selection, trigger: rating)
-        .accessibilityElement()
+        .accessibilityElement(children: .contain)
         .accessibilityLabel("Your rating")
         .accessibilityValue(rating.map { $0 == 1 ? "1 star" : "\($0) stars" } ?? "Not rated")
         .accessibilityAdjustableAction { direction in

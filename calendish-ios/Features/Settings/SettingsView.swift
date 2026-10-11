@@ -38,7 +38,7 @@ struct SettingsView: View {
             }
             // Sort, grouping, and show-completed live in each screen's own menus, which remember the choice.
             Section("General") {
-                Picker(selection: $appearance) {
+                AdaptiveSettingsPicker(selection: $appearance, value: appearance.title) {
                     ForEach(AppAppearance.allCases) { Text($0.title).tag($0) }
                 } label: {
                     SettingsLabel("Appearance", systemImage: "circle.lefthalf.filled", color: .blue)
@@ -49,13 +49,13 @@ struct SettingsView: View {
                 }
             }
             Section {
-                Picker(selection: $units) {
+                AdaptiveSettingsPicker(selection: $units, value: units.title) {
                     ForEach(MeasurementPreference.allCases) { Text($0.title).tag($0) }
                 } label: {
                     SettingsLabel("Units", systemImage: "ruler.fill", color: .indigo)
                 }
                 .tint(.secondary)
-                Picker(selection: $temperatureUnit) {
+                AdaptiveSettingsPicker(selection: $temperatureUnit, value: temperatureUnit?.title ?? "Regional default") {
                     Text("Regional default").tag(TemperatureUnit?.none)
                     ForEach(TemperatureUnit.allCases) { Text($0.title).tag(Optional($0)) }
                 } label: {
@@ -81,7 +81,7 @@ struct SettingsView: View {
                 Text("Recipes")
             }
             Section("Meal plan") {
-                Picker(selection: $weekStart) {
+                AdaptiveSettingsPicker(selection: $weekStart, value: weekStart.title) {
                     ForEach(WeekStart.allCases) { Text($0.title).tag($0) }
                 } label: {
                     SettingsLabel("Week starts on", systemImage: "calendar", color: .red)
@@ -89,7 +89,7 @@ struct SettingsView: View {
                 .tint(.secondary)
             }
             Section {
-                Picker(selection: groceryAutoClear) {
+                AdaptiveSettingsPicker(selection: groceryAutoClear, value: groceryAutoClear.wrappedValue.title) {
                     ForEach(GroceryAutoClear.allCases) { Text($0.title).tag($0) }
                 } label: {
                     SettingsLabel("Clear checked items", systemImage: "checklist.checked", color: .green)
@@ -147,4 +147,37 @@ private extension Bundle {
 
 #Preview {
     NavigationStack { SettingsView() }.environment(HouseholdStore.preview())
+}
+
+/// Keeps selected values readable when accessibility text needs more than one line.
+private struct AdaptiveSettingsPicker<Selection: Hashable, Content: View, Label: View>: View {
+    @Binding var selection: Selection
+    let value: String
+    @ViewBuilder let content: Content
+    @ViewBuilder let label: Label
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    var body: some View {
+        if typeSize.isAccessibilitySize {
+            Menu {
+                Picker(selection: $selection) { content } label: { label }
+            } label: {
+                VStack(alignment: .leading, spacing: 8) {
+                    label.foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(value).fixedSize(horizontal: false, vertical: true)
+                        Image(systemName: "chevron.up.chevron.down").font(.caption).accessibilityHidden(true)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .labelStyle(.titleAndIcon)
+            .multilineTextAlignment(.leading)
+        } else {
+            Picker(selection: $selection) { content } label: { label }
+        }
+    }
 }

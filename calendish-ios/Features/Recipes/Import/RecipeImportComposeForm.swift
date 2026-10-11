@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The link and text import forms: a field to fill or paste into, then Import.
-/// Either form takes either kind of input; a link pasted as text is still imported as a link.
+/// A link pasted as text is still imported as a link.
 struct RecipeImportComposeForm<Field: View, Header: View, Footer: View>: View {
     let title: String
     @Binding var draft: String
@@ -12,25 +12,33 @@ struct RecipeImportComposeForm<Field: View, Header: View, Footer: View>: View {
     @ViewBuilder let field: Field
     @ViewBuilder let header: Header
     @ViewBuilder let footer: Footer
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.dismiss) private var dismiss
     private var isEmpty: Bool { draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
     var body: some View {
         NavigationStack {
             Form {
+                if let error {
+                    Section {
+                        Text(error).foregroundStyle(.red)
+                            .accessibilityIdentifier("Recipe import error")
+                    }
+                }
                 Section {
                     field
                 } header: {
-                    HStack {
-                        header
-                        Spacer()
-                        // Accepts a link, text, an image, or a PDF, without the paste permission prompt.
-                        PasteButton(payloadType: RecipeImport.self) { items in
-                            Task { @MainActor in onPaste(items) }
+                    if typeSize.isAccessibilitySize {
+                        VStack(alignment: .leading, spacing: 12) {
+                            header.fixedSize(horizontal: false, vertical: true)
+                            pasteButton
                         }
-                        .labelStyle(.titleAndIcon)
-                        .buttonBorderShape(.capsule)
-                        .controlSize(.small)
+                    } else {
+                        HStack {
+                            header
+                            Spacer()
+                            pasteButton
+                        }
                     }
                 } footer: {
                     footer
@@ -47,11 +55,6 @@ struct RecipeImportComposeForm<Field: View, Header: View, Footer: View>: View {
                 }
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color.clear)
-                if let error {
-                    Section {
-                        Text(error).foregroundStyle(.red)
-                    }
-                }
             }
             .scrollContentBackground(.hidden)
             .contentMargins(.top, 12, for: .scrollContent)
@@ -69,5 +72,18 @@ struct RecipeImportComposeForm<Field: View, Header: View, Footer: View>: View {
                 }
             }
         }
+    }
+    private var pasteButton: some View {
+        // Accepts a link, text, an image, or a PDF, without the paste permission prompt.
+        PasteButton(payloadType: RecipeImport.self) { items in
+            Task { @MainActor in onPaste(items) }
+        }
+        .labelStyle(.titleAndIcon)
+        .buttonBorderShape(.capsule)
+        .controlSize(.regular)
+        // The native paste control clips its label at the largest accessibility sizes.
+        // Keep its label enlarged and readable while the rest of the form scales fully.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility1)
+        .fixedSize()
     }
 }

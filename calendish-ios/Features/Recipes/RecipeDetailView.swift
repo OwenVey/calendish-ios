@@ -76,10 +76,14 @@ struct RecipeDetailView: View {
                     if plannedMeal != nil { Text("Recipe version saved with this meal").font(.subheadline).foregroundStyle(.secondary) }
                     Text(recipe.summary).foregroundStyle(.secondary)
                     FlowLayout(spacing: 16) {
-                        Label("Prep: \(recipe.prepMinutes) min", systemImage: "clock")
-                            .accessibilityLabel("Preparation time: \(InterfaceCopy.minutes(recipe.prepMinutes))")
-                        Label("Cook: \(recipe.cookMinutes) min", systemImage: "flame")
-                            .accessibilityLabel("Cooking time: \(InterfaceCopy.minutes(recipe.cookMinutes))")
+                        if recipe.prepMinutes > 0 {
+                            Label("Prep: \(recipe.prepMinutes) min", systemImage: "clock")
+                                .accessibilityLabel("Preparation time: \(InterfaceCopy.minutes(recipe.prepMinutes))")
+                        }
+                        if recipe.cookMinutes > 0 {
+                            Label("Cook: \(recipe.cookMinutes) min", systemImage: "flame")
+                                .accessibilityLabel("Cooking time: \(InterfaceCopy.minutes(recipe.cookMinutes))")
+                        }
                         Label(InterfaceCopy.servings(servings), systemImage: "person.2")
                         if let yieldText = recipe.yieldText { Label("Makes \(Ingredient.scale(yieldText, by: scale))", systemImage: "square.grid.2x2") }
                     }.font(.subheadline).foregroundStyle(.secondary)

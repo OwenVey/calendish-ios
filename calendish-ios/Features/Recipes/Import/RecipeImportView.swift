@@ -26,6 +26,7 @@ struct RecipeImportView: View {
         case done(ImportedRecipe)
     }
 
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openRecipe) private var openRecipe
     @Environment(HouseholdStore.self) private var store
@@ -68,8 +69,18 @@ struct RecipeImportView: View {
             case .text:
                 RecipeImportComposeForm(title: "Import from text", draft: $drafts.text, error: composeError,
                                         onImport: importDraft, onPaste: paste, onClear: { clearDraft($drafts.text) }) {
-                    TextField("Recipe text", text: $drafts.text, prompt: Text("Paste a recipe"), axis: .vertical)
-                        .lineLimit(10...)
+                    ZStack(alignment: .topLeading) {
+                        TextEditor(text: $drafts.text)
+                            .frame(minHeight: typeSize.isAccessibilitySize ? 180 : 240)
+                            .scrollContentBackground(.hidden)
+                            .accessibilityLabel("Recipe text")
+                        if drafts.text.isEmpty {
+                            Text("Paste a recipe").foregroundStyle(.tertiary)
+                                .padding(.top, 8).padding(.leading, 5)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
+                    }
                 } header: {
                     Text("Recipe text")
                 } footer: {
@@ -226,10 +237,14 @@ struct RecipeImportView: View {
 
     // MARK: Link and text
 
-    /// Either form takes either kind of input: a link pasted as text is still imported as a link.
+    /// Text can include a link; the link form validates its URL before starting an import.
     private func importDraft(_ draft: String) {
         guard !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         let content = RecipeImport.from(text: draft)
+        if case .link = phase, case .text = content {
+            composeError = "Enter a web link beginning with https://. To import recipe text, choose Paste recipe text from New recipe."
+            return
+        }
         if case .link(let url, nil) = content, let linkText, linkText.url == url {
             read(.link(url, text: linkText.text))
         } else {

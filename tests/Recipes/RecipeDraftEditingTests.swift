@@ -30,6 +30,7 @@ struct RecipeDraftTestApp: App {
 
         let fresh = draft()
         try expect(!fresh.isDirty && !fresh.canSave && fresh.fields.servings == 3, "New recipe defaults and validation")
+        try expect(fresh.fields.prepMinutes == 0 && fresh.fields.cookMinutes == 0, "New recipe times remain unspecified")
         fresh.fields.title = "  Noodles  "
         fresh.fields.ingredients = [Ingredient(text: "  2 cups flour  "), Ingredient(text: "  ")]
         fresh.fields.steps = [.init(text: "  Mix.  "), .init(text: " ")]
@@ -56,6 +57,7 @@ struct RecipeDraftTestApp: App {
                    "Save normalizes recipe content")
         try expect(submitted?.recipeLink == "https://example.com/recipe" && submitted?.yieldText == "2 bowls" && submitted?.owner == .person(account, shared: false),
                    "Save retains source, yield and sharing choice")
+        try expect(submitted?.minutes == 0, "Saving a recipe without times does not invent a duration")
         firstAcknowledgment?()
         try expect(draft().isDirty, "Older identical save cannot clear a newer unacknowledged submission")
         secondAcknowledgment?()
@@ -79,6 +81,7 @@ struct RecipeDraftTestApp: App {
         original.imagePath = "household/photo.jpg"
         let existing = draft(original)
         try expect(!existing.isDirty && !existing.isNew && existing.hasPhoto, "Existing recipe baseline and retained photo")
+        try expect(existing.fields.prepMinutes == original.prepMinutes && existing.fields.cookMinutes == original.cookMinutes, "Editing preserves supplied times")
         existing.fields.title = "Changed"
         existing.fields.title = original.title
         try expect(!draft(original).isDirty, "Returning to baseline removes autosave")
@@ -121,7 +124,11 @@ struct RecipeDraftTestApp: App {
         let migrated = draft(original)
         try expect(migrated.fields.title == "Legacy draft" && migrated.fields.isShared && migrated.canSave, "Existing stored draft format remains readable")
 
-        // The same persistence callback used by the editor must retain work on a real store write failure.
+        try await verifyStoreSaveRecovery(original: original, defaults: defaults)
+    }
+
+    // The same persistence callback used by the editor must retain work on a real store write failure.
+    private func verifyStoreSaveRecovery(original: Recipe, defaults: UserDefaults) async throws {
         let backend = InMemoryHouseholdBackend()
         backend.account = backend.identity
         let home = Household(id: UUID(), name: "Draft test household", inviteCode: "DRAFT123")

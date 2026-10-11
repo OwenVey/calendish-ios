@@ -13,7 +13,7 @@ xcodebuild -project "$PROJECT_ROOT/calendish-ios.xcodeproj" \
   -destination "platform=iOS,name=$DEVICE" \
   -derivedDataPath "$DERIVED_DATA" -allowProvisioningUpdates build -quiet
 
-APP="$DERIVED_DATA/Build/Products/Debug-iphoneos/$SCHEME.app"
+APP="$DERIVED_DATA/Build/Products/Debug-iphoneos/Calendish.app"
 xcrun devicectl device install app --device "$DEVICE" "$APP" --timeout 60
 xcrun devicectl device process launch --device "$DEVICE" \
   --terminate-existing "$BUNDLE_ID" --timeout 30

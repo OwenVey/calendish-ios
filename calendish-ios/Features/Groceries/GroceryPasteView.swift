@@ -15,6 +15,7 @@ struct GroceryPasteView: View {
                         .frame(minHeight: 200)
                         .focused($textFocused)
                         .accessibilityLabel("Grocery list to paste")
+                        .accessibilityValue(text)
                 } header: {
                     Text("One item per line")
                 } footer: {

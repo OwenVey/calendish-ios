@@ -14,7 +14,7 @@ fi
 
 xcodebuild -scheme "$SCHEME" -destination "id=$DEVICE_ID" -derivedDataPath "$DERIVED_DATA" build -quiet
 
-APP="$DERIVED_DATA/Build/Products/Debug-iphonesimulator/$SCHEME.app"
+APP="$DERIVED_DATA/Build/Products/Debug-iphonesimulator/Calendish.app"
 xcrun simctl terminate "$DEVICE_ID" "$BUNDLE_ID" 2>/dev/null || true
 xcrun simctl install "$DEVICE_ID" "$APP"
 xcrun simctl launch "$DEVICE_ID" "$BUNDLE_ID"

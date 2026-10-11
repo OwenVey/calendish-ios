@@ -154,7 +154,7 @@ struct GroceryListView: View {
             .navigationTitle("Groceries")
             .tabRootStyle()
             .navigationSubtitle(subtitle)
-            .searchable(text: $search, isPresented: $searchPresented, prompt: "Search or add an item")
+            .searchable(text: $search, isPresented: $searchPresented, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search or add an item")
             .onSubmit(of: .search) { if canAddSearch { addSearchItem() } }
             .searchScopes($scope, activation: .onSearchPresentation) {
                 ForEach(GroceryScope.allCases) { Text($0.title).tag($0) }

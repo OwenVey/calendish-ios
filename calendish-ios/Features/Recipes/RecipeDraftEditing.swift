@@ -52,7 +52,7 @@ final class RecipeDraftEditing {
         let source = recipe ?? imported?.recipe
         let fields = Fields(id: source?.id ?? UUID(), title: source?.title ?? "", summary: source?.summary ?? "",
             sourceLink: source?.recipeLink ?? "", category: source?.category, servings: source?.servings ?? defaultServings,
-            yieldText: source?.yieldText ?? "", prepMinutes: source?.prepMinutes ?? 10, cookMinutes: source?.cookMinutes ?? 20,
+            yieldText: source?.yieldText ?? "", prepMinutes: source?.prepMinutes ?? 0, cookMinutes: source?.cookMinutes ?? 0,
             tags: source?.tags ?? [], ingredients: source.flatMap { $0.ingredients.isEmpty ? nil : $0.ingredients } ?? [Ingredient(text: "")],
             steps: source.flatMap { $0.steps.isEmpty ? nil : $0.steps.map { Step(text: $0) } } ?? [Step()],
             photo: imported?.photo.flatMap(UIImage.init(data:)).flatMap { RecipePhotos.uploadData(for: $0) },

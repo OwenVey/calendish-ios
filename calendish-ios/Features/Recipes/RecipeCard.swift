@@ -24,8 +24,10 @@ struct RecipeCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(recipe.title).font(.headline).lineLimit(2)
                 HStack(spacing: 4) {
-                    Image(systemName: "clock").font(.caption2).accessibilityHidden(true)
-                    Text("\(recipe.minutes) min")
+                    if recipe.minutes > 0 {
+                        Image(systemName: "clock").font(.caption2).accessibilityHidden(true)
+                        Text("\(recipe.minutes) min")
+                    }
                     if let rating = stats?.averageRating {
                         Image(systemName: "star.fill").font(.caption2).padding(.leading, 4).accessibilityHidden(true)
                         Text(RecipeRow.formatted(rating)).accessibilityLabel(InterfaceCopy.rating(RecipeRow.formatted(rating)))

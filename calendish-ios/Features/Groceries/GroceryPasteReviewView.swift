@@ -12,6 +12,7 @@ struct GroceryPasteReviewView: View {
                 ForEach($items) { $item in
                     TextField("Item", text: $item.name, axis: .vertical)
                         .accessibilityLabel("Grocery item")
+                        .accessibilityValue(item.name)
                 }
                 .onDelete { items.remove(atOffsets: $0) }
             } footer: {

@@ -31,7 +31,9 @@ struct RecipeRow: View {
                     Text(recipe.owner?.person == nil ? "Owned by the household" : "\(owner)’s recipe").font(.footnote).foregroundStyle(.secondary).lineLimit(1).padding(.top, -4)
                 }
                 HStack(spacing: 10) {
-                    Label("\(recipe.minutes) min", systemImage: "clock")
+                    if recipe.minutes > 0 {
+                        Label("\(recipe.minutes) min", systemImage: "clock")
+                    }
                     Label(InterfaceCopy.servings(servings ?? recipe.servings), systemImage: "person.2")
                     if let rating = stats?.averageRating {
                         Label(Self.formatted(rating), systemImage: "star")

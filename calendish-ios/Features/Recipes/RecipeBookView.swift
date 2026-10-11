@@ -57,7 +57,7 @@ struct RecipeBookView: View {
     var body: some View {
         let stats = store.recipeStats
         let recipes = filteredRecipes(stats: stats)
-        Group {
+        ZStack {
             switch layout {
             case .list:
                 RecipeBookList(recipes: recipes, stats: stats, showsLastCooked: sort.showsLastCooked, scope: $scope, perform: perform)
@@ -67,7 +67,16 @@ struct RecipeBookView: View {
         }
         .overlay {
             if recipes.isEmpty {
-                if store.recipes.isEmpty {
+                if scope == .mine, search.isEmpty, !isFiltered, !store.recipes.contains(where: store.isMine) {
+                    ContentUnavailableView {
+                        Label("Your collection starts here", systemImage: "book.closed")
+                    } description: {
+                        Text("Write or import a recipe, or open a household recipe and choose Save to my collection.")
+                    } actions: {
+                        Button("Write a recipe", systemImage: "square.and.pencil") { sheet = .manual }
+                        Button("Import from link", systemImage: "link") { sheet = .importing(.link) }
+                    }
+                } else if store.recipes.isEmpty {
                     ContentUnavailableView("Your recipe book starts here", systemImage: "book.closed", description: Text("Add a recipe or import one from a link, text, photo, or PDF."))
                 } else if favoritesOnly, search.isEmpty, !store.recipes.contains(where: \.isFavorite) {
                     ContentUnavailableView("No favorites yet", systemImage: "star", description: Text("Open a recipe’s actions menu and choose Add to favorites."))
@@ -79,7 +88,7 @@ struct RecipeBookView: View {
         .navigationTitle("Recipes")
         .tabRootStyle()
         .navigationSubtitle(subtitle(count: recipes.count))
-        .searchable(text: $search, prompt: "Search recipes and ingredients")
+        .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search recipes and ingredients")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {

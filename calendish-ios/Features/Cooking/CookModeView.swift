@@ -59,6 +59,7 @@ struct CookModeView: View {
                             .transition(reduceMotion ? .identity : .move(edge: .leading).combined(with: .opacity))
                     }
                     VStack(spacing: 0) {
+                        if !timers.isEmpty { timerStatus(timers) }
                         TabView(selection: stepSelection) {
                             ForEach(Array(recipe.steps.enumerated()), id: \.offset) { index, step in
                                 CookStepPage(step: step, index: index, recipe: recipe, scale: scale, timers: timers,
@@ -134,6 +135,37 @@ struct CookModeView: View {
         .onChange(of: timerStore.finished.map(\.id)) { _, _ in handsFree.announceFinishedTimers() }
         .onChange(of: handsFree.isListening) { _, _ in handsFree.announceFinishedTimers() }
         .onDisappear(perform: endSession)
+    }
+
+    /// Remains available when the cook moves away from a timer's step.
+    private func timerStatus(_ timers: [CookTimer]) -> some View {
+        Menu {
+            ForEach(timers) { timer in
+                Section("Step \(timer.stepIndex + 1) timer") {
+                    Button("Go to step \(timer.stepIndex + 1)", systemImage: "arrow.turn.up.left") { stepIndex = timer.stepIndex }
+                    CookTimerPauseButton(timer: timer, title: "step \(timer.stepIndex + 1) timer")
+                    Button("Add 1 minute", systemImage: "plus") { timerStore.addMinute(to: timer) }
+                    Button("Cancel step \(timer.stepIndex + 1) timer", systemImage: "xmark", role: .destructive) { timerStore.cancel(timer) }
+                }
+            }
+        } label: {
+            let layout = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading)) : AnyLayout(HStackLayout())
+            layout {
+                Label(timers.count == 1 ? "Step \(timers[0].stepIndex + 1) timer" : "\(timers.count) active timers", systemImage: "timer")
+                if !typeSize.isAccessibilitySize { Spacer() }
+                CookTimerCountdown(timer: timers[0])
+                Image(systemName: "chevron.down").accessibilityHidden(true)
+            }
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(CalendishStyle.timer)
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
+        }
+        .menuOrder(.fixed)
+        .accessibilityIdentifier("Cook Mode running timers")
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
     }
 
     // Alerts present from the ingredient sheet whenever it's up, since it covers Cook Mode.

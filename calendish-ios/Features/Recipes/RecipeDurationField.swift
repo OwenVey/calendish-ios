@@ -6,7 +6,8 @@ struct RecipeDurationField: View {
     @Binding var minutes: Int
 
     private var formattedDuration: String {
-        Duration.seconds(minutes * 60).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
+        guard minutes > 0 else { return "Not set" }
+        return Duration.seconds(minutes * 60).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
     }
 
     var body: some View {
