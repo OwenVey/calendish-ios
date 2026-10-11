@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Cook mode's ingredient checklist, shown beside the steps or in a sheet.
 /// Serving scale comes from the recipe page, so the panel stays focused on ingredients.
+/// In the sheet, the panel never closes: it collapses to its header so a thumb can drag it back up.
 struct CookIngredientPanel: View {
     let recipe: Recipe
     let stepIndex: Int
@@ -9,7 +10,10 @@ struct CookIngredientPanel: View {
     @Binding var scope: CookIngredientScope
     @Binding var checked: Set<UUID>
     let focus: CookIngredientFocus?
+    /// The sheet's state, or nil beside the steps, where the panel closes instead of collapsing.
+    var isCollapsed: Bool?
     let onClose: () -> Void
+    var onExpand: () -> Void = {}
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(PreferenceKey.cookingHaptics) private var haptics = true
     @AppStorage(MeasurementPreference.storageKey) private var units = MeasurementPreference.original
@@ -26,6 +30,13 @@ struct CookIngredientPanel: View {
         let ingredients = visibleIngredients
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: 8) {
+                Text("Ingredients")
+                    .font(.title2.weight(.semibold))
+                    .lineLimit(1)
+                    .frame(minHeight: 44, alignment: .leading)
+                    .accessibilityAddTraits(.isHeader)
+                    .layoutPriority(1)
+                Spacer(minLength: 0)
                 Menu {
                     Picker("Ingredients", selection: $scope) {
                         ForEach(CookIngredientScope.allCases) { scope in
@@ -33,26 +44,30 @@ struct CookIngredientPanel: View {
                         }
                     }
                 } label: {
-                    HStack(spacing: 8) {
-                        Text(scope.rawValue).font(.title2.weight(.semibold)).foregroundStyle(Color.primary)
-                        Image(systemName: "chevron.down").font(.body.weight(.semibold)).foregroundStyle(CalendishStyle.accent)
+                    HStack(spacing: 6) {
+                        Text(scope.shortTitle).lineLimit(1)
+                        Image(systemName: "chevron.down").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
                     }
-                    .foregroundStyle(.primary)
-                    .frame(minHeight: 44, alignment: .leading)
                 }
                 .tint(Color.primary)
-                .accessibilityHint("Show all ingredients or only those mentioned in the current step")
-                Spacer(minLength: 0)
-                Button("Hide ingredients", systemImage: "xmark", role: .close, action: onClose)
-                .labelStyle(.iconOnly)
-                .accessibilityIdentifier("cook-ingredients-close")
-                .tint(Color.primary)
                 .buttonStyle(.glass)
-                .buttonBorderShape(.circle)
-                .controlSize(.large)
+                .buttonBorderShape(.capsule)
+                .controlSize(.regular)
+                .accessibilityLabel("Ingredients shown")
+                .accessibilityValue(scope.rawValue)
+                .accessibilityHint("Show all ingredients or only those mentioned in the current step")
+                headerButton
+                    .labelStyle(.iconOnly)
+                    .tint(Color.primary)
+                    .buttonStyle(.glass)
+                    .buttonBorderShape(.circle)
+                    .controlSize(.large)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 16)
+            .padding(.leading, 20)
+            // Collapsed, the header is all that shows: center it in the floating sheet,
+            // with the expand button's side margin matching its top and bottom.
+            .padding(.trailing, isCollapsed == true ? 10 : 20)
+            .padding(.top, isCollapsed == true ? 12 : 16)
             .padding(.bottom, 8)
             ScrollViewReader { scroll in
                 ScrollView {
@@ -83,6 +98,20 @@ struct CookIngredientPanel: View {
             }
         }
         .sensoryFeedback(.selection, trigger: checked) { _, _ in haptics }
+    }
+
+    @ViewBuilder private var headerButton: some View {
+        switch isCollapsed {
+        case nil:
+            Button("Hide ingredients", systemImage: "xmark", role: .close, action: onClose)
+                .accessibilityIdentifier("cook-ingredients-close")
+        case false?:
+            Button("Collapse ingredients", systemImage: "chevron.down", action: onClose)
+                .accessibilityIdentifier("cook-ingredients-close")
+        case true?:
+            Button("Expand ingredients", systemImage: "chevron.up", action: onExpand)
+                .accessibilityIdentifier("cook-ingredients-expand")
+        }
     }
 
     private func toggle(_ id: UUID) {

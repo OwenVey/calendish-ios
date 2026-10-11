@@ -2,7 +2,7 @@
 import XCTest
 
 final class CookModeUITests: XCTestCase {
-    func testIngredientSwipeDismissalKeepsStep() {
+    func testIngredientSwipeCollapsesSheetAndKeepsStep() {
         let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
         app.launch()
         app.buttons["Recipes"].firstMatch.tap()
@@ -23,10 +23,15 @@ final class CookModeUITests: XCTestCase {
             let grabber = origin.withOffset(CGVector(dx: app.frame.midX, dy: close.frame.minY - 8))
             let bottom = origin.withOffset(CGVector(dx: app.frame.midX, dy: app.frame.maxY - 20))
             grabber.press(forDuration: 0.1, thenDragTo: bottom)
-            XCTAssertTrue(app.buttons["Show ingredients"].waitForExistence(timeout: 5))
+            // Swiping down collapses the sheet to its header instead of dismissing it.
+            let expand = app.buttons["cook-ingredients-expand"]
+            XCTAssertTrue(expand.waitForExistence(timeout: 5))
             XCTAssertTrue(count.exists)
             XCTAssertGreaterThan(count.frame.midY, originalY + 100)
-            app.buttons["Show ingredients"].tap()
+            // The collapsed header drags back up from the bottom of the screen.
+            let header = origin.withOffset(CGVector(dx: app.frame.midX, dy: expand.frame.minY - 8))
+            let middle = origin.withOffset(CGVector(dx: app.frame.midX, dy: app.frame.midY))
+            header.press(forDuration: 0.1, thenDragTo: middle)
             XCTAssertTrue(close.waitForExistence(timeout: 5))
         }
         close.tap()
@@ -66,9 +71,14 @@ final class CookModeUITests: XCTestCase {
         XCTAssertEqual(count.frame.midY, controlsY, accuracy: 1)
         attach(app, "Timed step above ingredients")
         close.tap()
-        let lowered = NSPredicate { _, _ in count.frame.midY > controlsY + 100 }
+        let expand = app.buttons["cook-ingredients-expand"]
+        let lowered = NSPredicate { _, _ in
+            let gap = expand.frame.minY - next.frame.maxY
+            return count.frame.midY > controlsY + 100 && gap >= 16 && gap <= 64
+        }
         expectation(for: lowered, evaluatedWith: nil)
         waitForExpectations(timeout: 5)
+        attach(app, "Step controls above collapsed ingredients")
         app.buttons["Close"].firstMatch.tap()
     }
 
@@ -76,7 +86,7 @@ final class CookModeUITests: XCTestCase {
         let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
         app.launch()
         app.buttons["Recipes"].tap()
-        let recipe = app.staticTexts["Sheet pan lemon chicken"]
+        let recipe = app.staticTexts["Sheet Pan Hot Honey Sausage and Gnocchi"]
         XCTAssertTrue(recipe.waitForExistence(timeout: 10))
         recipe.tap()
         clearCookedToday(app)
@@ -103,7 +113,7 @@ final class CookModeUITests: XCTestCase {
         app.launch()
         XCUIDevice.shared.press(.home)
         springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.03)).press(forDuration: 1.5)
-        let activityTitle = springboard.staticTexts["Sheet pan lemon chicken"]
+        let activityTitle = springboard.staticTexts["Sheet Pan Hot Honey Sausage and Gnocchi"]
         XCTAssertTrue(activityTitle.waitForExistence(timeout: 5))
         activityTitle.tap()
         XCTAssertTrue(app.buttons["cook-ingredients-close"].waitForExistence(timeout: 5))
@@ -168,11 +178,11 @@ final class CookModeUITests: XCTestCase {
         let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
         app.launch()
         app.buttons["Recipes"].tap()
-        let recipe = app.staticTexts["Sheet pan lemon chicken"]
+        let recipe = app.staticTexts["Sheet Pan Hot Honey Sausage and Gnocchi"]
         XCTAssertTrue(recipe.waitForExistence(timeout: 10))
         recipe.tap()
         app.buttons["Cook"].tap()
-        let sheetTitle = app.staticTexts["Current step"]
+        let sheetTitle = app.staticTexts["Ingredients"]
         XCTAssertTrue(sheetTitle.waitForExistence(timeout: 5))
         let instruction = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Heat the oven to 425")).firstMatch
         XCTAssertTrue(instruction.waitForExistence(timeout: 5))
@@ -187,9 +197,9 @@ final class CookModeUITests: XCTestCase {
         screenshot.lifetime = .keepAlways
         add(screenshot)
         app.buttons["cook-ingredients-close"].tap()
-        XCTAssertFalse(sheetTitle.exists)
+        XCTAssertTrue(app.buttons["cook-ingredients-expand"].waitForExistence(timeout: 5))
         instruction.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.5)).tap()
-        XCTAssertTrue(sheetTitle.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["cook-ingredients-close"].waitForExistence(timeout: 5))
         XCTAssertTrue(ingredientRow.isSelected)
 
         let stepCount = app.staticTexts["Step 1 of 5"]
@@ -199,8 +209,8 @@ final class CookModeUITests: XCTestCase {
         let grabber = origin.withOffset(CGVector(dx: app.frame.midX, dy: close.frame.minY - 8))
         let bottom = origin.withOffset(CGVector(dx: app.frame.midX, dy: app.frame.maxY - 20))
         grabber.press(forDuration: 0.1, thenDragTo: bottom)
-        let dismissed = NSPredicate { _, _ in !sheetTitle.exists }
-        expectation(for: dismissed, evaluatedWith: nil)
+        let collapsed = NSPredicate { _, _ in sheetTitle.exists && app.buttons["cook-ingredients-expand"].exists }
+        expectation(for: collapsed, evaluatedWith: nil)
         waitForExpectations(timeout: 5)
         XCTAssertGreaterThan(stepCount.frame.midY, originalY + 100)
     }
@@ -209,7 +219,7 @@ final class CookModeUITests: XCTestCase {
         let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
         app.launch()
         app.buttons["Recipes"].tap()
-        let recipe = app.staticTexts["Sheet pan lemon chicken"]
+        let recipe = app.staticTexts["Sheet Pan Hot Honey Sausage and Gnocchi"]
         XCTAssertTrue(recipe.waitForExistence(timeout: 10))
         recipe.tap()
         app.buttons["Cook"].tap()
@@ -265,7 +275,7 @@ final class CookModeUITests: XCTestCase {
         let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-ios")
         app.launch()
         app.buttons["Recipes"].tap()
-        let recipe = app.staticTexts["Sheet pan lemon chicken"]
+        let recipe = app.staticTexts["Sheet Pan Hot Honey Sausage and Gnocchi"]
         XCTAssertTrue(recipe.waitForExistence(timeout: 10))
         recipe.tap()
         app.buttons["Cook"].tap()
@@ -278,7 +288,7 @@ final class CookModeUITests: XCTestCase {
         app.buttons["Voice commands"].tap()
         // The explanation appears before the first activation only.
         let turnOn = app.alerts.buttons["Turn on voice commands"]
-        if turnOn.waitForExistence(timeout: 2) {
+        XCTAssertTrue(turnOn.waitForExistence(timeout: 3)); do {
             XCTAssertTrue(app.alerts.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "a TV")).firstMatch.exists)
             turnOn.tap()
         }

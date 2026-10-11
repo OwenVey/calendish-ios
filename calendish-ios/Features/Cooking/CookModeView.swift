@@ -19,6 +19,10 @@ struct CookModeView: View {
         Binding(get: { stepIndex }, set: { stepIndex = $0 })
     }
     @State private var showIngredients = UserDefaults.standard.bool(forKey: PreferenceKey.showCookIngredients)
+    /// Whether the expanded ingredient sheet was dragged to full height.
+    @State private var ingredientsFullHeight = false
+    /// The collapsed sheet's height: just its header, so the list can be dragged up from the bottom.
+    @ScaledMetric(relativeTo: .title2) private var peekHeight: CGFloat = 68
     @Environment(CookingTimers.self) private var timerStore
     @Environment(\.dynamicTypeSize) private var typeSize
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -36,7 +40,7 @@ struct CookModeView: View {
     private var timers: [CookTimer] { timerStore.timers.filter { $0.recipeID == recipe.id }.sorted(by: CookTimer.soonestFirst) }
     private var scale: Double { recipe.servings > 0 ? Double(servings) / Double(recipe.servings) : 1 }
     /// Ingredients sit beside the steps with room to spare (regular width) or when height is short,
-    /// such as landscape iPhone; otherwise they open in a sheet.
+    /// such as landscape iPhone; otherwise they live in a sheet that collapses instead of closing.
     private var wideLayout: Bool { horizontalSizeClass == .regular || verticalSizeClass == .compact }
 
     var body: some View {
@@ -45,6 +49,7 @@ struct CookModeView: View {
                 let wide = wideLayout
                 let timers = timers
                 let sheetHeight = min(340, max(220, geometry.size.height * 0.38))
+                let peekHeight = min(peekHeight, sheetHeight)
                 HStack(spacing: 0) {
                     if wide && showIngredients {
                         ingredientPanel()
@@ -70,7 +75,7 @@ struct CookModeView: View {
                     }
                     // The stack already ends above the bottom safe area. Counting that inset
                     // again leaves a gap above the sheet and shrinks the step's scroll area.
-                    .padding(.bottom, !wide && showIngredients ? sheetHeight + 12 : 0)
+                    .padding(.bottom, wide ? 0 : (showIngredients ? sheetHeight : peekHeight) + 12)
                     .transaction(value: showIngredients) { transaction in
                         // Interactive sheet dismissal can suppress implicit animations.
                         // Keep the controls' layout animation independent of that transaction.
@@ -78,18 +83,15 @@ struct CookModeView: View {
                         transaction.animation = reduceMotion ? nil : .smooth(duration: 0.32)
                     }
                 }
-                .sheet(isPresented: Binding(
-                    get: { showIngredients && !wideLayout },
-                    set: { visible in
-                        guard !wideLayout else { return }
-                        withAnimation(reduceMotion ? nil : .smooth(duration: 0.32)) { showIngredients = visible }
-                    }
-                )) {
-                    ingredientPanel()
+                .sheet(isPresented: .constant(!wideLayout)) {
+                    ingredientPanel(collapsed: !showIngredients)
                         .calendishAlert("Timer finished", isPresented: timerAlertPresented(onIngredients: true)) {
                             Button("Done") { }
                         } message: { Text(timerFinishedMessage) }
-                        .presentationDetents([.height(sheetHeight), .large])
+                        .handsFreeIntro(isPresented: handsFreeIntroPresented(onIngredients: true), enable: enableVoiceCommands)
+                        .presentationDetents([.height(peekHeight), .height(sheetHeight), .large],
+                                             selection: ingredientDetent(peek: peekHeight, expanded: sheetHeight))
+                        .interactiveDismissDisabled()
                         .presentationBackgroundInteraction(.enabled(upThrough: .height(sheetHeight)))
                         .presentationDragIndicator(.visible)
                         .presentationContentInteraction(.resizes)
@@ -119,12 +121,7 @@ struct CookModeView: View {
         .calendishAlert("Timer finished", isPresented: timerAlertPresented(onIngredients: false)) {
             Button("Done") { }
         } message: { Text(timerFinishedMessage) }
-        .calendishAlert("Voice commands", isPresented: $showHandsFreeIntro) {
-            Button("Cancel", role: .cancel) { }
-            Button("Turn on voice commands", action: enableVoiceCommands)
-        } message: {
-            Text("Say “next”, “back”, or “start timer” without touching your phone. Calendish listens only while Cook Mode is open, and speech stays on this iPhone.\n\nAnyone nearby, or a TV, saying a command can trigger it too.")
-        }
+        .handsFreeIntro(isPresented: handsFreeIntroPresented(onIngredients: false), enable: enableVoiceCommands)
         .onAppear(perform: beginSession)
         .onChange(of: session.snapshot?.id) { _, id in
             if id == nil { dismiss() }
@@ -140,11 +137,30 @@ struct CookModeView: View {
         .onDisappear(perform: endSession)
     }
 
-    // Present timer alerts from the visible sheet when it owns the presentation.
+    // Alerts present from the ingredient sheet whenever it's up, since it covers Cook Mode.
     private func timerAlertPresented(onIngredients: Bool) -> Binding<Bool> {
         Binding(
-            get: { !timerStore.finished.isEmpty && !handsFree.isListening && (showIngredients && !wideLayout) == onIngredients },
-            set: { if !$0 && (showIngredients && !wideLayout) == onIngredients { timerStore.acknowledge() } }
+            get: { !timerStore.finished.isEmpty && !handsFree.isListening && !wideLayout == onIngredients },
+            set: { if !$0 && !wideLayout == onIngredients { timerStore.acknowledge() } }
+        )
+    }
+
+    private func handsFreeIntroPresented(onIngredients: Bool) -> Binding<Bool> {
+        Binding(
+            get: { showHandsFreeIntro && !wideLayout == onIngredients },
+            set: { if !$0 && !wideLayout == onIngredients { showHandsFreeIntro = false } }
+        )
+    }
+
+    /// Maps the sheet's detents onto `showIngredients`, so the toolbar and drags agree on whether it's expanded.
+    private func ingredientDetent(peek: CGFloat, expanded: CGFloat) -> Binding<PresentationDetent> {
+        Binding(
+            get: { !showIngredients ? .height(peek) : ingredientsFullHeight ? .large : .height(expanded) },
+            set: { detent in
+                ingredientsFullHeight = detent == .large
+                guard showIngredients != (detent != .height(peek)) else { return }
+                withAnimation(reduceMotion ? nil : .smooth(duration: 0.32)) { showIngredients = detent != .height(peek) }
+            }
         )
     }
 
@@ -157,9 +173,10 @@ struct CookModeView: View {
         timerStore.finished.map { "\($0.recipeTitle), step \($0.stepIndex + 1): \($0.durationText) timer finished." }.joined(separator: "\n\n")
     }
 
-    private func ingredientPanel() -> CookIngredientPanel {
+    private func ingredientPanel(collapsed: Bool? = nil) -> CookIngredientPanel {
         CookIngredientPanel(recipe: recipe, stepIndex: stepIndex, scale: scale, scope: $ingredientScope,
-                            checked: $checked, focus: ingredientFocus, onClose: hideIngredients)
+                            checked: $checked, focus: ingredientFocus, isCollapsed: collapsed,
+                            onClose: hideIngredients, onExpand: expandIngredients)
     }
 
     private func close() {
@@ -184,17 +201,22 @@ struct CookModeView: View {
     }
 
     private func toggleIngredients() {
-        withAnimation(reduceMotion ? nil : .default) { showIngredients.toggle() }
+        if showIngredients { hideIngredients() } else { expandIngredients() }
     }
 
     private func hideIngredients() {
+        ingredientsFullHeight = false
         withAnimation(reduceMotion ? nil : .default) { showIngredients = false }
+    }
+
+    private func expandIngredients() {
+        withAnimation(reduceMotion ? nil : .default) { showIngredients = true }
     }
 
     private func revealIngredients(_ ingredients: [UUID]) {
         guard !ingredients.isEmpty else { return }
         ingredientFocus = CookIngredientFocus(ingredients: ingredients)
-        withAnimation(reduceMotion ? nil : .default) { showIngredients = true }
+        expandIngredients()
     }
 
     private func beginSession() {
@@ -207,5 +229,16 @@ struct CookModeView: View {
         handsFree.stop()
         timerStore.isCooking = false
         UIApplication.shared.isIdleTimerDisabled = false
+    }
+}
+
+private extension View {
+    func handsFreeIntro(isPresented: Binding<Bool>, enable: @escaping () -> Void) -> some View {
+        calendishAlert("Voice commands", isPresented: isPresented) {
+            Button("Cancel", role: .cancel) { }
+            Button("Turn on voice commands", action: enable)
+        } message: {
+            Text("Say “next”, “back”, or “start timer” without touching your phone. Calendish listens only while Cook Mode is open, and speech stays on this iPhone.\n\nAnyone nearby, or a TV, saying a command can trigger it too.")
+        }
     }
 }
