@@ -29,17 +29,21 @@ struct UnitConversionTests {
             precondition(actual == expected, "\(input) → \(units): expected \(expected), got \(actual)")
         }
         precondition(Ingredient(text: "1½ cups orzo").display(scale: 2, units: .metric) == "710 ml orzo")
-        let temperatures: [(String, MeasurementPreference, String)] = [
-            ("Heat the oven to 425°F.", .metric, "Heat the oven to 220°C."),
-            ("Bake at 350 degrees F for 20 minutes.", .metric, "Bake at 180°C for 20 minutes."),
-            ("Roast at 200°C until golden.", .us, "Roast at 400°F until golden."),
-            ("Cook to 165°F inside.", .metric, "Cook to 74°C inside."),
-            ("Heat the oven to 425°F.", .us, "Heat the oven to 425°F."),
+        let temperatures: [(String, TemperatureUnit, String)] = [
+            ("Heat the oven to 425°F.", .celsius, "Heat the oven to 220°C."),
+            ("Bake at 350 degrees F for 20 minutes.", .celsius, "Bake at 180°C for 20 minutes."),
+            ("Roast at 200°C until golden.", .fahrenheit, "Roast at 400°F until golden."),
+            ("Cook to 165°F inside.", .celsius, "Cook to 74°C inside."),
+            ("Heat the oven to 425°F.", .fahrenheit, "Heat the oven to 425°F."),
+            ("Roast at 200°C until golden.", .celsius, "Roast at 200°C until golden."),
         ]
         for (input, units, expected) in temperatures {
             let actual = Ingredient.convertTemperatures(in: input, to: units)
             precondition(actual == expected, "\(input) → \(units): expected \(expected), got \(actual)")
         }
+        let step = "Bake at 180°C for 20 minutes, until it reaches 74 degrees C."
+        let found = Ingredient.temperatureRanges(in: step).map { String(step[$0]) }
+        precondition(found == ["180°C", "74 degrees C"], "temperature ranges: got \(found)")
         print("Unit conversion tests passed")
     }
 }

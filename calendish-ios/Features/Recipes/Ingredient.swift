@@ -171,19 +171,17 @@ extension Ingredient {
         return max(0.125, whole + nearest)
     }
 
-    /// Converts oven and food temperatures such as "425°F" or "180 degrees C" to the other scale.
-    static func convertTemperatures(in text: String, to units: MeasurementPreference) -> String {
-        guard units != .original else { return text }
-        let pattern = #/(\d+)\s*(?:°|º|degrees?\s+)\s*([fc])(?:ahrenheit|elsius)?\b/#.ignoresCase()
-        return text.replacing(pattern) { match in
+    /// Converts oven and food temperatures such as "425°F" or "180 degrees C" to the given scale.
+    static func convertTemperatures(in text: String, to unit: TemperatureUnit) -> String {
+        text.replacing(temperaturePattern) { match in
             guard let value = Double(match.output.1) else { return String(match.output.0) }
             let isFahrenheit = match.output.2.lowercased() == "f"
-            switch (isFahrenheit, units) {
-            case (true, .metric):
+            switch (isFahrenheit, unit) {
+            case (true, .celsius):
                 let celsius = (value - 32) * 5 / 9
                 let step = celsius >= 100 ? 10.0 : 1
                 return "\(Int((celsius / step).rounded() * step))°C"
-            case (false, .us):
+            case (false, .fahrenheit):
                 let fahrenheit = value * 9 / 5 + 32
                 let step = fahrenheit >= 200 ? 25.0 : 1
                 return "\(Int((fahrenheit / step).rounded() * step))°F"
@@ -191,5 +189,14 @@ extension Ingredient {
                 return String(match.output.0)
             }
         }
+    }
+
+    /// Where temperatures appear in a step, so cooking mode can call them out.
+    static func temperatureRanges(in text: String) -> [Range<String.Index>] {
+        text.matches(of: temperaturePattern).map(\.range)
+    }
+
+    private static var temperaturePattern: Regex<(Substring, Substring, Substring)> {
+        #/(\d+)\s*(?:°|º|degrees?\s+)\s*([fc])(?:ahrenheit|elsius)?\b/#.ignoresCase()
     }
 }

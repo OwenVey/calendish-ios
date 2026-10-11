@@ -11,6 +11,7 @@ struct RecipeDetailView: View {
     /// Servings the cook scaled to, or nil to use the recipe as written.
     @State private var scaledServings: Int?
     @AppStorage(MeasurementPreference.storageKey) private var units = MeasurementPreference.original
+    @AppStorage(TemperatureUnit.storageKey) private var temperatureUnit = TemperatureUnit.system
     @State private var showImportOutline = false
     @State private var showEditor = false
     @State private var confirmDelete = false
@@ -257,7 +258,7 @@ extension RecipeDetailView {
     private func shareRecipe() async {
         preparingShare = true
         defer { preparingShare = false }
-        let share = RecipeShare(recipe: recipe, servings: servings, units: units)
+        let share = RecipeShare(recipe: recipe, servings: servings, units: units, temperatureUnit: temperatureUnit)
         let photo: UIImage? = if let path = recipe.imagePath { await RecipePhotos.shared.image(for: path, thumbnail: false) } else { nil }
         var items: [Any] = [share.text]
         if let card = RecipeShareCard.image(for: share, photo: photo) { items.append(card) }

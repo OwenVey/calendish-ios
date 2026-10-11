@@ -18,7 +18,7 @@ struct CookStepPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 Text("STEP \(index + 1)").font(.subheadline.weight(.semibold)).tracking(1.4).foregroundStyle(CalendishStyle.accent)
-                RecipeStepText(step: step, recipe: recipe, scale: scale, units: units, onIngredientTap: onIngredientTap, highlightsTimes: true).font(.title).lineSpacing(6)
+                RecipeStepText(step: step, recipe: recipe, scale: scale, units: units, onIngredientTap: onIngredientTap).font(.title).lineSpacing(6)
                 if let warning = session.activityWarning { Text(warning).font(.footnote).foregroundStyle(.secondary) }
                 if let warning = timerStore.notificationWarning { Text(warning).font(.footnote).foregroundStyle(.secondary) }
                 if let duration = CookTimer.duration(in: step) {

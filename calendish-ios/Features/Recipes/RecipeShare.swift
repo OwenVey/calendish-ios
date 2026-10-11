@@ -18,6 +18,7 @@ struct RecipeShare {
     let recipe: Recipe
     let servings: Int
     let units: MeasurementPreference
+    let temperatureUnit: TemperatureUnit
 
     /// How far the ingredients scale from the servings the recipe was written for.
     var scale: Double { servings != recipe.servings && recipe.servings > 0 ? Double(servings) / Double(recipe.servings) : 1 }
@@ -29,7 +30,7 @@ struct RecipeShare {
     var sourceURL: URL? { recipe.recipeLink.flatMap(RecipeLinkImporter.validatedURL) }
 
     var ingredientLines: [String] { recipe.ingredients.map { $0.display(scale: scale, units: units) } }
-    var steps: [String] { recipe.steps.map { Ingredient.convertTemperatures(in: $0, to: units) } }
+    var steps: [String] { recipe.steps.map { Ingredient.convertTemperatures(in: $0, to: temperatureUnit) } }
     var yieldText: String? { recipe.yieldText.map { Ingredient.scale($0, by: scale) } }
 
     /// Prep, cook, and serving facts, leaving out what the recipe doesn't give.

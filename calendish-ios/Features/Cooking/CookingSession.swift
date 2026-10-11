@@ -200,7 +200,7 @@ final class CookingSession {
         let timer = CookingTimers.shared.timers
             .filter { $0.recipeID == snapshot.recipe.id }
             .min { $0.end < $1.end }
-        let step = snapshot.recipe.steps[snapshot.stepIndex]
+        let step = Ingredient.convertTemperatures(in: snapshot.recipe.steps[snapshot.stepIndex], to: .current)
         let state = CookingActivityAttributes.ContentState(stepIndex: snapshot.stepIndex,
             recipeImageName: CookingActivityPhoto.image(named: snapshot.id.uuidString) == nil ? nil : snapshot.id.uuidString,
             instruction: String(step.prefix(600)), timerStart: timer.map { $0.end.addingTimeInterval(-$0.duration) }, timerEnd: timer?.end, timerStepIndex: timer?.stepIndex,

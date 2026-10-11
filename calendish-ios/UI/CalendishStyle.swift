@@ -7,6 +7,8 @@ enum CalendishStyle {
     static let onAccent = Color("OnAccentColor")
     /// Cook times and timers, matching the system Clock app and the cooking Live Activity.
     static let timer = Color.orange
+    /// Oven and food temperatures in recipe steps, apart from the accent ingredients and orange times.
+    static let temperature = Color.red
     static let background = Color(.systemGroupedBackground)
     static let surface = Color(.secondarySystemGroupedBackground)
 }

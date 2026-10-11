@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// A recipe step with the ingredients it mentions in the accent color.
-/// Cooking mode also shows cook times in the timer color.
+/// A recipe step with the ingredients it mentions in the accent color, cook times in the timer color, and temperatures in the temperature color.
 /// Tapping an ingredient shows how much the recipe calls for, at the current scale and units, pointing at the tapped word.
 struct RecipeStepText: View {
     let step: String
@@ -10,7 +9,7 @@ struct RecipeStepText: View {
     let units: MeasurementPreference
     /// Cooking mode reveals the matching rows in its ingredients panel instead of presenting a popover.
     var onIngredientTap: (([UUID]) -> Void)? = nil
-    var highlightsTimes = false
+    @AppStorage(TemperatureUnit.storageKey) private var temperatureUnit = TemperatureUnit.system
     @State private var frames = MentionFrames()
     @State private var shown: Mention?
 
@@ -18,6 +17,11 @@ struct RecipeStepText: View {
         let ingredients: [Int]
         var rect: CGRect = .zero
         var id: [Int] { ingredients }
+    }
+
+    private enum Highlight {
+        case ingredients([Int])
+        case cue(Color)
     }
 
     /// Where each mention was last drawn, in the text's coordinates. Written while drawing, so it doesn't trigger updates.
@@ -43,20 +47,21 @@ struct RecipeStepText: View {
     }
 
     var body: some View {
-        let displayed = Ingredient.convertTemperatures(in: step, to: units)
+        let displayed = Ingredient.convertTemperatures(in: step, to: temperatureUnit)
         let mentions = IngredientParser.mentions(in: displayed, ingredients: recipe.ingredients.map(\.text))
-        let times = highlightsTimes
-            ? CookTimer.timeRanges(in: displayed).filter { time in !mentions.contains { $0.range.overlaps(time) } }
-            : []
-        let highlights = (mentions.map { ($0.range, Optional($0.ingredients)) } + times.map { ($0, nil) })
+        let cues = CookTimer.timeRanges(in: displayed).map { ($0, CalendishStyle.timer) }
+            + Ingredient.temperatureRanges(in: displayed).map { ($0, CalendishStyle.temperature) }
+        let highlights = (mentions.map { ($0.range, Highlight.ingredients($0.ingredients)) }
+            + cues.filter { cue in !mentions.contains { $0.range.overlaps(cue.0) } }.map { ($0.0, Highlight.cue($0.1)) })
             .sorted { $0.0.lowerBound < $1.0.lowerBound }
         var text = Text("")
         var position = displayed.startIndex
-        for (range, ingredients) in highlights {
-            let word = if let ingredients {
+        for (range, highlight) in highlights where range.lowerBound >= position {
+            let word = switch highlight {
+            case .ingredients(let ingredients):
                 Text(displayed[range]).foregroundStyle(CalendishStyle.accent).customAttribute(Mention(ingredients: ingredients))
-            } else {
-                Text(displayed[range]).foregroundStyle(CalendishStyle.timer)
+            case .cue(let color):
+                Text(displayed[range]).foregroundStyle(color)
             }
             text = Text("\(text)\(Text(displayed[position..<range.lowerBound]))\(word)")
             position = range.upperBound

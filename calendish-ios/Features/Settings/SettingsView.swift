@@ -10,6 +10,7 @@ struct SettingsView: View {
     @AppStorage(WeekStart.storageKey) private var weekStart = WeekStart.system
     @AppStorage(PreferenceKey.defaultServings) private var defaultServings = 4
     @AppStorage(MeasurementPreference.storageKey) private var units = MeasurementPreference.original
+    @AppStorage(TemperatureUnit.storageKey) private var temperatureUnit = TemperatureUnit.system
     @AppStorage(PreferenceKey.groceryAutoClear) private var groceryAutoClear = GroceryAutoClear.never
     var body: some View {
         Form {
@@ -54,10 +55,16 @@ struct SettingsView: View {
                     SettingsLabel("Units", systemImage: "ruler.fill", color: .indigo)
                 }
                 .tint(.secondary)
+                Picker(selection: $temperatureUnit) {
+                    ForEach(TemperatureUnit.allCases) { Text($0.title).tag($0) }
+                } label: {
+                    SettingsLabel("Temperature", systemImage: "thermometer.medium", color: .red)
+                }
+                .tint(.secondary)
             } header: {
                 Text("General")
             } footer: {
-                Text("Units convert supported quantities and temperatures. Saved recipe text stays unchanged.")
+                Text("Units convert supported ingredient quantities. Recipe temperatures always show in your chosen scale. Saved recipe text stays unchanged.")
             }
             Section {
                 HStack {

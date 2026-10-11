@@ -4,6 +4,7 @@ MODEL_SOURCES=(
   calendish-ios/UI/InterfaceCopy.swift
   calendish-ios/Features/Recipes/Ingredient.swift
   calendish-ios/Features/Recipes/MeasurementPreference.swift
+  calendish-ios/Features/Recipes/TemperatureUnit.swift
   calendish-ios/Features/Recipes/Recipe.swift
   calendish-ios/Features/Recipes/RecipeCategory.swift
   calendish-ios/Features/Recipes/RecipeOwner.swift
