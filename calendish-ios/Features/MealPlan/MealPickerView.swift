@@ -14,7 +14,7 @@ struct MealPickerView: View {
     @AppStorage(WeekStart.storageKey) private var weekStart = WeekStart.system
     private var values: String { "\(keepsSavedVersion)|\(recipeID?.uuidString ?? "")|\(servings)|\(date.timeIntervalSince1970)" }
     private var isDirty: Bool { initialValues != nil && values != initialValues }
-    private var recipes: [Recipe] { store.recipes.filter { search.isEmpty || $0.title.localizedStandardContains(search) } }
+    private var recipes: [Recipe] { store.recipes.filter { $0.matches(search) } }
 
     private func loadSelection() {
         guard initialValues == nil else { return }
@@ -84,7 +84,7 @@ struct MealPickerView: View {
                     }
                 }
             }
-            .searchable(text: $search, prompt: "Find a recipe")
+            .searchable(text: $search, prompt: "Search recipes and ingredients")
             .navigationTitle(selection.meal == nil ? "Plan a meal" : "Edit meal").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

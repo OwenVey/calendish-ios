@@ -34,4 +34,9 @@ struct Recipe: Identifiable, Hashable, Codable {
         mine.id = theirs.id
         return mine == theirs
     }
+
+    /// Whether a search matches the title, summary, category, tags, or any ingredient.
+    func matches(_ search: String) -> Bool {
+        search.isEmpty || ([title, summary, category?.title ?? ""] + tags + ingredients.map(\.text)).contains { $0.localizedStandardContains(search) }
+    }
 }

@@ -35,7 +35,7 @@ struct RecipeBookView: View {
             (selectedCategory == nil || recipe.category == selectedCategory) &&
             (selectedTag.map { tag in recipe.tags.contains { $0.caseInsensitiveCompare(tag) == .orderedSame } } ?? true) &&
             (!favoritesOnly || recipe.isFavorite) &&
-            (search.isEmpty || ([recipe.title, recipe.summary, recipe.category?.title ?? ""] + recipe.tags + recipe.ingredients.map(\.text)).contains { $0.localizedStandardContains(search) })
+            recipe.matches(search)
         }
         return sort.sorted(recipes, stats: stats)
     }

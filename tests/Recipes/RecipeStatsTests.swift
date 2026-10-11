@@ -46,6 +46,11 @@ struct RecipeStatsTests {
         // Bowls were cooked three days ago and oats are planned today, so neither is suggested.
         let suggested = RecipeStats.suggestions(from: recipes, stats: stats, meals: meals, now: now)
         check(suggested.map(\.id) == [orzo.id, salad.id], "suggestions: \(suggested.map(\.title))")
+        // Search matches ingredients and tags as well as titles, as in the meal picker.
+        check(recipes.filter { $0.matches("tahini") }.map(\.id) == [bowls.id], "ingredient search")
+        check(recipes.filter { $0.matches("make ahead") }.map(\.id) == [oats.id], "tag search")
+        check(recipes.filter { $0.matches("LEMON") }.map(\.id) == [orzo.id, salad.id], "case-insensitive search")
+        check(recipes.filter { $0.matches("") }.count == recipes.count, "empty search")
         print("Recipe stats tests passed")
     }
 }
