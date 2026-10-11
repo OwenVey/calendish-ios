@@ -15,7 +15,6 @@ struct CookIngredientPanel: View {
     let onClose: () -> Void
     var onExpand: () -> Void = {}
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(PreferenceKey.cookingHaptics) private var haptics = true
     @AppStorage(MeasurementPreference.storageKey) private var units = MeasurementPreference.original
 
     private var visibleIngredients: [Ingredient] {
@@ -97,7 +96,7 @@ struct CookIngredientPanel: View {
                 .onAppear { scrollToFocus(using: scroll) }
             }
         }
-        .sensoryFeedback(.selection, trigger: checked) { _, _ in haptics }
+        .hapticFeedback(.selection, trigger: checked)
     }
 
     @ViewBuilder private var headerButton: some View {

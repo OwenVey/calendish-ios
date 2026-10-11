@@ -197,7 +197,7 @@ struct RecipeDetailView: View {
                 } label: {
                     Label("More recipe actions", systemImage: "ellipsis")
                 }
-                .sensoryFeedback(.selection, trigger: recipe.isFavorite)
+                .hapticFeedback(.selection, trigger: recipe.isFavorite)
                 .confirmationDialog("Delete “\(recipe.title)”?", isPresented: $confirmDelete, titleVisibility: .visible) {
                     Button("Delete recipe", role: .destructive) {
                         store.deleteRecipe(recipe)

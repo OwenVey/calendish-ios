@@ -14,6 +14,7 @@ MODEL_SOURCES=(
   calendish-ios/Features/Recipes/RecipeReview.swift
   calendish-ios/Features/Groceries/GroceryItem.swift
   calendish-ios/Features/Account/Household.swift
+  calendish-ios/Features/Groceries/GroceryAutoClear.swift
   calendish-ios/Features/Account/HouseholdInvite.swift
   calendish-ios/Features/Account/HouseholdMember.swift
   calendish-ios/Features/Recipes/SampleRecipes.swift
@@ -24,7 +25,6 @@ PREFERENCE_SOURCES=(
   calendish-ios/App/PreferenceKey.swift
   calendish-ios/Features/Recipes/RecipeSort.swift
   calendish-ios/Features/Recipes/RecipeLayout.swift
-  calendish-ios/Features/Groceries/GroceryAutoClear.swift
   calendish-ios/Features/Cooking/TimerAlert.swift
 )
 COOKED_HISTORY_SOURCES=(

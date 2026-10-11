@@ -3,6 +3,7 @@ import Foundation
 /// Commands describe member actions, rather than table operations. The adapter owns encoding and cleanup.
 enum HouseholdMutation {
     case renameHousehold(UUID, String)
+    case groceryAutoClear(UUID, GroceryAutoClear)
     case renameMember(household: UUID, user: UUID, name: String)
     case avatar(household: UUID, user: UUID, url: URL)
     case transferOwnership(household: UUID, user: UUID)
@@ -23,6 +24,7 @@ enum HouseholdMutation {
     var failureAction: String {
         switch self {
         case .renameHousehold: "save the household name"
+        case .groceryAutoClear: "save the grocery setting"
         case .renameMember: "save your name"
         case .avatar: "save your profile photo"
         case .transferOwnership: "confirm the ownership transfer"

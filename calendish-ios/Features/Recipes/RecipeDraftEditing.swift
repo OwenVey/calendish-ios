@@ -44,7 +44,8 @@ final class RecipeDraftEditing {
     private var storageKey: String?
     private var baseline: Data?
 
-    init(recipe: Recipe? = nil, imported: ImportedRecipe? = nil, defaultServings: Int, defaults: UserDefaults = .standard) {
+    init(recipe: Recipe? = nil, imported: ImportedRecipe? = nil, defaultServings: Int, sharesNewRecipes: Bool = true,
+         defaults: UserDefaults = .standard) {
         original = recipe
         identity = recipe?.id.uuidString ?? imported?.recipe.id.uuidString ?? "new"
         self.defaults = defaults
@@ -54,7 +55,8 @@ final class RecipeDraftEditing {
             yieldText: source?.yieldText ?? "", prepMinutes: source?.prepMinutes ?? 10, cookMinutes: source?.cookMinutes ?? 20,
             tags: source?.tags ?? [], ingredients: source.flatMap { $0.ingredients.isEmpty ? nil : $0.ingredients } ?? [Ingredient(text: "")],
             steps: source.flatMap { $0.steps.isEmpty ? nil : $0.steps.map { Step(text: $0) } } ?? [Step()],
-            photo: imported?.photo.flatMap(UIImage.init(data:)).flatMap { RecipePhotos.uploadData(for: $0) })
+            photo: imported?.photo.flatMap(UIImage.init(data:)).flatMap { RecipePhotos.uploadData(for: $0) },
+            isShared: sharesNewRecipes)
         seed = fields
         self.fields = fields
         photo = fields.photo.flatMap(UIImage.init(data:))
@@ -85,7 +87,7 @@ final class RecipeDraftEditing {
                 yieldText: saved.yieldText ?? "", prepMinutes: saved.prepMinutes, cookMinutes: saved.cookMinutes,
                 tags: saved.tags, newTag: saved.newTag, ingredients: saved.ingredients,
                 steps: saved.steps.map { Step(text: $0) }, photo: saved.photo,
-                removesPhoto: saved.removesPhoto, isShared: saved.isShared ?? true)
+                removesPhoto: saved.removesPhoto, isShared: saved.isShared ?? seed.isShared)
         }
         storageKey = key
     }

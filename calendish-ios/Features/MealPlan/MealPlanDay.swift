@@ -62,6 +62,6 @@ struct MealPlanDay: View {
             return true
         } isTargeted: { isDropTarget = $0 }
         .animation(.snappy(duration: 0.2), value: isDropTarget)
-        .sensoryFeedback(.success, trigger: dropCount)
+        .hapticFeedback(.success, trigger: dropCount)
     }
 }

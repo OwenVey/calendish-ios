@@ -23,8 +23,8 @@ struct GroceryImportReviewView: View {
             }
             .navigationTitle("Add to groceries").navigationBarTitleDisplayMode(.inline)
             .navigationSubtitle(review.ingredientCount == 0 ? "" : "\(review.selected.count) of \(review.ingredientCount) selected")
-            .sensoryFeedback(.selection, trigger: review.selected)
-            .sensoryFeedback(.selection, trigger: review.servings)
+            .hapticFeedback(.selection, trigger: review.selected)
+            .hapticFeedback(.selection, trigger: review.servings)
             .onAppear { review.prepare(groceries: store.groceries.items, units: units) }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() }.toolbarGlyph() }

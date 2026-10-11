@@ -29,6 +29,6 @@ struct RecipeServingsStepper: View {
         }
         .padding(.vertical, 6)
         .animation(reduceMotion ? nil : .snappy, value: servings)
-        .sensoryFeedback(.selection, trigger: servings)
+        .hapticFeedback(.selection, trigger: servings)
     }
 }

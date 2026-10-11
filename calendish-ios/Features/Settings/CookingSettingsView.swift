@@ -6,7 +6,6 @@ import UserNotifications
 struct CookingSettingsView: View {
     @AppStorage(PreferenceKey.keepScreenAwake) private var keepScreenAwake = true
     @AppStorage(PreferenceKey.showCookIngredients) private var showIngredients = true
-    @AppStorage(PreferenceKey.cookingHaptics) private var haptics = true
     @AppStorage(PreferenceKey.liveActivity) private var liveActivity = true
     @AppStorage(PreferenceKey.timerAlert) private var timerAlert = TimerAlert.alarm
     @Environment(\.scenePhase) private var scenePhase
@@ -15,6 +14,8 @@ struct CookingSettingsView: View {
     @State private var activitiesAllowed = ActivityAuthorizationInfo().areActivitiesEnabled
     @State private var alarms = AlarmManager.shared.authorizationState
     private var notificationsAllowed: Bool { [.authorized, .provisional, .ephemeral].contains(notifications) }
+    /// False until the status loads, so the footer doesn't flash a permission prompt.
+    private var notificationsOff: Bool { notifications != nil && !notificationsAllowed }
     var body: some View {
         Form {
             Section {
@@ -23,14 +24,9 @@ struct CookingSettingsView: View {
                 Text("Your screen stays on while cook mode is open.")
             }
             Section {
-                Toggle("Show ingredients", isOn: $showIngredients)
+                Toggle("Start with ingredients open", isOn: $showIngredients)
             } footer: {
-                Text("Open the ingredient list alongside the steps when you start cooking.")
-            }
-            Section {
-                Toggle("Haptics", isOn: $haptics)
-            } footer: {
-                Text("Feel a tap when you change steps, check off ingredients, or finish a timer.")
+                Text("Cook mode opens with the ingredients sheet showing. You can collapse it anytime.")
             }
             Section {
                 Toggle("Live Activity", isOn: $liveActivity)
@@ -97,8 +93,10 @@ struct CookingSettingsView: View {
         case .alarm where alarms == .denied:
             "Alarms are off. Timers use notifications when allowed."
         case .alarm: "Timers ring like the Clock app, even when your iPhone is on silent or in a Focus."
-        case .notification: "Timers play a sound and show a notification. They alert you outside Calendish only when notifications are on."
-        case .silent: "Timers show notifications without sound when notifications are allowed."
+        case .notification where notificationsOff: "Timers play a sound in Calendish. Turn on notifications to hear them when you’re in another app."
+        case .notification: "Timers play a sound and show a notification."
+        case .silent where notificationsOff: "Timers finish without sound. Turn on notifications to see them when you’re in another app."
+        case .silent: "Timers show a notification without sound."
         }
     }
     private func loadNotificationStatus() async {

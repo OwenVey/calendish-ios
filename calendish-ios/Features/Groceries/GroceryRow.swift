@@ -91,7 +91,7 @@ struct GroceryRow: View {
         .frame(minHeight: 44)
         // The circle's tap target includes 8 points on either side of its glyph.
         .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 20))
-        .sensoryFeedback(.selection, trigger: feedback)
+        .hapticFeedback(.selection, trigger: feedback)
         .swipeActions(edge: .trailing) {
             Button("Remove", systemImage: "trash", role: .destructive) { store.groceries.remove([item.id]) }
                 .tint(.red)

@@ -64,7 +64,8 @@ final class InMemoryHouseholdBackend: HouseholdBackend, GrocerySyncTransport {
         var snapshot = homes[household.id] ?? HouseholdSnapshot(household: household)
         snapshot.members.append(HouseholdMember(userID: user, displayName: name, role: snapshot.members.isEmpty ? "owner" : "member"))
         seed(snapshot, groceries: groceryLists[household.id] ?? [])
-        return HouseholdRecord(id: household.id, name: household.name, inviteCode: household.inviteCode)
+        return HouseholdRecord(id: household.id, name: household.name, inviteCode: household.inviteCode,
+            groceryAutoClear: household.groceryAutoClear.rawValue)
     }
     func snapshot(household: UUID) async throws -> HouseholdSnapshot {
         // Capture before suspending, deliberately allowing tests to deliver an obsolete snapshot.
@@ -90,6 +91,7 @@ final class InMemoryHouseholdBackend: HouseholdBackend, GrocerySyncTransport {
         try await beforeWrite?(mutation)
         switch mutation {
         case let .renameHousehold(target, name): if target == id { snapshot.household?.name = name }
+        case let .groceryAutoClear(target, setting): if target == id { snapshot.household?.groceryAutoClear = setting }
         case let .renameMember(target, person, name):
             if target == id, let index = snapshot.members.firstIndex(where: { $0.userID == person }) { snapshot.members[index].displayName = name }
         case let .avatar(target, person, url):

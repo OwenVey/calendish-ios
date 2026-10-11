@@ -18,7 +18,7 @@ struct RecipeEditorView: View {
         importedWithoutIngredients = imported?.recipe.ingredients.isEmpty == true
         importedWithoutInstructions = imported?.recipe.steps.isEmpty == true
         _editing = State(initialValue: RecipeDraftEditing(recipe: recipe, imported: imported,
-            defaultServings: PreferenceKey.servingsForNewRecipes))
+            defaultServings: PreferenceKey.servingsForNewRecipes, sharesNewRecipes: PreferenceKey.sharesNewRecipes))
     }
     var body: some View {
         @Bindable var editing = editing

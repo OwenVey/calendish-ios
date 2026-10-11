@@ -66,7 +66,7 @@ final class SupabaseHouseholdBackend: HouseholdBackend {
         async let cookRows: [RecipeCookRecord] = fetchRows("recipe_cooks", householdID: id, key: \.id)
         let (h, m, r, f, p, n, v, c) = try await (hs, memberRows, recipeRows, favoriteRows, mealRows, noteRows, reviewRows, cookRows)
         let favorites = Set(f.map(\.recipeID))
-        return HouseholdSnapshot(household: h.first.map { Household(id: $0.id, name: $0.name, inviteCode: $0.inviteCode) },
+        return HouseholdSnapshot(household: h.first?.household,
             members: m.sorted { ($0.role == "owner" ? 0 : 1, $0.joinedAt ?? .distantPast) < ($1.role == "owner" ? 0 : 1, $1.joinedAt ?? .distantPast) }
                 .map { HouseholdMember(userID: $0.userID, displayName: $0.displayName, role: $0.role, avatarURL: $0.avatarURL.flatMap(URL.init)) },
             recipes: r.sorted { ($0.createdAt ?? .distantPast) > ($1.createdAt ?? .distantPast) }.map { Recipe($0, favorites: favorites) },
@@ -79,6 +79,8 @@ final class SupabaseHouseholdBackend: HouseholdBackend {
         switch mutation {
         case let .renameHousehold(id, name):
             try await client.from("households").update(["name": name]).eq("id", value: id).execute()
+        case let .groceryAutoClear(id, setting):
+            try await client.from("households").update(["grocery_auto_clear": setting.rawValue]).eq("id", value: id).execute()
         case let .renameMember(household, user, name):
             try await client.from("household_members").update(["display_name": name]).eq("household_id", value: household).eq("user_id", value: user).execute()
         case let .avatar(household, user, url):

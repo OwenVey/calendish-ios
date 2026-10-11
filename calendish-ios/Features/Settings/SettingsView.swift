@@ -1,17 +1,19 @@
-import ActivityKit
-import AlarmKit
 import SwiftUI
-import UserNotifications
 
 /// App and account settings, laid out like the Settings app: account card first, then grouped rows.
 struct SettingsView: View {
     @Environment(HouseholdStore.self) private var store
     @AppStorage("appearance") private var appearance: AppAppearance = .system
+    @AppStorage(PreferenceKey.haptics) private var haptics = true
     @AppStorage(WeekStart.storageKey) private var weekStart = WeekStart.system
     @AppStorage(PreferenceKey.defaultServings) private var defaultServings = 4
+    @AppStorage(PreferenceKey.shareNewRecipes) private var shareNewRecipes = true
     @AppStorage(MeasurementPreference.storageKey) private var units = MeasurementPreference.original
-    @AppStorage(TemperatureUnit.storageKey) private var temperatureUnit = TemperatureUnit.system
-    @AppStorage(PreferenceKey.groceryAutoClear) private var groceryAutoClear = GroceryAutoClear.never
+    /// Nil follows the region, which is also what recipe screens fall back to.
+    @AppStorage(TemperatureUnit.storageKey) private var temperatureUnit: TemperatureUnit?
+    private var groceryAutoClear: Binding<GroceryAutoClear> {
+        Binding { store.household?.groceryAutoClear ?? .never } set: { store.setGroceryAutoClear($0) }
+    }
     var body: some View {
         Form {
             Section {
@@ -35,20 +37,18 @@ struct SettingsView: View {
                 }
             }
             // Sort, grouping, and show-completed live in each screen's own menus, which remember the choice.
-            Section {
-                NavigationLink { AppearanceSettingsView() } label: {
-                    LabeledContent {
-                        Text(appearance.title)
-                    } label: {
-                        SettingsLabel("Appearance", systemImage: "circle.lefthalf.filled", color: .blue)
-                    }
-                }
-                Picker(selection: $weekStart) {
-                    ForEach(WeekStart.allCases) { Text($0.title).tag($0) }
+            Section("General") {
+                Picker(selection: $appearance) {
+                    ForEach(AppAppearance.allCases) { Text($0.title).tag($0) }
                 } label: {
-                    SettingsLabel("Week starts on", systemImage: "calendar", color: .red)
+                    SettingsLabel("Appearance", systemImage: "circle.lefthalf.filled", color: .blue)
                 }
                 .tint(.secondary)
+                Toggle(isOn: $haptics) {
+                    SettingsLabel("Haptics", systemImage: "iphone.radiowaves.left.and.right", color: .gray)
+                }
+            }
+            Section {
                 Picker(selection: $units) {
                     ForEach(MeasurementPreference.allCases) { Text($0.title).tag($0) }
                 } label: {
@@ -56,15 +56,16 @@ struct SettingsView: View {
                 }
                 .tint(.secondary)
                 Picker(selection: $temperatureUnit) {
-                    ForEach(TemperatureUnit.allCases) { Text($0.title).tag($0) }
+                    Text("Regional default").tag(TemperatureUnit?.none)
+                    ForEach(TemperatureUnit.allCases) { Text($0.title).tag(Optional($0)) }
                 } label: {
                     SettingsLabel("Temperature", systemImage: "thermometer.medium", color: .red)
                 }
                 .tint(.secondary)
             } header: {
-                Text("General")
+                Text("Recipes")
             } footer: {
-                Text("Units convert supported ingredient quantities. Recipe temperatures always show in your chosen scale. Saved recipe text stays unchanged.")
+                Text(units.explanation)
             }
             Section {
                 HStack {
@@ -76,25 +77,45 @@ struct SettingsView: View {
                         .fixedSize()
                 }
                 .accessibilityElement(children: .combine)
+            } footer: {
+                Text("Used when you create a recipe, or import one that doesn’t list servings.")
+            }
+            Section {
+                Toggle(isOn: $shareNewRecipes) {
+                    SettingsLabel("Share new recipes", systemImage: "person.2.wave.2.fill", color: .teal)
+                }
+            } footer: {
+                Text(shareNewRecipes
+                    ? "New recipes start shared with your household. You can make any recipe private."
+                    : "New recipes start private. You can share any recipe with your household.")
+            }
+            Section {
                 NavigationLink { CookingSettingsView() } label: {
                     SettingsLabel("Cooking", systemImage: "frying.pan.fill", color: .purple)
                 }
-            } header: {
-                Text("Recipes")
-            } footer: {
-                Text("Default servings are used for new recipes when no serving count is given.")
+            }
+            Section("Meal plan") {
+                Picker(selection: $weekStart) {
+                    ForEach(WeekStart.allCases) { Text($0.title).tag($0) }
+                } label: {
+                    SettingsLabel("Week starts on", systemImage: "calendar", color: .red)
+                }
+                .tint(.secondary)
             }
             Section {
-                Picker(selection: $groceryAutoClear) {
+                Picker(selection: groceryAutoClear) {
                     ForEach(GroceryAutoClear.allCases) { Text($0.title).tag($0) }
                 } label: {
                     SettingsLabel("Clear checked items", systemImage: "checklist.checked", color: .green)
                 }
                 .tint(.secondary)
+                NavigationLink { SiriSettingsView() } label: {
+                    SettingsLabel("Siri & Shortcuts", systemImage: "waveform", color: .cyan)
+                }
             } header: {
                 Text("Groceries")
             } footer: {
-                Text(groceryAutoClear.explanation)
+                Text(groceryAutoClear.wrappedValue.explanation)
             }
             Section("About") {
                 Link(destination: AppLinks.feedback) {
@@ -116,11 +137,18 @@ struct SettingsView: View {
                         SettingsLinkLabel("Terms of use", systemImage: "doc.text.fill", color: .gray)
                     }
                 }
+                NavigationLink { AcknowledgementsView() } label: {
+                    SettingsLabel("Acknowledgements", systemImage: "heart.fill", color: .pink)
+                }
                 LabeledContent {
                     Text(Bundle.main.appVersion)
                 } label: {
                     SettingsLabel("Version", systemImage: "info", color: .gray)
                 }
+                .calendishContextMenu {
+                    Button("Copy version", systemImage: "doc.on.doc") { UIPasteboard.general.string = Bundle.main.appVersion }
+                }
+                .accessibilityHint("Touch and hold to copy the version.")
             }
         }
         .navigationTitle("Settings")

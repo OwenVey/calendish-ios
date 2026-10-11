@@ -22,13 +22,10 @@ enum GroceryAutoClear: String, CaseIterable, Identifiable {
     }
     var explanation: String {
         switch self {
-        case .never: "Checked items stay on the list until you clear them."
-        case .hour: "Removes items an hour after they’re checked off, for everyone in your household."
-        case .day: "Removes items a day after they’re checked off, for everyone in your household."
-        case .week: "Removes items a week after they’re checked off, for everyone in your household."
+        case .never: "Checked items stay on the list until someone clears them."
+        case .hour: "Checked items are removed an hour after they’re checked off. This applies to everyone in your household."
+        case .day: "Checked items are removed a day after they’re checked off. This applies to everyone in your household."
+        case .week: "Checked items are removed a week after they’re checked off. This applies to everyone in your household."
         }
-    }
-    static var current: GroceryAutoClear {
-        UserDefaults.standard.string(forKey: PreferenceKey.groceryAutoClear).flatMap(GroceryAutoClear.init) ?? .never
     }
 }

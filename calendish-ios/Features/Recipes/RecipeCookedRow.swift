@@ -38,6 +38,6 @@ struct RecipeCookedRow: View {
                     .buttonBorderShape(.capsule)
             }
         }
-        .sensoryFeedback(.success, trigger: cookedToday) { _, cooked in cooked }
+        .hapticFeedback(.success, trigger: cookedToday) { _, cooked in cooked }
     }
 }

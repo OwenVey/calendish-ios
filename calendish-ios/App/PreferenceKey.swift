@@ -9,12 +9,14 @@ nonisolated enum PreferenceKey {
     static let showCompletedGroceries = "showCompletedGroceries"
     static let keepScreenAwake = "cookKeepScreenAwake"
     static let showCookIngredients = "cookShowIngredients"
-    static let cookingHaptics = "cookHaptics"
+    /// Covers haptics across the app. The key predates that, when it only covered cook mode.
+    static let haptics = "cookHaptics"
     static let liveActivity = "cookLiveActivity"
     /// Whether the voice-commands explanation has been shown before first activation.
     static let handsFreeIntroSeen = "cookHandsFreeIntroSeen"
     static let timerAlert = "timerAlert"
-    static let groceryAutoClear = "groceryAutoClear"
+    /// Whether new recipes start shared with the household.
+    static let shareNewRecipes = "shareNewRecipes"
 
     /// Lets code outside views, such as timers, read the same defaults `@AppStorage` declares.
     static func registerDefaults() {
@@ -25,7 +27,7 @@ nonisolated enum PreferenceKey {
             defaults.removeObject(forKey: "timerSound")
         }
         defaults.register(defaults: [defaultServings: 4, keepScreenAwake: true, showCookIngredients: true,
-            cookingHaptics: true, liveActivity: true, timerAlert: TimerAlert.alarm.rawValue])
+            haptics: true, liveActivity: true, shareNewRecipes: true, timerAlert: TimerAlert.alarm.rawValue])
     }
 
     /// Servings for a new recipe, or an imported one that doesn't say.
@@ -33,4 +35,6 @@ nonisolated enum PreferenceKey {
         let servings = UserDefaults.standard.integer(forKey: defaultServings)
         return servings > 0 ? servings : 4
     }
+
+    static var sharesNewRecipes: Bool { UserDefaults.standard.bool(forKey: shareNewRecipes) }
 }

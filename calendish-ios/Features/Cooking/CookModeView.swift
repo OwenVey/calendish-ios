@@ -35,7 +35,6 @@ struct CookModeView: View {
     @State private var ingredientScope = CookIngredientScope.currentStep
     @State private var ingredientFocus: CookIngredientFocus?
     @AppStorage(PreferenceKey.keepScreenAwake) private var keepScreenAwake = true
-    @AppStorage(PreferenceKey.cookingHaptics) private var haptics = true
     /// This recipe's running timers, soonest first.
     private var timers: [CookTimer] { timerStore.timers.filter { $0.recipeID == recipe.id }.sorted(by: CookTimer.soonestFirst) }
     private var scale: Double { recipe.servings > 0 ? Double(servings) / Double(recipe.servings) : 1 }
@@ -116,8 +115,8 @@ struct CookModeView: View {
             }
         }
         .onChange(of: stepIndex) { _, _ in ingredientFocus = nil }
-        .sensoryFeedback(.selection, trigger: stepIndex) { _, _ in haptics }
-        .sensoryFeedback(.success, trigger: timerStore.finished.first?.id) { _, _ in haptics }
+        .hapticFeedback(.selection, trigger: stepIndex)
+        .hapticFeedback(.success, trigger: timerStore.finished.first?.id)
         .calendishAlert("Timer finished", isPresented: timerAlertPresented(onIngredients: false)) {
             Button("Done") { }
         } message: { Text(timerFinishedMessage) }

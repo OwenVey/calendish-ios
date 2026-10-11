@@ -19,7 +19,7 @@ struct StarRating: View {
                 .buttonStyle(.plain)
             }
         }
-        .sensoryFeedback(.selection, trigger: rating)
+        .hapticFeedback(.selection, trigger: rating)
         .accessibilityElement()
         .accessibilityLabel("Your rating")
         .accessibilityValue(rating.map { $0 == 1 ? "1 star" : "\($0) stars" } ?? "Not rated")

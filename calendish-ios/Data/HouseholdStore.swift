@@ -51,7 +51,7 @@ final class HouseholdStore {
         transport: backend.groceryTransport,
         onError: { [weak self] error in self?.report(error, action: "update groceries", recovery: "Reopen the list to try again.") },
         defaults: .standard,
-        autoClearInterval: { GroceryAutoClear.current.interval },
+        autoClearInterval: { [weak self] in self?.household?.groceryAutoClear.interval },
         classifyAisles: backend.aisleClassifier)
     /// Replaced whenever the account or household changes, so older work can't publish into the new one.
     private var syncSession = UUID()
@@ -215,6 +215,22 @@ final class HouseholdStore {
         save(.renameHousehold(id, name))
     }
 
+    /// Applies to every member's list, since clearing deletes the items for everyone.
+    func setGroceryAutoClear(_ setting: GroceryAutoClear) {
+        guard let id = household?.id, setting != household?.groceryAutoClear else { return }
+        household?.groceryAutoClear = setting
+        save(.groceryAutoClear(id, setting))
+        groceries.clearExpired()
+    }
+
+    /// Auto-clear used to be chosen per device. Carry an existing choice over once, unless the household already has one.
+    private func adoptDeviceGroceryAutoClear() {
+        let key = "groceryAutoClear"
+        guard let saved = UserDefaults.standard.string(forKey: key) else { return }
+        UserDefaults.standard.removeObject(forKey: key)
+        if household?.groceryAutoClear == .never, let setting = GroceryAutoClear(rawValue: saved) { setGroceryAutoClear(setting) }
+    }
+
     func renameMember(to name: String) {
         guard let householdID = household?.id, let userID, !name.isEmpty, name != currentMember?.displayName,
               let index = members.firstIndex(where: { $0.userID == userID }) else { return }
@@ -259,10 +275,11 @@ final class HouseholdStore {
 
     private func enter(_ row: HouseholdRecord) async throws {
         let session = syncSession
-        household = Household(id: row.id, name: row.name, inviteCode: row.inviteCode)
+        household = row.household
         groceries.setHousehold(row.id)
         try await reload()
         guard session == syncSession else { throw CancellationError() }
+        adoptDeviceGroceryAutoClear()
         phase = .ready
         if let userID {
             finishedCooks.record(for: userID) { [weak self] cook, acknowledge in
@@ -550,12 +567,12 @@ final class HouseholdStore {
     }
 
     /// Saves a recipe, uploading a new photo first when there is one. The new photo shows right away from the cache.
-    /// A new recipe is the person's own; set its owner to `.person(_, shared: false)` to keep it Only Me.
+    /// A new recipe is the person's own and follows the Share New Recipes setting unless its owner says otherwise.
     func saveRecipe(_ recipe: Recipe, photo: PhotoChange = .keep, onSaved: (() -> Void)? = nil) {
         guard let userID else { return }
         var recipe = recipe
         let existing = recipes.first { $0.id == recipe.id }
-        if existing == nil { recipe.owner = .person(userID, shared: recipe.owner?.isShared ?? true) }
+        if existing == nil { recipe.owner = .person(userID, shared: recipe.owner?.isShared ?? PreferenceKey.sharesNewRecipes) }
         let previousPath = existing?.imagePath
         var upload: HouseholdPhotoUpload?
         switch photo {

@@ -91,7 +91,7 @@ struct PasswordStepView: View {
                 .disabled(working)
             }
         }
-        .sensoryFeedback(.error, trigger: message) { _, new in new != nil }
+        .hapticFeedback(.error, trigger: message) { _, new in new != nil }
         .onAppear { focused = true }
     }
 

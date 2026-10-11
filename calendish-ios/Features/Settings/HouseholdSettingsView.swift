@@ -71,12 +71,12 @@ struct HouseholdSettingsView: View {
                     .accessibilityLabel("Invite members")
                     .accessibilityValue(copiedCode ? "Code copied" : code)
                     .accessibilityHint("Share an invitation or copy the invite code")
-                    .sensoryFeedback(.success, trigger: copiedCode) { _, new in new }
+                    .hapticFeedback(.success, trigger: copiedCode) { _, new in new }
                 }
             } header: {
                 Text("Members")
             } footer: {
-                Text("Share an invitation or copy the code.")
+                Text("Anyone with the code can join and edit household recipes, meal plans, and groceries.")
             }
             Section {
                 Button("Join household", systemImage: "person.2.badge.plus") { householdChange = .join }

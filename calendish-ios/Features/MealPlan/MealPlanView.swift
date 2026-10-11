@@ -80,7 +80,7 @@ struct MealPlanView: View {
             .onScrollPhaseChange { old, new in
                 if old == .interacting, new != .interacting, isPullArmed { loadPreviousWeek() }
             }
-            .sensoryFeedback(.impact(weight: .light), trigger: isPullArmed) { _, armed in armed }
+            .hapticFeedback(.impact(weight: .light), trigger: isPullArmed) { _, armed in armed }
             .accessibilityAction(named: "Load previous week", loadPreviousWeek)
             .background(CalendishStyle.background)
             .navigationTitle("Meal plan")
