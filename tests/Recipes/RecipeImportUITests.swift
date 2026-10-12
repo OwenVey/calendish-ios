@@ -90,7 +90,9 @@ final class RecipeImportUITests: XCTestCase {
         XCTAssertTrue(link.waitForExistence(timeout: 5))
         link.tap()
         link.typeText("not-a-url")
-        app.buttons["Import"].tap()
+        XCTAssertTrue(app.buttons["Import"].isEnabled, "Typing a link enables import before validation")
+        // Submit through the URL field’s Go action.
+        link.typeText("\n")
         let error = app.staticTexts["Recipe import error"]
         XCTAssertTrue(error.waitForExistence(timeout: 5))
         XCTAssertTrue(error.label.contains("https://"))
