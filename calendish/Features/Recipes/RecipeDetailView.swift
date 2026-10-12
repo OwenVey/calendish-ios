@@ -96,10 +96,19 @@ struct RecipeDetailView: View {
                         .accessibilityLabel("Tags: \(recipe.tags.formatted(.list(type: .and)))")
                     }
                 }
-                if let reviewedRecipeID { RecipeNotesSection(recipeID: reviewedRecipeID) }
                 VStack(alignment: .leading, spacing: 8) {
-                    SectionHeading(title: "Ingredients", subtitle: ingredientsSubtitle)
-                    RecipeServingsStepper(servings: servings, recipeServings: recipe.servings, scaledServings: $scaledServings)
+                    // The servings stepper sits beside the heading, and drops below it when the row runs out of room.
+                    ViewThatFits(in: .horizontal) {
+                        HStack {
+                            SectionHeading(title: "Ingredients")
+                            Spacer(minLength: 12)
+                            servingsStepper
+                        }
+                        VStack(alignment: .leading, spacing: 8) {
+                            SectionHeading(title: "Ingredients")
+                            servingsStepper
+                        }
+                    }
                     VStack(spacing: 0) {
                         ForEach(recipe.ingredients) { ingredient in
                             Button {
@@ -132,6 +141,7 @@ struct RecipeDetailView: View {
                         }
                     }
                 }
+                if let reviewedRecipeID { RecipeNotesSection(recipeID: reviewedRecipeID) }
             }.padding(20)
             .coordinateSpace(.named("recipeContent"))
         }
@@ -268,8 +278,7 @@ extension RecipeDetailView {
         sharing = ActivitySheet.Items(values: items)
     }
 
-    private var ingredientsSubtitle: String {
-        guard isScaled else { return "Check things off as you cook." }
-        return "Scaled from \(InterfaceCopy.servings(recipe.servings))."
+    private var servingsStepper: some View {
+        RecipeServingsStepper(servings: servings, recipeServings: recipe.servings, scaledServings: $scaledServings)
     }
 }
