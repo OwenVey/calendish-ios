@@ -13,12 +13,14 @@ struct RecipeRow: View {
     var caption: String?
     /// The photo's width and height.
     var artworkSize: CGFloat = 64
+    /// The photo's corner radius, when it sits inside a card.
+    var artworkCornerRadius: CGFloat?
     /// Whose recipe it is. Your own recipes don't name an owner.
     private var owner: String? { !showsOwner || store.isMine(recipe) ? nil : store.ownerName(of: recipe) }
     var body: some View {
         HStack(spacing: 14) {
             // The photo grows taller with a long title, keeping even space around it.
-            RecipeArtwork(recipe: recipe, compact: true)
+            RecipeArtwork(recipe: recipe, compact: true, cornerRadius: artworkCornerRadius)
                 .frame(width: artworkSize)
                 .frame(minHeight: artworkSize, maxHeight: .infinity)
                 .overlay(alignment: .bottomLeading) {

@@ -4,8 +4,10 @@ import SwiftUI
 struct RecipeArtwork: View {
     let recipe: Recipe
     var compact = false
+    /// Overrides the corner radius, such as to nest evenly inside a card.
+    var cornerRadius: CGFloat?
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: compact ? 14 : 24)
+        let shape = RoundedRectangle(cornerRadius: cornerRadius ?? (compact ? 14 : 24))
         ZStack {
             shape.fill(Color(.tertiarySystemFill))
             if let path = recipe.imagePath {
