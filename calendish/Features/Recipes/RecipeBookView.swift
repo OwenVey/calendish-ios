@@ -68,6 +68,9 @@ struct RecipeBookView: View {
                 RecipeBookGrid(recipes: recipes, stats: stats, perform: perform)
             }
         }
+        .task(id: recipes.compactMap(\.imagePath)) {
+            await RecipePhotos.shared.prefetchThumbnails(for: recipes.compactMap(\.imagePath))
+        }
         .overlay {
             if recipes.isEmpty {
                 if scope == .mine, search.isEmpty, !isFiltered, !store.recipes.contains(where: store.isMine) {

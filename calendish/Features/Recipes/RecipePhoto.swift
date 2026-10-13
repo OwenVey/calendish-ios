@@ -16,7 +16,7 @@ struct RecipePhoto: View {
                 } else if loaded?.path == path {
                     Image(systemName: "photo").font(thumbnail ? .title3 : .largeTitle).foregroundStyle(.tertiary)
                 } else {
-                    ProgressView()
+                    ProgressView().tint(.secondary)
                 }
             }
             .clipped()

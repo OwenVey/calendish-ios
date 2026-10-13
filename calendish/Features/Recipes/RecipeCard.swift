@@ -7,7 +7,7 @@ struct RecipeCard: View {
     var stats: RecipeStats?
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            RecipeArtwork(recipe: recipe)
+            RecipeArtwork(recipe: recipe, thumbnail: true)
                 .aspectRatio(1, contentMode: .fit)
                 .overlay(alignment: .bottomLeading) {
                     if recipe.isFavorite { FavoriteBadge() }

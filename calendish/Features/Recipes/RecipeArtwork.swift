@@ -4,6 +4,8 @@ import SwiftUI
 struct RecipeArtwork: View {
     let recipe: Recipe
     var compact = false
+    /// Loads a small copy, for photos shown at card size or smaller.
+    var thumbnail = false
     /// Overrides the corner radius, such as to nest evenly inside a card.
     var cornerRadius: CGFloat?
     var body: some View {
@@ -11,7 +13,7 @@ struct RecipeArtwork: View {
         ZStack {
             shape.fill(Color(.tertiarySystemFill))
             if let path = recipe.imagePath {
-                RecipePhoto(path: path, thumbnail: compact)
+                RecipePhoto(path: path, thumbnail: compact || thumbnail)
             } else {
                 Image(systemName: recipe.symbol)
                     .font(.system(size: compact ? 25 : 64, weight: .light))
