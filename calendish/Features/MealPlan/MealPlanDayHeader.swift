@@ -14,13 +14,7 @@ struct MealPlanDayHeader: View {
     private var weekday: String { day.formatted(.dateTime.weekday(.wide)) }
 
     var body: some View {
-        let fullDate = day.formatted(date: .complete, time: .omitted)
-        HStack(spacing: 0) {
-            Text("\(Text(weekday).foregroundStyle(isToday ? CalendishStyle.accent : Color.primary)) \(Text(day.formatted(.dateTime.month(.abbreviated).day())).foregroundStyle(.secondary))")
-                .font(.headline)
-                .accessibilityLabel(isToday ? Text("Today, \(fullDate)") : Text(fullDate))
-                .accessibilityAddTraits(.isHeader)
-            Spacer(minLength: 8)
+        MealPlanDayCardHeader(day: day, isEmphasized: isThisWeek, isToday: isToday) {
             Menu {
                 Button("Add recipe", systemImage: "book.closed", action: add)
                 Button("Add note", systemImage: "note.text", action: addNote)
@@ -50,11 +44,5 @@ struct MealPlanDayHeader: View {
             }
             .menuStyle(.button).buttonStyle(.plain).tint(nil)
         }
-        // Each menu clears the app's basil tint, like CalendishMenuStyle, so its items render natively and dim
-        // when disabled. Only the glyphs set their neutral color, since a header-wide style would reach the items.
-        .font(.body.weight(.semibold))
-        .padding(.leading, 16)
-        .padding(.trailing, 4)
-        .background(Color(isThisWeek ? .tertiarySystemFill : .quaternarySystemFill), in: .capsule)
     }
 }

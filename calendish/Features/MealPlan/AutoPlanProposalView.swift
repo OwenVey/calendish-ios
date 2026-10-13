@@ -20,19 +20,27 @@ struct AutoPlanProposalView: View {
         let dinners = savingProposal?.dinners ?? plan.dinners
         let notice = savingProposal == nil ? plan.notice : savingProposal?.notice
         let hasSaveOutcomes = dinners.contains { $0.outcome != nil }
-        List {
-            if hasSaveOutcomes, let notice {
-                Section { Label(notice, systemImage: "info.circle").foregroundStyle(.secondary) }
-            }
-            Section {
+        ScrollView {
+            LazyVStack(spacing: 10) {
+                if hasSaveOutcomes, let notice {
+                    Label(notice, systemImage: "info.circle").foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(16)
+                        .background(CalendishStyle.surface, in: .rect(cornerRadius: 26))
+                }
                 ForEach(dinners) { dinner in
                     AutoPlanDinnerRow(dinner: dinner, plan: plan, choose: { choosing = dinner }, review: { reviewingRecipe = dinner.recipe },
                                       noAlternative: { noAlternativeMessage = plan.notice })
                 }
-            } footer: {
-                if !hasSaveOutcomes, let shortage = plan.shortageExplanation { Text(shortage) }
+                if !hasSaveOutcomes, let shortage = plan.shortageExplanation {
+                    Text(shortage).font(.footnote).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 6).padding(.top, 4)
+                }
             }
+            .padding(.horizontal, 16).padding(.top, 12).padding(.bottom, 20)
         }
+        .background(CalendishStyle.background)
         .disabled(savingProposal != nil)
         .navigationTitle("Suggested dinners").navigationBarTitleDisplayMode(.inline)
         .navigationSubtitle(subtitle(for: dinners))

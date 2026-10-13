@@ -21,37 +21,15 @@ struct MealPlanDay: View {
     private var isEmpty: Bool { meals.isEmpty && notes.isEmpty }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 26, style: .continuous)
-        VStack(alignment: .leading, spacing: 4) {
+        MealPlanDayCard(day: day, isEmphasized: isThisWeek, isEmpty: isEmpty, isDropTarget: isDropTarget) {
             MealPlanDayHeader(day: day, meals: meals, notes: notes, isThisWeek: isThisWeek, isToday: isToday,
                               add: add, addNote: addNote, addToGroceries: addToGroceries, remove: remove)
+        } content: {
             if isEmpty, isThisWeek {
-                Button(action: add) {
-                    Label("Add a meal", systemImage: "plus")
-                        .font(.subheadline)
-                        .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 14).padding(.vertical, 10)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(.rect)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Add recipe")
+                MealPlanDayEmptyEntry(title: "Add a meal", accessibilityLabel: "Add recipe", action: add)
             } else {
                 ForEach(meals) { MealPlanMealEntry(meal: $0, edit: edit, remove: remove) }
                 ForEach(notes) { MealPlanNoteEntry(note: $0, edit: editNote, remove: remove) }
-            }
-        }
-        .padding(6)
-        .padding(.bottom, isEmpty && !isThisWeek ? 0 : 4)
-        .background(isThisWeek ? CalendishStyle.surface : .clear, in: shape)
-        .overlay {
-            if isDropTarget {
-                shape.fill(CalendishStyle.accent.opacity(0.08))
-                shape.strokeBorder(CalendishStyle.accent, lineWidth: 2)
-            } else if isToday {
-                shape.strokeBorder(CalendishStyle.accent.opacity(0.7), lineWidth: 1.5)
-            } else if !isThisWeek {
-                shape.strokeBorder(Color(.separator), lineWidth: 1)
             }
         }
         .dropDestination(for: PlannedMealDrag.self) { items, _ in

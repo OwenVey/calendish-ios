@@ -279,9 +279,8 @@ final class HouseholdUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["5 servings"].waitForExistence(timeout: 5), "Servings can be adjusted on demand")
         attachScreenshot(app, named: "Compact servings adjustment")
         app.buttons["Done"].tap()
-        XCTAssertTrue(app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "5 servings · 25 min · Kept")).firstMatch.waitForExistence(timeout: 5)
-            || app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "5 servings · 40 min · Kept")).firstMatch.exists,
-            "Adjusting servings keeps that dinner")
+        XCTAssertTrue(app.buttons.containing(NSPredicate(format: "label CONTAINS %@ AND label CONTAINS %@", "5 servings", "Kept")).firstMatch.waitForExistence(timeout: 5),
+                      "Adjusting servings keeps that dinner")
         app.buttons["Change dinner"].firstMatch.tap()
         XCTAssertTrue(app.buttons["Leave open"].waitForExistence(timeout: 5), "The menu exposes the destructive dinner action")
         attachScreenshot(app, named: "Destructive dinner action")
@@ -311,11 +310,11 @@ final class HouseholdUITests: XCTestCase {
         app.alerts.buttons["OK"].tap()
         // Scrolling only upward, since pulling the sheet down would dismiss it.
         let shortage = app.staticTexts["No more saved recipes fit this week. Choose recipes for the open days, or leave them empty."]
-        for _ in 0..<8 where !shortage.exists { app.swipeUp() }
-        XCTAssertTrue(shortage.exists, "The shortage is explained below the week")
+        for _ in 0..<8 where !shortage.isHittable { app.swipeUp() }
+        XCTAssertTrue(shortage.isHittable, "The shortage is explained below the week")
 
-        // The list is scrolled to the end, so choose an open day that's on screen.
-        let openDays = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "No dinner")).allElementsBoundByIndex
+        // The week is scrolled to the end, so choose an open day that's on screen.
+        let openDays = app.buttons.matching(identifier: "Choose recipe").allElementsBoundByIndex
         openDays.last { $0.isHittable }?.tap()
         app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Crispy chickpea salad")).firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Crispy chickpea salad"].waitForExistence(timeout: 5), "A manual choice can use another category")
