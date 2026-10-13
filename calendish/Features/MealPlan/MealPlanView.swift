@@ -107,6 +107,17 @@ struct MealPlanView: View {
                     Button("Today", systemImage: "calendar.badge.clock") { scrollToToday(using: proxy) }
                         .toolbarGlyph()
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button("Clear meal plan", systemImage: "trash", role: .destructive) {
+                            removing = PlanRemoval(meals: store.meals, notes: store.notes, clearsAll: true)
+                        }
+                        .disabled(store.meals.isEmpty && store.notes.isEmpty)
+                    } label: {
+                        Label("Meal plan actions", systemImage: "ellipsis").toolbarGlyph()
+                    }
+                    .menuStyle(.button).buttonStyle(.plain).tint(nil)
+                }
             }
             .sheet(isPresented: Binding { store.autoPlan != nil } set: { if !$0 { store.endAutoPlan() } }, onDismiss: {
                 guard let week = autoPlannedWeek else { return }

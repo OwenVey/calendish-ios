@@ -288,7 +288,7 @@ final class HouseholdUITests: XCTestCase {
     func testAutoPlanProposesAdjustsAndAddsDinners() {
         let app = launch()
         app.buttons["Meal plan"].tap()
-        XCTAssertFalse(app.buttons["More"].exists, "Week actions replace the toolbar's More menu")
+        XCTAssertTrue(app.buttons["Meal plan actions"].exists, "Plan-wide actions are separate from week actions")
         // Go beyond the meal plan's initially loaded four weeks, away from fixture plans.
         openWeekMenu(app, weeksAhead: 6)
         XCTAssertTrue(app.buttons["Clear week"].waitForExistence(timeout: 5))
@@ -344,5 +344,24 @@ final class HouseholdUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Add to groceries"].waitForExistence(timeout: 5) && !app.buttons["Add to groceries"].isEnabled,
                       "An empty day has nothing to add to groceries")
         attachScreenshot(app, named: "Empty day menu")
+    }
+
+    func testClearEntireMealPlan() {
+        let app = launch()
+        app.buttons["Meal plan"].tap()
+        app.buttons["Meal plan actions"].tap()
+        app.buttons["Clear meal plan"].tap()
+        XCTAssertTrue(app.alerts["Clear the entire meal plan?"].waitForExistence(timeout: 5))
+        attachScreenshot(app, named: "Clear entire meal plan confirmation")
+        app.alerts.buttons["Cancel"].tap()
+        XCTAssertTrue(app.staticTexts["Lemon & herb orzo"].exists, "Cancelling preserves the plan")
+        app.buttons["Meal plan actions"].tap()
+        app.buttons["Clear meal plan"].tap()
+        app.alerts.buttons["Clear meal plan"].tap()
+        XCTAssertFalse(app.staticTexts["Lemon & herb orzo"].exists)
+        app.buttons["Meal plan actions"].tap()
+        XCTAssertTrue(app.buttons["Clear meal plan"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Clear meal plan"].isEnabled, "All weeks and notes are cleared, so there is nothing left to clear")
+        attachScreenshot(app, named: "Empty meal plan actions")
     }
 }
