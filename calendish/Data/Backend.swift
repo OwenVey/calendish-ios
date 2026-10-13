@@ -17,7 +17,8 @@ extension Recipe {
                   tags: row.tags, symbol: row.symbol, ingredients: row.ingredients, steps: row.steps,
                   isFavorite: favorites.contains(row.id), imagePath: row.imagePath, recipeLink: row.recipeLink,
                   category: row.category.flatMap(RecipeCategory.init(matching:)), yieldText: row.yieldText,
-                  owner: row.ownerID.map { .person($0, shared: row.isShared ?? false) } ?? (row.householdID == nil ? nil : .household))
+                  owner: row.ownerID.map { .person($0, shared: row.isShared ?? false) } ?? (row.householdID == nil ? nil : .household),
+                  revision: row.revision)
     }
     var content: RecipeContentRecord {
         RecipeContentRecord(title: title, summary: summary, minutes: minutes, prepMinutes: prepMinutes, cookMinutes: cookMinutes,

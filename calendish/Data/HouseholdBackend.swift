@@ -13,6 +13,9 @@ protocol HouseholdBackend: AnyObject, Sendable {
     func snapshot(household: UUID) async throws -> HouseholdSnapshot
     func subscribe(household: UUID, user: UUID) async -> any HouseholdSubscription
     func write(_ mutation: HouseholdMutation) async throws
+    /// Adds a dinner from a meal plan proposal only if the day is still empty and the recipe is still the reviewed revision.
+    /// Repeating an acknowledged meal ID reports it as already added rather than adding it again.
+    func addMeal(_ meal: PlannedMeal, household: UUID, expectedRevision: Int) async throws -> PlannedMealAddition
     func previewMove(code: String?) async throws -> HouseholdMovePreview
     func move(code: String?, saveRecipes: Bool, expected: UUID?) async throws -> HouseholdMoveResult
     func copyRecipe(_ id: UUID) async throws -> Recipe

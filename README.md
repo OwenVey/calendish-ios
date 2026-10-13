@@ -43,6 +43,7 @@ Save recipes from anywhere, plan the week together, shop from one live list, and
 - A scrolling list of days with a configurable week start. Pull down to reach earlier weeks.
 - Add any number of recipes to a day with their own serving counts, plus free-text notes like "Leftovers" or "Eating out".
 - Drag meals between days, or select several and remove them at once.
+- **Auto plan dinners** from saved recipes for empty days in a current or future week. Review suggestions, change recipes or servings, keep dinners while shuffling, then add them to the plan. Groceries stay unchanged until you use ingredient review.
 
 ### 🛒 Groceries
 
@@ -154,6 +155,8 @@ Row Level Security enforces these ownership boundaries for database rows and rec
 
 `HouseholdStore` applies edits on screen immediately and saves them in the background. Private household and personal Realtime channels notify other devices; authoritative reads catch up after reconnecting. Session guards prevent late responses from publishing data into another household or account. Collections use keyset pagination to avoid Data API row limits.
 
+Auto plan proposals stay in memory for the current household. The authenticated `add_planned_meal` RPC checks membership, day vacancy, and the reviewed recipe revision atomically. Stable meal IDs make interrupted saves retryable without duplicates; ordinary manual planning still allows multiple meals and notes per day.
+
 ### Database changes
 
 The Supabase project is connected to this repo through the Supabase GitHub integration. To change the schema:
@@ -177,12 +180,15 @@ Swift checks compile production sources with focused tests from `tests/`. UI che
 
 All commands live in `scripts/`. `test-household-workflow.sh` builds a separate simulator app from production sources and runs the store through a controlled HTTP client, covering lost responses, delayed reads, sign-out races, and invitation continuation. `test-household-ui.sh` runs against that fixture app, which does not alter your signed-in app's data.
 
+The household workflow suite also covers auto planning. Run its focused UI flow with `./scripts/test-household-ui.sh -only-testing:HouseholdUITests/HouseholdUITests/testAutoPlanProposesAdjustsAndAddsDinners`. Prefix that command with `TEST_RUNNER_UI_LARGE_TEXT=1` to check the flow at an accessibility text size.
+
 ### Live backend checks
 
 With the Supabase CLI authenticated to this project, these scripts create disposable users and households, then remove them:
 
 - `node scripts/test-grocery-realtime.mjs`: live syncing, household isolation, atomic RPCs, pagination, and private Storage.
 - `node scripts/test-household-moves.mjs`: onboarding, ownership, membership, photos, saved meals, and concurrency.
+- `node scripts/test-auto-plan-saves.mjs`: guarded dinner saves, occupied days, recipe revisions, membership changes, concurrent writes, and duplicate-free retries.
 - `node scripts/test-profile-photos.mjs`: avatar persistence and private Storage access.
 
 Use a scoped CLI token for automated runs. Administrative test keys stay in memory and are never shipped in the app.

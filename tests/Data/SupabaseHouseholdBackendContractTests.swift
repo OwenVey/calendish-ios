@@ -5,7 +5,10 @@ import Supabase
 private actor HouseholdWireRequests {
     static let shared = HouseholdWireRequests()
     var requests: [URLRequest] = []
-    func record(_ request: URLRequest) { requests.append(request) }
+    /// The JSON every request receives.
+    var response = Data("[]".utf8)
+    func record(_ request: URLRequest) -> Data { requests.append(request); return response }
+    func respond(with json: String) { response = Data(json.utf8) }
     func last() -> URLRequest { requests.last! }
 }
 private final nonisolated class HouseholdWireProtocol: URLProtocol, @unchecked Sendable {
@@ -13,10 +16,10 @@ private final nonisolated class HouseholdWireProtocol: URLProtocol, @unchecked S
     override nonisolated class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override nonisolated func startLoading() {
         Task {
-            await HouseholdWireRequests.shared.record(request)
+            let body = await HouseholdWireRequests.shared.record(request)
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: Data("[]".utf8))
+            client?.urlProtocol(self, didLoad: body)
             client?.urlProtocolDidFinishLoading(self)
         }
     }
@@ -82,5 +85,32 @@ enum SupabaseHouseholdBackendContractTests {
             "Marking cooked keeps duplicate-safe upsert semantics")
         let snapshot = try await backend.snapshot(household: household)
         try expect(snapshot.household == nil && snapshot.recipes.isEmpty, "An RLS-hidden household remains absent")
+
+        await HouseholdWireRequests.shared.respond(with: #""occupied""#)
+        let outcome = try await backend.addMeal(meal, household: household, expectedRevision: 4)
+        let added = await HouseholdWireRequests.shared.last()
+        let addedBody = try body(added)
+        try expect(added.url?.path == "/rest/v1/rpc/add_planned_meal"
+            && (addedBody["target_household"] as? String)?.lowercased() == household.uuidString.lowercased()
+            && (addedBody["meal_id"] as? String)?.lowercased() == meal.id.uuidString.lowercased()
+            && addedBody["meal_date"] as? String == DayFormat.string(from: meal.date)
+            && (addedBody["meal_recipe"] as? String)?.lowercased() == recipe.id.uuidString.lowercased()
+            && addedBody["expected_revision"] as? Int == 4 && addedBody["meal_servings"] as? Int == 3,
+            "A guarded add sends the meal identity, day, recipe, reviewed revision, and servings")
+        try expect(outcome == .occupied, "A guarded add reports the server's outcome")
+        await HouseholdWireRequests.shared.respond(with: #""already_added""#)
+        let repeated = try await backend.addMeal(meal, household: household, expectedRevision: 4)
+        try expect(repeated == .alreadyAdded, "A repeated add is recognized as an earlier success")
+        await HouseholdWireRequests.shared.respond(with: "[]")
+
+        let row = try JSONDecoder().decode(RecipeRecord.self, from: Data("""
+            {"id":"\(recipe.id.uuidString)","title":"Soup","summary":"","minutes":5,"servings":2,"tags":[],"symbol":"fork.knife",
+             "ingredients":[],"steps":[],"household_id":"\(household.uuidString)","revision":3}
+            """.utf8))
+        let current = Recipe(row)
+        var saved = row
+        saved.revision = nil; saved.householdID = nil
+        try expect(current.revision == 3 && PlannedMeal(date: .now, recipe: current, recipeID: current.id, servings: 2).recipe.revision == nil
+            && current.hasSameVersion(as: Recipe(saved)), "Revisions decode from recipes without affecting saved-version comparisons")
     }
 }

@@ -4,7 +4,8 @@ import XCTest
 final class HouseholdUITests: XCTestCase {
     private func launch(_ argument: String = "--ui-fixture") -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-household-workflow")
-        app.launchArguments = [argument]
+        // UI_LARGE_TEXT (passed as TEST_RUNNER_UI_LARGE_TEXT) reruns a flow at an accessibility text size.
+        app.launchArguments = [argument] + (ProcessInfo.processInfo.environment["UI_LARGE_TEXT"] == nil ? [] : ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityL"])
         app.launch()
         return app
     }
@@ -230,5 +231,48 @@ final class HouseholdUITests: XCTestCase {
         app.staticTexts["Lemon & herb orzo"].tap()
         XCTAssertTrue(app.staticTexts["Recipe version saved with this meal"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Edit recipe"].exists)
+    }
+
+    private func attachScreenshot(_ app: XCUIApplication, named name: String) {
+        let attachment = XCTAttachment(screenshot: app.screenshot())
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+    func testAutoPlanProposesAdjustsAndAddsDinners() {
+        let app = launch()
+        app.buttons["Meal plan"].tap()
+        app.buttons["Auto plan"].tap()
+        XCTAssertTrue(app.staticTexts["Next week"].waitForExistence(timeout: 5), "Next week is chosen initially")
+        attachScreenshot(app, named: "Auto plan days")
+        // Weeks this far out aren't near the fixture's planned meals.
+        app.buttons["Next week"].tap()
+        app.buttons["Next week"].tap()
+        app.buttons["Suggest dinners"].tap()
+        XCTAssertTrue(app.staticTexts["Only 2 recipes can be suggested, so 5 days stay open. Choose recipes for them yourself."].waitForExistence(timeout: 5))
+        attachScreenshot(app, named: "Auto plan proposal")
+
+        let keep = app.switches["Keep when shuffling"].firstMatch
+        keep.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        XCTAssertEqual(keep.value as? String, "1")
+        app.buttons["Shuffle"].tap()
+        XCTAssertTrue(app.alerts["Nothing else to suggest"].waitForExistence(timeout: 5), "A shuffle without alternatives explains itself")
+        app.alerts.buttons["OK"].tap()
+
+        let choose = app.buttons["Choose recipe"].firstMatch
+        for _ in 0..<8 where !choose.isHittable { app.swipeUp() }
+        choose.tap()
+        app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Crispy chickpea salad")).firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Crispy chickpea salad"].waitForExistence(timeout: 5), "A manual choice can use another category")
+
+        app.buttons["Add to plan"].tap()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5), "Every dinner is added")
+        for _ in 0..<8 where !app.staticTexts["Added 3 dinners."].exists { app.swipeDown() }
+        XCTAssertTrue(app.staticTexts["Added 3 dinners."].exists, "The result is summarized")
+        attachScreenshot(app, named: "Auto plan added")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["Auto plan"].waitForExistence(timeout: 5), "Done returns to the meal plan")
+        for _ in 0..<12 where !app.staticTexts["Crispy chickpea salad"].exists { app.swipeUp() }
+        XCTAssertTrue(app.staticTexts["Crispy chickpea salad"].exists, "Added dinners appear in the meal plan")
     }
 }

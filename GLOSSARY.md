@@ -19,6 +19,15 @@ A recipe owned by a household, independent of any person's personal recipe colle
 **Planned meal**:
 A meal scheduled in a household's meal plan with a saved recipe version and serving count.
 
+**Auto planning**:
+Proposing a week of dinners from saved recipes available to a household, for a person to adjust to their plans.
+
+**Meal plan proposal**:
+A suggested set of dinners and dates that a person can adjust before adding them to the household's meal plan.
+
+**Kept dinner**:
+A dinner in a meal plan proposal that the person has chosen to retain when shuffling the other dinners.
+
 **Grocery import review**:
 The choice of recipe ingredients and serving counts to add to the household grocery list, entered from a recipe or planned meals.
 

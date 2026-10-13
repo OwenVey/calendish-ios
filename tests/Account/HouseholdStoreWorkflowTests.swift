@@ -45,6 +45,7 @@ struct HouseholdWorkflowApp: App {
     }
     private func run() async throws {
         try await SupabaseHouseholdBackendContractTests.run()
+        try await AutoPlanWorkflowTests.run()
         UserDefaults.standard.removeObject(forKey: "pendingHouseholdInvite")
         defer { UserDefaults.standard.removeObject(forKey: "pendingHouseholdInvite") }
         let backend = InMemoryHouseholdBackend()

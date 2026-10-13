@@ -19,6 +19,9 @@ final class InMemoryHouseholdBackend: HouseholdBackend, GrocerySyncTransport {
     var beforeWrite: ((HouseholdMutation) async throws -> Void)?
     var beforeCopy: (() async throws -> Void)?
     var afterMove: (() async throws -> Void)?
+    var beforeAddMeal: ((PlannedMeal) async throws -> Void)?
+    /// Runs after a guarded add commits, so throwing simulates a lost response.
+    var afterAddMeal: ((PlannedMeal) async throws -> Void)?
 
     func seed(_ snapshot: HouseholdSnapshot, groceries: [GroceryItem] = []) {
         guard let id = snapshot.household?.id else { return }
@@ -102,8 +105,16 @@ final class InMemoryHouseholdBackend: HouseholdBackend, GrocerySyncTransport {
         case let .removeMember(target, person):
             if target == id { snapshot.members.removeAll { $0.userID == person }; memberships[person] = nil }
         case let .saveRecipe(recipe, _, _, _):
-            if let index = snapshot.recipes.firstIndex(where: { $0.id == recipe.id }) { snapshot.recipes[index] = recipe }
-            else { snapshot.recipes.insert(recipe, at: 0) }
+            var saved = recipe
+            if let index = snapshot.recipes.firstIndex(where: { $0.id == recipe.id }) {
+                let stored = snapshot.recipes[index]
+                // Like the database trigger, only content edits advance the revision.
+                saved.revision = (stored.revision ?? 1) + (stored.hasSameVersion(as: recipe) ? 0 : 1)
+                snapshot.recipes[index] = saved
+            } else {
+                saved.revision = 1
+                snapshot.recipes.insert(saved, at: 0)
+            }
         case .deleteRecipe(let recipe):
             snapshot.recipes.removeAll { $0.id == recipe }
             snapshot.reviews.removeAll { $0.recipeID == recipe }
@@ -142,6 +153,27 @@ final class InMemoryHouseholdBackend: HouseholdBackend, GrocerySyncTransport {
         case .removeNote(let note): snapshot.notes.removeAll { $0.id == note }
         }
         homes[id] = snapshot
+    }
+    func addMeal(_ meal: PlannedMeal, household: UUID, expectedRevision: Int) async throws -> PlannedMealAddition {
+        guard let user = account?.id, memberships[user] == household else { throw CocoaError(.fileWriteNoPermission) }
+        try await beforeAddMeal?(meal)
+        // Recheck after suspending, as the database does under its day lock.
+        guard memberships[user] == household, var snapshot = homes[household] else { throw CocoaError(.fileWriteNoPermission) }
+        let result: PlannedMealAddition
+        if snapshot.meals.contains(where: { $0.id == meal.id }) {
+            result = .alreadyAdded
+        } else if snapshot.meals.contains(where: { Calendar.current.isDate($0.date, inSameDayAs: meal.date) })
+                    || snapshot.notes.contains(where: { Calendar.current.isDate($0.date, inSameDayAs: meal.date) }) {
+            result = .occupied
+        } else if let recipe = snapshot.recipes.first(where: { $0.id == meal.recipeID }) {
+            if (recipe.revision ?? 1) == expectedRevision {
+                snapshot.meals.append(PlannedMeal(id: meal.id, date: meal.date, recipe: recipe, recipeID: recipe.id, servings: meal.servings))
+                homes[household] = snapshot
+                result = .added
+            } else { result = .changed }
+        } else { result = .unavailable }
+        try await afterAddMeal?(meal)
+        return result
     }
     func previewMove(code: String?) async throws -> HouseholdMovePreview {
         guard let user = account?.id else { throw CocoaError(.fileWriteNoPermission) }

@@ -21,11 +21,13 @@ nonisolated struct RecipeRecord: Decodable, Sendable {
     var recipeLink: String?
     var category: String?
     var yieldText: String?
+    /// Absent from a planned meal's saved version.
+    var revision: Int?
     enum CodingKeys: String, CodingKey {
         case createdAt = "created_at", ownerID = "owner_id", householdID = "household_id", isShared = "is_shared"
         case id, title, summary, minutes, servings, tags, symbol, ingredients, steps
         case imagePath = "image_path"
         case prepMinutes = "prep_minutes", cookMinutes = "cook_minutes", recipeLink = "recipe_link"
-        case category, yieldText = "yield_text"
+        case category, yieldText = "yield_text", revision
     }
 }

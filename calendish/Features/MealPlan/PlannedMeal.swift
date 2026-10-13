@@ -15,6 +15,7 @@ struct PlannedMeal: Identifiable, Hashable {
         var saved = recipe
         saved.owner = nil
         saved.isFavorite = false
+        saved.revision = nil
         self.recipe = saved
         self.recipeID = recipeID
         self.servings = servings

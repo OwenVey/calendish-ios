@@ -91,6 +91,10 @@ struct MealPlanView: View {
                         .toolbarGlyph()
                 }
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button("Auto plan", systemImage: "wand.and.stars") { store.beginAutoPlan() }
+                        .toolbarGlyph()
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Menu("More", systemImage: "ellipsis") {
                         Section("Add to groceries") {
                             Button("This week", systemImage: "calendar.day.timeline.left") { reviewGroceries(weeksFromNow: 0) }
@@ -116,6 +120,9 @@ struct MealPlanView: View {
         .sheet(item: $selection) { MealPickerView(selection: $0) }
         .sheet(item: $groceryReview) { GroceryImportReviewView(candidates: $0.candidates) }
         .sheet(item: $editingNote) { MealNoteEditor(note: $0) }
+        .sheet(isPresented: Binding { store.autoPlan != nil } set: { if !$0 { store.endAutoPlan() } }) {
+            if let plan = store.autoPlan { AutoPlanView(plan: plan) }
+        }
         .calendishAlert(removing?.title ?? "", item: $removing) { removal in
             Button(removal.buttonTitle, role: .destructive) { remove(removal) }
             Button("Cancel", role: .cancel) { }

@@ -39,12 +39,15 @@ objects[build_id] = dict(isa='PBXBuildFile', fileRef=file_id)
 objects['05BDE7583072DA7B00C5B9A0']['files'].append(build_id)
 objects['05BDE7533072DA7B00C5B9A0']['children'].append(file_id)
 if test_file == 'tests/Account/HouseholdStoreWorkflowTests.swift':
-    contract_file, contract_build = 'ABCDEF000000000000000003', 'ABCDEF000000000000000004'
-    objects[contract_file] = dict(isa='PBXFileReference', lastKnownFileType='sourcecode.swift',
-                                 path=str(root / 'tests/Data/SupabaseHouseholdBackendContractTests.swift'), sourceTree='<absolute>')
-    objects[contract_build] = dict(isa='PBXBuildFile', fileRef=contract_file)
-    objects['05BDE7583072DA7B00C5B9A0']['files'].append(contract_build)
-    objects['05BDE7533072DA7B00C5B9A0']['children'].append(contract_file)
+    # The workflow harness also runs the adapter contract and auto-planning workflow suites.
+    extras = ['tests/Data/SupabaseHouseholdBackendContractTests.swift', 'tests/MealPlan/AutoPlanWorkflowTests.swift']
+    for index, extra in enumerate(extras):
+        extra_file, extra_build = f'ABCDEF0000000000000001{index}0', f'ABCDEF0000000000000001{index}1'
+        objects[extra_file] = dict(isa='PBXFileReference', lastKnownFileType='sourcecode.swift',
+                                   path=str(root / extra), sourceTree='<absolute>')
+        objects[extra_build] = dict(isa='PBXBuildFile', fileRef=extra_file)
+        objects['05BDE7583072DA7B00C5B9A0']['files'].append(extra_build)
+        objects['05BDE7533072DA7B00C5B9A0']['children'].append(extra_file)
 objects['05BDE75A3072DA7B00C5B9A0']['files'] = []
 path = dest / 'project.pbxproj'
 path.write_text(json.dumps(project))

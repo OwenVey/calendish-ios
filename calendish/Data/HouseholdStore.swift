@@ -34,6 +34,8 @@ final class HouseholdStore {
     /// An invite code opened before onboarding finished. It survives sign-up and relaunching.
     private(set) var pendingInvite = UserDefaults.standard.string(forKey: HouseholdStore.pendingInviteKey)
     var inviteToReview: InviteReview?
+    /// The meal plan proposal being reviewed, if any. Discarded when the account or household changes.
+    private(set) var autoPlan: AutoPlan?
 
     private static let pendingInviteKey = "pendingHouseholdInvite"
     private let backend: any HouseholdBackend
@@ -155,6 +157,7 @@ final class HouseholdStore {
         pendingWrites = 0
         writeRevision &+= 1
         groceries.setHousehold(nil)
+        autoPlan = nil
         household = nil
         members = []; recipes = []; meals = []; notes = []; reviews = []; cooks = []
         await stopRealtime()
@@ -451,17 +454,18 @@ final class HouseholdStore {
     // MARK: Loading
 
     /// Fetches everything for the household. The data set is small enough to refetch whole.
-    func reload() async throws {
-        guard let id = household?.id else { return }
+    @discardableResult
+    func reload() async throws -> Bool {
+        guard let id = household?.id else { return false }
         let session = syncSession
         let revision = writeRevision
         async let snapshot = backend.snapshot(household: id)
         async let groceryRefresh: Void = groceries.refresh()
         let (loaded, _) = try await (snapshot, groceryRefresh)
-        guard !Task.isCancelled, session == syncSession, household?.id == id else { return }
+        guard !Task.isCancelled, session == syncSession, household?.id == id else { return false }
         guard let h = loaded.household, loaded.members.contains(where: { $0.userID == userID }) else {
             checkMembership()
-            return
+            return false
         }
         if pendingWrites == 0, revision == writeRevision {
             household = h
@@ -471,7 +475,9 @@ final class HouseholdStore {
             notes = loaded.notes
             reviews = loaded.reviews
             cooks = loaded.cooks
+            return true
         }
+        return false
     }
 
     func refresh() async {
@@ -645,9 +651,11 @@ final class HouseholdStore {
 
     /// Ratings and cooked days for every recipe with either, keyed by recipe ID.
     /// Only current members' ratings count, even before a refetch drops a departed member's.
-    var recipeStats: [UUID: RecipeStats] {
+    var recipeStats: [UUID: RecipeStats] { recipeStats(now: .now) }
+
+    func recipeStats(now: Date) -> [UUID: RecipeStats] {
         let people = Set(members.map(\.userID) + [userID].compactMap(\.self))
-        return RecipeStats.make(reviews: reviews.filter { people.contains($0.userID) }, cooks: cooks, meals: meals)
+        return RecipeStats.make(reviews: reviews.filter { people.contains($0.userID) }, cooks: cooks, meals: meals, now: now)
     }
 
     /// The person's own rating and note for a recipe, if they've left one.
@@ -786,6 +794,33 @@ final class HouseholdStore {
     func removeNote(_ note: MealPlanNote) {
         notes.removeAll { $0.id == note.id }
         save(.removeNote(note.id))
+    }
+
+    // MARK: Auto planning
+
+    /// Starts a meal plan proposal for this household, replacing any earlier one.
+    @discardableResult
+    func beginAutoPlan(now: Date = .now, weekStart: WeekStart = .current,
+                       random: any RandomNumberGenerator = SystemRandomNumberGenerator()) -> AutoPlan? {
+        guard let id = household?.id else { return nil }
+        autoPlan = AutoPlan(store: self, householdID: id, now: now, weekStart: weekStart, random: random)
+        return autoPlan
+    }
+
+    func endAutoPlan() { autoPlan = nil }
+
+    /// Adds one proposed dinner through the guarded save, publishing it locally once the server accepts it.
+    /// Throws `CancellationError` when the household changed, so a late result can't reach another household.
+    func addProposedMeal(_ meal: PlannedMeal, household id: UUID, expectedRevision: Int) async throws -> PlannedMealAddition {
+        let session = syncSession
+        guard household?.id == id else { throw CancellationError() }
+        // Older snapshots can't remove a meal added after they started.
+        writeRevision &+= 1
+        let result = try await backend.addMeal(meal, household: id, expectedRevision: expectedRevision)
+        guard session == syncSession, household?.id == id else { throw CancellationError() }
+        writeRevision &+= 1
+        if result == .added || result == .alreadyAdded, !meals.contains(where: { $0.id == meal.id }) { meals.append(meal) }
+        return result
     }
 
     // MARK: Household data

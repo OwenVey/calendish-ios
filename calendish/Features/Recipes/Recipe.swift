@@ -22,6 +22,9 @@ struct Recipe: Identifiable, Hashable, Codable {
     var yieldText: String?
     /// Who the recipe belongs to. Nil for a planned meal's saved version.
     var owner: RecipeOwner?
+    /// Counts content edits on the server, so a save can confirm it captures the version someone reviewed.
+    /// Nil for a planned meal's saved version.
+    var revision: Int?
 
     // Keep synthesized value equality: Observation compares recipe arrays before
     // notifying views. ID-only equality hides edits to an existing recipe.
@@ -31,6 +34,7 @@ struct Recipe: Identifiable, Hashable, Codable {
         var mine = self, theirs = other
         mine.owner = nil; theirs.owner = nil
         mine.isFavorite = false; theirs.isFavorite = false
+        mine.revision = nil; theirs.revision = nil
         mine.id = theirs.id
         return mine == theirs
     }

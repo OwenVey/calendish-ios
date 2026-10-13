@@ -127,6 +127,12 @@ final class SupabaseHouseholdBackend: HouseholdBackend {
         case .removeNote(let id): try await client.from("meal_plan_notes").delete().eq("id", value: id).execute()
         }
     }
+    func addMeal(_ meal: PlannedMeal, household: UUID, expectedRevision: Int) async throws -> PlannedMealAddition {
+        guard let recipe = meal.recipeID else { return .unavailable }
+        let parameters = AddMealParameters(target_household: household, meal_id: meal.id, meal_date: DayFormat.string(from: meal.date),
+            meal_recipe: recipe, expected_revision: expectedRevision, meal_servings: meal.servings)
+        return try await client.rpc("add_planned_meal", params: parameters).execute().value
+    }
     func previewMove(code: String?) async throws -> HouseholdMovePreview {
         try await client.rpc("preview_household_move", params: PreviewMoveParameters(code: code)).execute().value
     }
