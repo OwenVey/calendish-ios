@@ -239,6 +239,17 @@ final class HouseholdUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+    func testAutoPlanCompactChangeMenu() {
+        let app = launch()
+        app.buttons["Meal plan"].tap()
+        app.buttons["Auto plan"].tap()
+        for _ in 0..<4 { app.buttons["Next week"].tap() }
+        app.buttons["Suggest dinners"].tap()
+        let change = app.buttons["Change dinner"].firstMatch
+        change.tap()
+        XCTAssertTrue(app.buttons["Remove dinner"].waitForExistence(timeout: 5), "The compact menu opens")
+        attachScreenshot(app, named: "Compact change menu")
+    }
     func testAutoPlanRecipeOpensAboveProposal() {
         let app = launch()
         app.buttons["Meal plan"].tap()
@@ -253,6 +264,14 @@ final class HouseholdUITests: XCTestCase {
         attachScreenshot(app, named: "Recipe above auto plan")
         app.navigationBars.buttons["Suggested dinners"].tap()
         XCTAssertTrue(app.buttons["Add to plan"].waitForExistence(timeout: 5), "Back returns to the proposal")
+        let servings = app.buttons["4 servings"].firstMatch
+        for _ in 0..<8 where !servings.isHittable { app.swipeUp() }
+        servings.tap()
+        app.steppers.buttons["Increment"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["5 servings"].waitForExistence(timeout: 5), "Servings can be adjusted on demand")
+        attachScreenshot(app, named: "Compact servings adjustment")
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["Kept"].waitForExistence(timeout: 5), "Adjusting servings keeps that dinner")
         let change = app.buttons["Change dinner"].firstMatch
         for _ in 0..<8 where !change.isHittable { app.swipeUp() }
         change.tap()
@@ -269,14 +288,14 @@ final class HouseholdUITests: XCTestCase {
         for _ in 0..<5 { app.buttons["Next week"].tap() }
         app.buttons["Next week"].tap()
         app.buttons["Suggest dinners"].tap()
-        XCTAssertTrue(app.staticTexts["Only 2 recipes can be suggested, so 5 days stay open. Choose recipes for them yourself."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["2 dinners suggested · 5 days open"].waitForExistence(timeout: 5))
         attachScreenshot(app, named: "Auto plan proposal")
 
-        let keep = app.switches["Keep when shuffling"].firstMatch
+        let keep = app.buttons["Keep"].firstMatch
         for _ in 0..<8 where !keep.isHittable || keep.frame.maxY > app.frame.maxY - 80 { app.swipeUp() }
         attachScreenshot(app, named: "Keep control")
-        keep.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
-        XCTAssertEqual(keep.value as? String, "1")
+        keep.tap()
+        XCTAssertTrue(app.buttons["Kept"].waitForExistence(timeout: 5), "Kept dinners are clearly marked")
         for _ in 0..<8 where !app.buttons["Shuffle dinners"].isHittable { app.swipeDown() }
         XCTAssertTrue(app.buttons["Shuffle dinners"].isHittable, "Shuffle has a visible text label")
         app.buttons["Shuffle dinners"].tap()

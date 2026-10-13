@@ -330,12 +330,11 @@ final class AutoPlan {
         guard open > 0 else { return nil }
         let suggested = dinners.count { $0.recipe != nil }
         if suggested == 0, dinners.allSatisfy({ !$0.isKept }) {
-            return "None of your saved recipes can be suggested. Only Dinner recipes and recipes without a category are suggested; "
-                + "choose recipes for these days yourself."
+            return "No dinners to suggest. Choose recipes for the open days."
         }
-        let recipes = suggested == 1 ? "Only 1 recipe can" : "Only \(suggested) recipes can"
-        let days = open == 1 ? "1 day stays" : "\(open) days stay"
-        return "\(recipes) be suggested, so \(days) open. Choose recipes for them yourself."
+        let recipes = suggested == 1 ? "1 dinner suggested" : "\(suggested) dinners suggested"
+        let days = open == 1 ? "1 day open" : "\(open) days open"
+        return "\(recipes) · \(days)"
     }
 
     /// Recipes automatic choices may use: Dinner or uncategorized, not planned within a week of the chosen week,

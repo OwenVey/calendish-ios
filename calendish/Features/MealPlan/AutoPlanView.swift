@@ -23,7 +23,7 @@ struct AutoPlanView: View {
                 } header: {
                     Text("Days to plan")
                 } footer: {
-                    Text("Each selected day gets one dinner from your saved recipes. Days that already have a recipe or note keep their plans.")
+                    Text("Each selected day gets one dinner.")
                 }
             }
             .navigationTitle("Auto plan").navigationBarTitleDisplayMode(.inline)

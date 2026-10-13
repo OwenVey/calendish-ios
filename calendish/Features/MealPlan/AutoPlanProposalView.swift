@@ -4,8 +4,8 @@ import SwiftUI
 struct AutoPlanProposalView: View {
     let plan: AutoPlan
     let saved: () -> Void
-    @Environment(HouseholdStore.self) private var store
     @State private var choosing: AutoPlan.Dinner?
+    @State private var reviewingRecipe: Recipe?
     /// Keep the reviewed rows in place until saving ends; per-dinner outcomes must not resize them mid-save.
     @State private var savingProposal: SavingProposal?
     /// Why a swap or shuffle couldn't change anything, shown as an alert.
@@ -14,13 +14,12 @@ struct AutoPlanProposalView: View {
     private struct SavingProposal {
         let dinners: [AutoPlan.Dinner]
         let notice: String?
-        let stats: [UUID: RecipeStats]
     }
 
     var body: some View {
         let dinners = savingProposal?.dinners ?? plan.dinners
         let notice = savingProposal == nil ? plan.notice : savingProposal?.notice
-        let stats = savingProposal?.stats ?? store.recipeStats
+        let hasSaveOutcomes = dinners.contains { $0.outcome != nil }
         List {
             Section {
                 Button("Shuffle dinners", systemImage: "shuffle") {
@@ -30,14 +29,20 @@ struct AutoPlanProposalView: View {
                 .foregroundStyle(.primary)
                 .disabled(!plan.canShuffle || plan.isSaving)
             } footer: {
-                Text("Shuffle suggests new recipes. Turn on Keep for dinners you don’t want to change.")
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Kept dinners stay the same.")
+                    if !hasSaveOutcomes, let notice { Text(notice) }
+                }
             }
-            if let notice {
+            if hasSaveOutcomes, let notice {
                 Section { Label(notice, systemImage: "info.circle").foregroundStyle(.secondary) }
             }
             ForEach(dinners) { dinner in
-                Section(dinner.date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())) {
-                    AutoPlanDinnerRow(dinner: dinner, plan: plan, stats: dinner.recipe.flatMap { stats[$0.id] }, choose: { choosing = dinner }, noAlternative: { noAlternativeMessage = plan.notice })
+                Section {
+                    AutoPlanDinnerRow(dinner: dinner, plan: plan, choose: { choosing = dinner }, review: { reviewingRecipe = dinner.recipe }, noAlternative: { noAlternativeMessage = plan.notice })
+                } header: {
+                    Text(dinner.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+                        .accessibilityLabel(dinner.date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
                 }
             }
         }
@@ -56,6 +61,7 @@ struct AutoPlanProposalView: View {
                 }
             }
         }
+        .navigationDestination(item: $reviewingRecipe) { RecipeDetailView(recipe: $0) }
         .sheet(item: $choosing) { dinner in AutoPlanRecipePicker(dinner: dinner, plan: plan) }
         .calendishAlert("Nothing else to suggest", isPresented: Binding { noAlternativeMessage != nil } set: { if !$0 { noAlternativeMessage = nil } },
                         presenting: noAlternativeMessage) { _ in
@@ -65,7 +71,7 @@ struct AutoPlanProposalView: View {
 
     private func addToPlan() async {
         guard savingProposal == nil else { return }
-        savingProposal = SavingProposal(dinners: plan.dinners, notice: plan.notice, stats: store.recipeStats)
+        savingProposal = SavingProposal(dinners: plan.dinners, notice: plan.notice)
         await plan.addToPlan()
         if plan.isFinished {
             // Retain the snapshot and spinner through dismissal, without briefly showing success rows.
