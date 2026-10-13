@@ -3,6 +3,7 @@ import SwiftUI
 /// Chooses a week and its days for auto planning, then shows the proposed dinners.
 struct AutoPlanView: View {
     let plan: AutoPlan
+    let saved: (Date) -> Void
     @Environment(HouseholdStore.self) private var store
     @State private var showsProposal = false
     @State private var confirmsDiscard = false
@@ -36,8 +37,7 @@ struct AutoPlanView: View {
                         .modifier(GlassActionStyle(prominent: true))
                 }
             }
-            .navigationDestination(isPresented: $showsProposal) { AutoPlanProposalView(plan: plan, close: close) }
-            .navigationDestination(for: Recipe.self) { RecipeDetailView(recipe: $0) }
+            .navigationDestination(isPresented: $showsProposal) { AutoPlanProposalView(plan: plan, saved: { saved(plan.week) }) }
             .confirmationDialog("Replace suggested dinners?", isPresented: $confirmsReplace, titleVisibility: .visible) {
                 Button("Replace dinners", role: .destructive) { propose() }
                 Button("Keep my dinners") { showsProposal = true }

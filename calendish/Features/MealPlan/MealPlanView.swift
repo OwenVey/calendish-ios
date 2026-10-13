@@ -19,8 +19,14 @@ struct MealPlanView: View {
     @State private var groceryReview: GroceryReview?
     @State private var editingNote: MealPlanNote?
     @State private var removing: PlanRemoval?
+    /// Scroll after the auto-plan sheet finishes dismissing and the selected week has been loaded.
+    @State private var autoPlannedWeek: Date?
     /// How far the list is pulled down past its top.
     @State private var pullDistance: CGFloat = 0
+    private enum ScrollTarget: Hashable {
+        case week(Date)
+    }
+
     private static let pageSize = 4
     private static let pullThreshold: CGFloat = 70
     private var isPullArmed: Bool { pullDistance >= Self.pullThreshold }
@@ -61,6 +67,7 @@ struct MealPlanView: View {
                             }
                         } header: {
                             WeekHeader(week: week)
+                                .id(ScrollTarget.week(week))
                                 .onAppear { if week == weeks.last { weekCount += Self.pageSize } }
                         }
                     }
@@ -110,6 +117,13 @@ struct MealPlanView: View {
                     .menuStyle(CalendishMenuStyle())
                 }
             }
+            .sheet(isPresented: Binding { store.autoPlan != nil } set: { if !$0 { store.endAutoPlan() } }, onDismiss: {
+                guard let week = autoPlannedWeek else { return }
+                autoPlannedWeek = nil
+                withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo(ScrollTarget.week(week), anchor: .top) }
+            }) {
+                if let plan = store.autoPlan { AutoPlanView(plan: plan, saved: revealAutoPlannedWeek) }
+            }
         }
         .onChange(of: weekStart) { _, _ in
             firstDay = CalendarDays.startOfWeek(.now)
@@ -120,13 +134,18 @@ struct MealPlanView: View {
         .sheet(item: $selection) { MealPickerView(selection: $0) }
         .sheet(item: $groceryReview) { GroceryImportReviewView(candidates: $0.candidates) }
         .sheet(item: $editingNote) { MealNoteEditor(note: $0) }
-        .sheet(isPresented: Binding { store.autoPlan != nil } set: { if !$0 { store.endAutoPlan() } }) {
-            if let plan = store.autoPlan { AutoPlanView(plan: plan) }
-        }
         .calendishAlert(removing?.title ?? "", item: $removing) { removal in
             Button(removal.buttonTitle, role: .destructive) { remove(removal) }
             Button("Cancel", role: .cancel) { }
         } message: { removal in if let message = removal.message { Text(message) } }
+    }
+
+    private func revealAutoPlannedWeek(_ date: Date) {
+        let week = CalendarDays.startOfWeek(date)
+        let distance = Calendar.current.dateComponents([.day], from: firstDay, to: week).day ?? 0
+        weekCount = max(weekCount, distance / 7 + 1)
+        autoPlannedWeek = week
+        store.endAutoPlan()
     }
 
     private func remove(_ removal: PlanRemoval) {

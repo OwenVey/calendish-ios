@@ -11,7 +11,11 @@ struct AutoPlanDinnerRow: View {
 
     var body: some View {
         if let recipe = dinner.recipe {
-            NavigationLink(value: recipe) { RecipeRow(recipe: recipe, stats: store.recipeStats[recipe.id]) }
+            NavigationLink {
+                RecipeDetailView(recipe: recipe)
+            } label: {
+                RecipeRow(recipe: recipe, stats: store.recipeStats[recipe.id])
+            }
             if let outcome = dinner.outcome { status(outcome) }
             if !dinner.isSettled {
                 Stepper(value: Binding { dinner.servings } set: { plan.setServings($0, for: dinner.id) }, in: 1...1000) {
@@ -32,10 +36,8 @@ struct AutoPlanDinnerRow: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(.rect)
                 }
-                // Inside a list row, CalendishMenuStyle's reset tint draws the label in basil, so this menu sets a neutral one.
-                .menuStyle(.button)
+                .menuStyle(CalendishMenuStyle())
                 .buttonStyle(.plain)
-                .tint(.primary)
             }
         } else {
             Text(dinner.isRemoved ? "Removed. This day stays open." : "No recipe could be suggested. This day stays open.")

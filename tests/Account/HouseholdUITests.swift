@@ -239,23 +239,45 @@ final class HouseholdUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+    func testAutoPlanRecipeOpensAboveProposal() {
+        let app = launch()
+        app.buttons["Meal plan"].tap()
+        app.buttons["Auto plan"].tap()
+        app.buttons["Next week"].tap()
+        app.buttons["Next week"].tap()
+        app.buttons["Next week"].tap()
+        app.buttons["Suggest dinners"].tap()
+        app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Roasted vegetable bowls")).firstMatch.tap()
+        XCTAssertTrue(app.buttons["Cook"].waitForExistence(timeout: 5), "The tapped recipe is visible above the proposal")
+        attachScreenshot(app, named: "Recipe above auto plan")
+        app.navigationBars.buttons["Suggested dinners"].tap()
+        XCTAssertTrue(app.buttons["Add to plan"].waitForExistence(timeout: 5), "Back returns to the proposal")
+        let change = app.buttons["Change dinner"].firstMatch
+        for _ in 0..<8 where !change.isHittable { app.swipeUp() }
+        change.tap()
+        XCTAssertTrue(app.buttons["Remove dinner"].exists, "The menu exposes the destructive dinner action")
+        attachScreenshot(app, named: "Destructive dinner action")
+    }
     func testAutoPlanProposesAdjustsAndAddsDinners() {
         let app = launch()
         app.buttons["Meal plan"].tap()
         app.buttons["Auto plan"].tap()
         XCTAssertTrue(app.staticTexts["Next week"].waitForExistence(timeout: 5), "Next week is chosen initially")
         attachScreenshot(app, named: "Auto plan days")
-        // Weeks this far out aren't near the fixture's planned meals.
-        app.buttons["Next week"].tap()
-        app.buttons["Next week"].tap()
+        // Go beyond the meal plan's initially loaded four weeks, away from fixture plans.
+        for _ in 0..<5 { app.buttons["Next week"].tap() }
         app.buttons["Suggest dinners"].tap()
         XCTAssertTrue(app.staticTexts["Only 2 recipes can be suggested, so 5 days stay open. Choose recipes for them yourself."].waitForExistence(timeout: 5))
         attachScreenshot(app, named: "Auto plan proposal")
 
         let keep = app.switches["Keep when shuffling"].firstMatch
+        for _ in 0..<8 where !keep.isHittable || keep.frame.maxY > app.frame.maxY - 80 { app.swipeUp() }
+        attachScreenshot(app, named: "Keep control")
         keep.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
         XCTAssertEqual(keep.value as? String, "1")
-        app.buttons["Shuffle"].tap()
+        for _ in 0..<8 where !app.buttons["Shuffle dinners"].isHittable { app.swipeDown() }
+        XCTAssertTrue(app.buttons["Shuffle dinners"].isHittable, "Shuffle has a visible text label")
+        app.buttons["Shuffle dinners"].tap()
         XCTAssertTrue(app.alerts["Nothing else to suggest"].waitForExistence(timeout: 5), "A shuffle without alternatives explains itself")
         app.alerts.buttons["OK"].tap()
 
@@ -266,13 +288,10 @@ final class HouseholdUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Crispy chickpea salad"].waitForExistence(timeout: 5), "A manual choice can use another category")
 
         app.buttons["Add to plan"].tap()
-        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5), "Every dinner is added")
-        for _ in 0..<8 where !app.staticTexts["Added 3 dinners."].exists { app.swipeDown() }
-        XCTAssertTrue(app.staticTexts["Added 3 dinners."].exists, "The result is summarized")
-        attachScreenshot(app, named: "Auto plan added")
-        app.buttons["Done"].tap()
-        XCTAssertTrue(app.buttons["Auto plan"].waitForExistence(timeout: 5), "Done returns to the meal plan")
-        for _ in 0..<12 where !app.staticTexts["Crispy chickpea salad"].exists { app.swipeUp() }
-        XCTAssertTrue(app.staticTexts["Crispy chickpea salad"].exists, "Added dinners appear in the meal plan")
+        XCTAssertTrue(app.buttons["Auto plan"].waitForExistence(timeout: 5), "Saving closes the proposal and returns to the meal plan")
+        XCTAssertFalse(app.buttons["Done"].exists, "There is no extra confirmation screen")
+        XCTAssertTrue(app.staticTexts["Roasted vegetable bowls"].isHittable || app.staticTexts["Lemon & herb orzo"].isHittable,
+                      "The selected week is revealed without manually scrolling")
+        attachScreenshot(app, named: "Auto plan week after saving")
     }
 }
