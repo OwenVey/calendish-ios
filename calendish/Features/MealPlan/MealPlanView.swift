@@ -19,6 +19,8 @@ struct MealPlanView: View {
     @State private var groceryReview: GroceryReview?
     @State private var editingNote: MealPlanNote?
     @State private var removing: PlanRemoval?
+    /// Dims the Today button while today's card is already on screen.
+    @State private var isTodayVisible = false
     /// Scroll after the auto-plan sheet finishes dismissing and the selected week has been loaded.
     @State private var autoPlannedWeek: Date?
     /// How far the list is pulled down past its top.
@@ -63,8 +65,9 @@ struct MealPlanView: View {
                                                     movingNotes.forEach { store.moveNote($0, to: day) }
                                                 }
                                             },
-                                            addToGroceries: { groceryReview = GroceryReview(meals: meals, notes: notes) })
+                                            addToGroceries: { groceryReview = GroceryReview(meals: $0, notes: $1) })
                                     .id(day)
+                                    .onScrollVisibilityChange { visible in if day == today { isTodayVisible = visible } }
                             }
                         } header: {
                             let weekMeals = days.flatMap { mealsByDay[$0, default: []] }
@@ -106,6 +109,7 @@ struct MealPlanView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Today", systemImage: "calendar.badge.clock") { scrollToToday(using: proxy) }
                         .toolbarGlyph()
+                        .disabled(isTodayVisible)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {

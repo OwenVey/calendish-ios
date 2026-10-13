@@ -14,7 +14,8 @@ struct MealPlanDay: View {
     let remove: (PlanRemoval) -> Void
     /// Moves dropped meals and notes here.
     let move: ([UUID]) -> Void
-    let addToGroceries: () -> Void
+    /// Reviews groceries for the whole day, or for one meal from its menu.
+    let addToGroceries: ([PlannedMeal], [MealPlanNote]) -> Void
     @State private var isDropTarget = false
     @State private var dropCount = 0
     private var isToday: Bool { Calendar.current.isDateInToday(day) }
@@ -23,12 +24,12 @@ struct MealPlanDay: View {
     var body: some View {
         MealPlanDayCard(day: day, isEmphasized: isEmphasized, isEmpty: isEmpty, isDropTarget: isDropTarget) {
             MealPlanDayHeader(day: day, meals: meals, notes: notes, isEmphasized: isEmphasized, isToday: isToday,
-                              add: add, addNote: addNote, addToGroceries: addToGroceries, remove: remove)
+                              add: add, addNote: addNote, addToGroceries: { addToGroceries(meals, notes) }, remove: remove)
         } content: {
             if isEmpty, isEmphasized {
                 MealPlanDayEmptyEntry(title: "Add a meal", accessibilityLabel: "Add recipe", action: add)
             } else {
-                ForEach(meals) { MealPlanMealEntry(meal: $0, edit: edit, remove: remove) }
+                ForEach(meals) { MealPlanMealEntry(meal: $0, edit: edit, remove: remove) { addToGroceries([$0], []) } }
                 ForEach(notes) { MealPlanNoteEntry(note: $0, edit: editNote, remove: remove) }
             }
         }

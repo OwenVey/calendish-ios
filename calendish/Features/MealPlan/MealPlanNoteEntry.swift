@@ -25,6 +25,7 @@ struct MealPlanNoteEntry: View {
             Button("Edit note", systemImage: "pencil") { edit(note) }
             Button("Remove note", systemImage: "trash", role: .destructive) { remove(PlanRemoval(notes: [note])) }
         }
+        .accessibilityAction(named: "Edit note") { edit(note) }
         .accessibilityAction(named: "Remove note") { remove(PlanRemoval(notes: [note])) }
     }
 }
