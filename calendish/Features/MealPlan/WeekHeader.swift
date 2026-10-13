@@ -54,16 +54,17 @@ struct WeekHeader: View {
                 Label("More for \(name ?? range)", systemImage: "ellipsis")
                     .labelStyle(.iconOnly)
                     .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
                     .frame(width: 30, height: 30)
             }
             // A glass button sets the week's actions apart from each day's plain menus.
             .menuStyle(.button)
             .buttonStyle(.glass)
             .buttonBorderShape(.circle)
+            // Like CalendishMenuStyle, clears the app's basil tint so items render natively, dimming
+            // disabled ones. The glyph sets its own neutral color.
+            .tint(nil)
         }
-        // Neutral like the day headers' menus.
-        .foregroundStyle(.primary)
-        .tint(.primary)
         .padding(.leading, 6)
         .padding(.top, 6)
     }

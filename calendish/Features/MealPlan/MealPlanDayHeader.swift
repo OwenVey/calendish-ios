@@ -27,10 +27,11 @@ struct MealPlanDayHeader: View {
             } label: {
                 Label("Add to \(weekday)", systemImage: "plus")
                     .labelStyle(.iconOnly)
+                    .foregroundStyle(.primary)
                     .frame(width: 44, height: 44)
                     .contentShape(.rect)
             }
-            .menuStyle(CalendishMenuStyle())
+            .menuStyle(.button).buttonStyle(.plain).tint(nil)
             Menu {
                 Button("Add to groceries", systemImage: "basket", action: addToGroceries)
                     .disabled(meals.isEmpty && !notes.contains { !$0.items.isEmpty })
@@ -43,14 +44,15 @@ struct MealPlanDayHeader: View {
                 // A Menu only hit-tests its label, so the 44pt target has to live inside it.
                 Label("More for \(weekday)", systemImage: "ellipsis")
                     .labelStyle(.iconOnly)
+                    .foregroundStyle(.primary)
                     .frame(width: 44, height: 44)
                     .contentShape(.rect)
             }
-            .menuStyle(CalendishMenuStyle())
+            .menuStyle(.button).buttonStyle(.plain).tint(nil)
         }
+        // Each menu clears the app's basil tint, like CalendishMenuStyle, so its items render natively and dim
+        // when disabled. Only the glyphs set their neutral color, since a header-wide style would reach the items.
         .font(.body.weight(.semibold))
-        .foregroundStyle(.primary)
-        .tint(.primary)
         .padding(.leading, 16)
         .padding(.trailing, 4)
         .background(Color(isThisWeek ? .tertiarySystemFill : .quaternarySystemFill), in: .capsule)

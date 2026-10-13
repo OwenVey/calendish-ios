@@ -331,11 +331,19 @@ final class HouseholdUITests: XCTestCase {
         let app = launch()
         app.buttons["Meal plan"].tap()
         openWeekMenu(app, weeksAhead: 0)
+        XCTAssertTrue(app.buttons["Clear week"].waitForExistence(timeout: 5) && app.buttons["Clear week"].isEnabled)
+        attachScreenshot(app, named: "Week menu with plans")
         app.buttons["Clear week"].tap()
         XCTAssertTrue(app.alerts["Clear this week?"].waitForExistence(timeout: 5), "Clearing a week asks first")
         attachScreenshot(app, named: "Clear week confirmation")
         app.alerts.buttons["Clear week"].tap()
         // The fixture plans this recipe today, so it's always in this week.
         XCTAssertFalse(app.staticTexts["Lemon & herb orzo"].waitForExistence(timeout: 2), "This week's meals are removed")
+        let dayMenu = app.buttons["More for Monday"].firstMatch
+        for _ in 0..<4 where !dayMenu.isHittable { app.swipeDown() }
+        dayMenu.tap()
+        XCTAssertTrue(app.buttons["Add to groceries"].waitForExistence(timeout: 5) && !app.buttons["Add to groceries"].isEnabled,
+                      "An empty day has nothing to add to groceries")
+        attachScreenshot(app, named: "Empty day menu")
     }
 }
