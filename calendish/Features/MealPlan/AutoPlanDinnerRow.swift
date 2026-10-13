@@ -4,17 +4,17 @@ import SwiftUI
 struct AutoPlanDinnerRow: View {
     let dinner: AutoPlan.Dinner
     let plan: AutoPlan
+    let stats: RecipeStats?
     let choose: () -> Void
     /// Called when an automatic alternative couldn't be found.
     let noAlternative: () -> Void
-    @Environment(HouseholdStore.self) private var store
 
     var body: some View {
         if let recipe = dinner.recipe {
             NavigationLink {
                 RecipeDetailView(recipe: recipe)
             } label: {
-                RecipeRow(recipe: recipe, stats: store.recipeStats[recipe.id])
+                RecipeRow(recipe: recipe, stats: stats)
             }
             if let outcome = dinner.outcome { status(outcome) }
             if !dinner.isSettled {

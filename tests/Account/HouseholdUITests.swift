@@ -246,6 +246,7 @@ final class HouseholdUITests: XCTestCase {
         app.buttons["Next week"].tap()
         app.buttons["Next week"].tap()
         app.buttons["Next week"].tap()
+        app.buttons["Next week"].tap()
         app.buttons["Suggest dinners"].tap()
         app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Roasted vegetable bowls")).firstMatch.tap()
         XCTAssertTrue(app.buttons["Cook"].waitForExistence(timeout: 5), "The tapped recipe is visible above the proposal")
@@ -262,10 +263,11 @@ final class HouseholdUITests: XCTestCase {
         let app = launch()
         app.buttons["Meal plan"].tap()
         app.buttons["Auto plan"].tap()
-        XCTAssertTrue(app.staticTexts["Next week"].waitForExistence(timeout: 5), "Next week is chosen initially")
+        XCTAssertTrue(app.staticTexts["This week"].waitForExistence(timeout: 5), "This week is chosen initially")
         attachScreenshot(app, named: "Auto plan days")
         // Go beyond the meal plan's initially loaded four weeks, away from fixture plans.
         for _ in 0..<5 { app.buttons["Next week"].tap() }
+        app.buttons["Next week"].tap()
         app.buttons["Suggest dinners"].tap()
         XCTAssertTrue(app.staticTexts["Only 2 recipes can be suggested, so 5 days stay open. Choose recipes for them yourself."].waitForExistence(timeout: 5))
         attachScreenshot(app, named: "Auto plan proposal")

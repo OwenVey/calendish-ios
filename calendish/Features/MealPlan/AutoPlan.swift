@@ -89,8 +89,7 @@ final class AutoPlan {
         self.now = now
         self.weekStart = weekStart
         self.random = AnyRandom(base: random)
-        let thisWeek = CalendarDays.startOfWeek(now, weekStart: weekStart)
-        week = Calendar.current.date(byAdding: .day, value: 7, to: thisWeek)!
+        week = CalendarDays.startOfWeek(now, weekStart: weekStart)
         loadDays()
     }
 
