@@ -50,14 +50,16 @@ struct WeekHeader: View {
                         .disabled(clear == nil)
                 }
             } label: {
-                // A Menu only hit-tests its label, so the 44pt target has to live inside it.
+                // Inside the glass circle, this makes a 44pt target.
                 Label("More for \(name ?? range)", systemImage: "ellipsis")
                     .labelStyle(.iconOnly)
                     .font(.body.weight(.semibold))
-                    .frame(width: 44, height: 44)
-                    .contentShape(.rect)
+                    .frame(width: 30, height: 30)
             }
-            .menuStyle(CalendishMenuStyle())
+            // A glass button sets the week's actions apart from each day's plain menus.
+            .menuStyle(.button)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
         }
         // Neutral like the day headers' menus.
         .foregroundStyle(.primary)
