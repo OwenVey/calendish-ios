@@ -21,34 +21,37 @@ struct AutoPlanProposalView: View {
         let notice = savingProposal == nil ? plan.notice : savingProposal?.notice
         let hasSaveOutcomes = dinners.contains { $0.outcome != nil }
         List {
-            Section {
-                Button("Shuffle dinners", systemImage: "shuffle") {
-                    if !plan.shuffle() { noAlternativeMessage = plan.notice }
-                }
-                .labelStyle(.titleAndIcon)
-                .foregroundStyle(.primary)
-                .disabled(!plan.canShuffle || plan.isSaving)
-            } footer: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Kept dinners stay the same.")
-                    if !hasSaveOutcomes, let notice { Text(notice) }
-                }
-            }
             if hasSaveOutcomes, let notice {
                 Section { Label(notice, systemImage: "info.circle").foregroundStyle(.secondary) }
             }
-            ForEach(dinners) { dinner in
-                Section {
-                    AutoPlanDinnerRow(dinner: dinner, plan: plan, choose: { choosing = dinner }, review: { reviewingRecipe = dinner.recipe }, noAlternative: { noAlternativeMessage = plan.notice })
-                } header: {
-                    Text(dinner.date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
-                        .accessibilityLabel(dinner.date.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+            Section {
+                ForEach(dinners) { dinner in
+                    AutoPlanDinnerRow(dinner: dinner, plan: plan, choose: { choosing = dinner }, review: { reviewingRecipe = dinner.recipe },
+                                      noAlternative: { noAlternativeMessage = plan.notice })
                 }
+            } footer: {
+                if !hasSaveOutcomes, let shortage = plan.shortageExplanation { Text(shortage) }
             }
         }
         .disabled(savingProposal != nil)
         .navigationTitle("Suggested dinners").navigationBarTitleDisplayMode(.inline)
+        .navigationSubtitle(subtitle(for: dinners))
         .toolbar {
+            // At the bottom, so the title and the week's count fit beside Cancel and Add to plan.
+            ToolbarItem(placement: .bottomBar) {
+                Button {
+                    if !plan.shuffle() { noAlternativeMessage = plan.notice }
+                } label: {
+                    // Bottom bars show a Label's icon only, so the text sits beside it explicitly.
+                    HStack(spacing: 6) {
+                        Image(systemName: "shuffle")
+                        Text("Shuffle")
+                    }
+                }
+                .accessibilityLabel("Shuffle dinners")
+                .disabled(!plan.canShuffle || plan.isSaving || savingProposal != nil)
+                .toolbarGlyph()
+            }
             ToolbarItem(placement: .confirmationAction) {
                 if savingProposal != nil || plan.isSaving {
                     ProgressView().accessibilityLabel("Adding dinners")
@@ -65,6 +68,11 @@ struct AutoPlanProposalView: View {
                         presenting: noAlternativeMessage) { _ in
             Button("OK", role: .cancel) { }
         } message: { Text($0) }
+    }
+
+    /// "Nov 22–28 · 2 of 7 days"
+    private func subtitle(for dinners: [AutoPlan.Dinner]) -> String {
+        "\(WeekHeader.title(for: plan.week)) · \(dinners.count { $0.recipe != nil }) of \(dinners.count) days"
     }
 
     private func addToPlan() async {

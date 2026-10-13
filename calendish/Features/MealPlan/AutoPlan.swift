@@ -117,7 +117,7 @@ final class AutoPlan {
             let recipe = picks.isEmpty ? nil : picks.removeFirst()
             return Dinner(date: date, recipe: recipe, servings: recipe.map(Self.servings) ?? 0)
         }
-        notice = shortageNotice()
+        notice = shortageExplanation
         isAdjusted = false
     }
 
@@ -133,7 +133,7 @@ final class AutoPlan {
             return false
         }
         set(recipe, at: index)
-        notice = shortageNotice()
+        notice = shortageExplanation
         return true
     }
 
@@ -142,7 +142,7 @@ final class AutoPlan {
         guard let index = editableIndex(id), let available = store?.recipes.first(where: { $0.id == recipe.id }) else { return }
         set(available, at: index)
         dinners[index].isKept = true
-        notice = shortageNotice()
+        notice = shortageExplanation
     }
 
     /// Leaves the day open. Shuffling won't fill it again.
@@ -153,7 +153,7 @@ final class AutoPlan {
         dinners[index].isKept = false
         renewMealID(at: index)
         isAdjusted = true
-        notice = shortageNotice()
+        notice = shortageExplanation
     }
 
     /// Changes one dinner's servings, and keeps it.
@@ -196,7 +196,7 @@ final class AutoPlan {
             }
         }
         isAdjusted = true
-        notice = shortageNotice()
+        notice = shortageExplanation
         return true
     }
 
@@ -321,16 +321,16 @@ final class AutoPlan {
         recipe.servings > 0 ? recipe.servings : PreferenceKey.servingsForNewRecipes
     }
 
-    private func shortageNotice() -> String? {
+    /// Why some days have no dinner, while any stay open without the person removing them.
+    var shortageExplanation: String? {
         let open = dinners.filter { $0.recipe == nil && !$0.isRemoved }.count
         guard open > 0 else { return nil }
         let suggested = dinners.count { $0.recipe != nil }
         if suggested == 0, dinners.allSatisfy({ !$0.isKept }) {
-            return "No dinners to suggest. Choose recipes for the open days."
+            return "None of your saved recipes fit this week. Auto plan suggests Dinner and uncategorized recipes. "
+                + "Choose recipes for these days, or leave them empty."
         }
-        let recipes = suggested == 1 ? "1 dinner suggested" : "\(suggested) dinners suggested"
-        let days = open == 1 ? "1 day open" : "\(open) days open"
-        return "\(recipes) · \(days)"
+        return "No more saved recipes fit this week. Choose recipes for the open days, or leave them empty."
     }
 
     /// Recipes automatic choices may use: Dinner or uncategorized, not planned within a week of the chosen week,

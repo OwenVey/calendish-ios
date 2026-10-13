@@ -159,7 +159,7 @@ enum AutoPlanWorkflowTests {
         try expect(plan.dinners.map(\.date) == (8...14).map { day($0) }, "Each open day gets one dinner entry")
         try expect(Set(chosen) == [dinner.id, uncategorized.id, farEnough.id] && chosen.count == 3,
             "Only distinct Dinner and uncategorized recipes outside the inclusive nearby window are proposed")
-        try expect(plan.dinners.filter { $0.recipe == nil }.count == 4 && plan.notice == "3 dinners suggested · 4 days open",
+        try expect(plan.dinners.filter { $0.recipe == nil }.count == 4 && plan.notice == "No more saved recipes fit this week. Choose recipes for the open days, or leave them empty.",
             "A shortage leaves the remaining days open and explains why")
         try expect(plan.dinners.first { $0.recipe?.id == dinner.id }?.servings == 6, "Dinners start with the recipe's servings")
         try expect(plan.dinners.first { $0.recipe?.id == uncategorized.id }?.servings == 3, "Recipes without a usable serving count use the Settings default")
@@ -169,7 +169,8 @@ enum AutoPlanWorkflowTests {
         defer { breakfastOnly.session.cancel() }
         let empty = breakfastOnly.store.beginAutoPlan(week: day(8), now: wednesday, random: SeededRandom(state: 2))!
         try expect(empty.dinners.count == 7 && empty.dinners.allSatisfy { $0.recipe == nil }, "An empty pool leaves every day open")
-        try expect(empty.notice == "No dinners to suggest. Choose recipes for the open days.",
+        try expect(empty.notice == "None of your saved recipes fit this week. Auto plan suggests Dinner and uncategorized recipes. "
+            + "Choose recipes for these days, or leave them empty.",
             "An empty pool is explained")
     }
 

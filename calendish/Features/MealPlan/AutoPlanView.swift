@@ -10,7 +10,6 @@ struct AutoPlanView: View {
     var body: some View {
         NavigationStack {
             AutoPlanProposalView(plan: plan, saved: { saved(plan.week) })
-                .navigationSubtitle(WeekHeader.title(for: plan.week))
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel", action: close).toolbarGlyph()

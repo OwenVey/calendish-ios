@@ -259,7 +259,8 @@ final class HouseholdUITests: XCTestCase {
         app.buttons["Auto plan"].tap()
         let change = app.buttons["Change dinner"].firstMatch
         change.tap()
-        XCTAssertTrue(app.buttons["Remove dinner"].waitForExistence(timeout: 5), "The compact menu opens")
+        XCTAssertTrue(app.buttons["Leave open"].waitForExistence(timeout: 5), "The row's menu opens")
+        XCTAssertTrue(app.buttons["Servings"].exists && app.buttons["Keep when shuffling"].exists, "Servings and Keep live in the menu")
         attachScreenshot(app, named: "Compact change menu")
     }
     func testAutoPlanRecipeOpensAboveProposal() {
@@ -272,18 +273,17 @@ final class HouseholdUITests: XCTestCase {
         attachScreenshot(app, named: "Recipe above auto plan")
         app.navigationBars.buttons["Suggested dinners"].tap()
         XCTAssertTrue(app.buttons["Add to plan"].waitForExistence(timeout: 5), "Back returns to the proposal")
-        let servings = app.buttons["4 servings"].firstMatch
-        for _ in 0..<8 where !servings.isHittable { app.swipeUp() }
-        servings.tap()
+        app.buttons["Change dinner"].firstMatch.tap()
+        app.buttons["Servings"].tap()
         app.steppers.buttons["Increment"].firstMatch.tap()
         XCTAssertTrue(app.staticTexts["5 servings"].waitForExistence(timeout: 5), "Servings can be adjusted on demand")
         attachScreenshot(app, named: "Compact servings adjustment")
         app.buttons["Done"].tap()
-        XCTAssertTrue(app.buttons["Kept"].waitForExistence(timeout: 5), "Adjusting servings keeps that dinner")
-        let change = app.buttons["Change dinner"].firstMatch
-        for _ in 0..<8 where !change.isHittable { app.swipeUp() }
-        change.tap()
-        XCTAssertTrue(app.buttons["Remove dinner"].exists, "The menu exposes the destructive dinner action")
+        XCTAssertTrue(app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "5 servings · 25 min · Kept")).firstMatch.waitForExistence(timeout: 5)
+            || app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "5 servings · 40 min · Kept")).firstMatch.exists,
+            "Adjusting servings keeps that dinner")
+        app.buttons["Change dinner"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["Leave open"].waitForExistence(timeout: 5), "The menu exposes the destructive dinner action")
         attachScreenshot(app, named: "Destructive dinner action")
     }
     func testAutoPlanProposesAdjustsAndAddsDinners() {
@@ -297,23 +297,26 @@ final class HouseholdUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Add to groceries"].isEnabled, "An empty week has nothing to add to groceries")
         attachScreenshot(app, named: "Week menu")
         app.buttons["Auto plan"].tap()
-        XCTAssertTrue(app.staticTexts["2 dinners suggested · 5 days open"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "2 of 7 days")).firstMatch.waitForExistence(timeout: 5),
+                      "The subtitle counts suggested days")
         attachScreenshot(app, named: "Auto plan proposal")
 
-        let keep = app.buttons["Keep"].firstMatch
-        for _ in 0..<8 where !keep.isHittable || keep.frame.maxY > app.frame.maxY - 80 { app.swipeUp() }
+        app.buttons["Change dinner"].firstMatch.tap()
+        app.buttons["Keep when shuffling"].tap()
+        XCTAssertTrue(app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Kept")).firstMatch.waitForExistence(timeout: 5),
+                      "Kept dinners are clearly marked")
         attachScreenshot(app, named: "Keep control")
-        keep.tap()
-        XCTAssertTrue(app.buttons["Kept"].waitForExistence(timeout: 5), "Kept dinners are clearly marked")
-        for _ in 0..<8 where !app.buttons["Shuffle dinners"].isHittable { app.swipeDown() }
-        XCTAssertTrue(app.buttons["Shuffle dinners"].isHittable, "Shuffle has a visible text label")
         app.buttons["Shuffle dinners"].tap()
         XCTAssertTrue(app.alerts["Nothing else to suggest"].waitForExistence(timeout: 5), "A shuffle without alternatives explains itself")
         app.alerts.buttons["OK"].tap()
+        // Scrolling only upward, since pulling the sheet down would dismiss it.
+        let shortage = app.staticTexts["No more saved recipes fit this week. Choose recipes for the open days, or leave them empty."]
+        for _ in 0..<8 where !shortage.exists { app.swipeUp() }
+        XCTAssertTrue(shortage.exists, "The shortage is explained below the week")
 
-        let choose = app.buttons["Choose recipe"].firstMatch
-        for _ in 0..<8 where !choose.isHittable { app.swipeUp() }
-        choose.tap()
+        // The list is scrolled to the end, so choose an open day that's on screen.
+        let openDays = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "No dinner")).allElementsBoundByIndex
+        openDays.last { $0.isHittable }?.tap()
         app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Crispy chickpea salad")).firstMatch.tap()
         XCTAssertTrue(app.staticTexts["Crispy chickpea salad"].waitForExistence(timeout: 5), "A manual choice can use another category")
 
