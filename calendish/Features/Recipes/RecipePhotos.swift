@@ -1,3 +1,4 @@
+import ImageIO
 import PhotosUI
 import Supabase
 import SwiftUI
@@ -116,13 +117,28 @@ final class RecipePhotos {
     }
 
     /// Thumbnails fill a grid card at 3x and are saved small, so later launches skip decoding the full photo.
+    /// ImageIO downsamples straight from the file data, so the full photo is never decoded in memory.
     private nonisolated static func decoded(_ data: Data, thumbnail: URL?) -> UIImage? {
-        guard let image = UIImage(data: data) else { return nil }
-        guard let thumbnail else { return image.preparingForDisplay() ?? image }
+        guard let thumbnail else {
+            guard let image = UIImage(data: data) else { return nil }
+            return image.preparingForDisplay() ?? image
+        }
+        guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? CGFloat,
+              let height = properties[kCGImagePropertyPixelHeight] as? CGFloat,
+              min(width, height) > 0 else { return nil }
+        // ImageIO limits the longest side, so scale it to give the shortest side 540 pixels.
         let shortestSide: CGFloat = 540
-        let scale = min(1, shortestSide / min(image.size.width, image.size.height))
-        let size = CGSize(width: (image.size.width * scale).rounded(), height: (image.size.height * scale).rounded())
-        let small = image.preparingThumbnail(of: size) ?? image
+        let longestSide = min(max(width, height), (shortestSide * max(width, height) / min(width, height)).rounded())
+        let options = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: longestSide,
+        ] as CFDictionary
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else { return nil }
+        let small = UIImage(cgImage: cgImage)
         if let jpeg = small.jpegData(compressionQuality: 0.8) { try? jpeg.write(to: thumbnail) }
         return small
     }
