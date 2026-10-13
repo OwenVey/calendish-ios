@@ -5,7 +5,6 @@ struct RecipeBookList: View {
     let recipes: [Recipe]
     let stats: [UUID: RecipeStats]
     let perform: (RecipeBookAction) -> Void
-    @Environment(HouseholdStore.self) private var store
     @Environment(\.openRecipe) private var openRecipe
 
     var body: some View {
@@ -22,13 +21,7 @@ struct RecipeBookList: View {
                     .listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        // A destructive swipe button removes the row before confirmation.
-                        if store.canEdit(recipe) {
-                            Button("Delete", systemImage: "trash") { perform(.delete(recipe)) }
-                                .tint(.red)
-                        }
-                    }
+                    // Delete lives in the context menu rather than a swipe, which fought the card's press and long-press gestures.
                     .calendishContextMenu { RecipeContextActions(recipe: recipe, perform: perform) } preview: { RecipePreview(recipe: recipe) }
             }
             .listSectionSeparator(.hidden)
