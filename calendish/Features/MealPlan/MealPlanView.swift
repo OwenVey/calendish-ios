@@ -44,8 +44,9 @@ struct MealPlanView: View {
                 LazyVStack(spacing: 10) {
                     ForEach(weeks, id: \.self) { week in
                         let isThisWeek = calendar.isDate(week, inSameDayAs: CalendarDays.startOfWeek(.now))
+                        let days = CalendarDays.week(containing: week)
                         Section {
-                            ForEach(CalendarDays.week(containing: week), id: \.self) { day in
+                            ForEach(days, id: \.self) { day in
                                 let meals = mealsByDay[day, default: []]
                                 let notes = notesByDay[day, default: []]
                                 MealPlanDay(day: day, meals: meals, notes: notes, isThisWeek: isThisWeek,
@@ -66,7 +67,16 @@ struct MealPlanView: View {
                                     .id(day)
                             }
                         } header: {
-                            WeekHeader(week: week)
+                            let weekMeals = days.flatMap { mealsByDay[$0, default: []] }
+                            let weekNotes = days.flatMap { notesByDay[$0, default: []] }
+                            WeekHeader(week: week,
+                                       autoPlan: store.canAutoPlan(week: week) ? { store.beginAutoPlan(week: week) } : nil,
+                                       addToGroceries: weekMeals.isEmpty && !weekNotes.contains { !$0.items.isEmpty } ? nil : {
+                                           groceryReview = GroceryReview(meals: weekMeals, notes: weekNotes)
+                                       },
+                                       clear: weekMeals.isEmpty && weekNotes.isEmpty ? nil : {
+                                           removing = PlanRemoval(meals: weekMeals, notes: weekNotes, clearsWeek: true)
+                                       })
                                 .id(ScrollTarget.week(week))
                                 .onAppear { if week == weeks.last { weekCount += Self.pageSize } }
                         }
@@ -96,25 +106,6 @@ struct MealPlanView: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Today", systemImage: "calendar.badge.clock") { scrollToToday(using: proxy) }
                         .toolbarGlyph()
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Auto plan", systemImage: "wand.and.stars") { store.beginAutoPlan() }
-                        .toolbarGlyph()
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu("More", systemImage: "ellipsis") {
-                        Section("Add to groceries") {
-                            Button("This week", systemImage: "calendar.day.timeline.left") { reviewGroceries(weeksFromNow: 0) }
-                            Button("Next week", systemImage: "calendar.day.timeline.right") { reviewGroceries(weeksFromNow: 1) }
-                        }
-                        Section {
-                            Button("Clear meal plan", systemImage: "trash", role: .destructive) {
-                                removing = PlanRemoval(meals: store.meals, clearsPlan: true)
-                            }
-                            .disabled(store.meals.isEmpty)
-                        }
-                    }
-                    .menuStyle(CalendishMenuStyle())
                 }
             }
             .sheet(isPresented: Binding { store.autoPlan != nil } set: { if !$0 { store.endAutoPlan() } }, onDismiss: {
@@ -162,12 +153,5 @@ struct MealPlanView: View {
             firstDay = Calendar.current.date(byAdding: .weekOfYear, value: -1, to: firstDay)!
             weekCount += 1
         }
-    }
-
-    private func reviewGroceries(weeksFromNow: Int) {
-        let start = Calendar.current.date(byAdding: .weekOfYear, value: weeksFromNow, to: CalendarDays.startOfWeek(.now))!
-        let days = CalendarDays.week(containing: start)
-        let isInWeek = { (date: Date) in days.contains { Calendar.current.isDate($0, inSameDayAs: date) } }
-        groceryReview = GroceryReview(meals: store.meals.filter { isInWeek($0.date) }, notes: store.notes.filter { isInWeek($0.date) })
     }
 }

@@ -1,49 +1,21 @@
 import SwiftUI
 
-/// Chooses a week and its days for auto planning, then shows the proposed dinners.
+/// Suggested dinners for one week's open days, started from that week's menu in the meal plan.
 struct AutoPlanView: View {
     let plan: AutoPlan
     let saved: (Date) -> Void
     @Environment(HouseholdStore.self) private var store
-    @State private var showsProposal = false
     @State private var confirmsDiscard = false
-    @State private var confirmsReplace = false
-    private var selectedCount: Int { plan.days.count(where: \.isSelected) }
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    AutoPlanWeekPicker(plan: plan)
-                }
-                Section {
-                    ForEach(plan.days) { day in
-                        AutoPlanDayRow(day: day) { plan.toggleDay(day.date) }
+            AutoPlanProposalView(plan: plan, saved: { saved(plan.week) })
+                .navigationSubtitle(WeekHeader.title(for: plan.week))
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel", action: close).toolbarGlyph()
                     }
-                } header: {
-                    Text("Days to plan")
-                } footer: {
-                    Text("Each selected day gets one dinner.")
                 }
-            }
-            .navigationTitle("Auto plan").navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", action: close).toolbarGlyph()
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(action: suggest) { OnAccentLabel(title: "Suggest dinners") }
-                        .disabled(selectedCount == 0)
-                        .modifier(GlassActionStyle(prominent: true))
-                }
-            }
-            .navigationDestination(isPresented: $showsProposal) { AutoPlanProposalView(plan: plan, saved: { saved(plan.week) }) }
-            .confirmationDialog("Replace suggested dinners?", isPresented: $confirmsReplace, titleVisibility: .visible) {
-                Button("Replace dinners", role: .destructive) { propose() }
-                Button("Keep my dinners") { showsProposal = true }
-            } message: {
-                Text("New suggestions replace the dinners you adjusted.")
-            }
         }
         .confirmationDialog("Discard suggested dinners?", isPresented: $confirmsDiscard, titleVisibility: .visible) {
             Button("Discard dinners", role: .destructive) { store.endAutoPlan() }
@@ -56,14 +28,5 @@ struct AutoPlanView: View {
 
     private func close() {
         if plan.needsDiscardConfirmation { confirmsDiscard = true } else { store.endAutoPlan() }
-    }
-
-    private func suggest() {
-        if plan.needsDiscardConfirmation { confirmsReplace = true } else { propose() }
-    }
-
-    private func propose() {
-        plan.propose()
-        showsProposal = true
     }
 }

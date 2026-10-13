@@ -48,8 +48,6 @@ struct AutoPlanProposalView: View {
         }
         .disabled(savingProposal != nil)
         .navigationTitle("Suggested dinners").navigationBarTitleDisplayMode(.inline)
-        // Going back to choose days again would replace dinners already added.
-        .navigationBarBackButtonHidden(plan.dinners.contains { $0.outcome != nil } || plan.isSaving)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 if savingProposal != nil || plan.isSaving {

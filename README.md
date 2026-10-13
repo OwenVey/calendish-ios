@@ -43,7 +43,8 @@ Save recipes from anywhere, plan the week together, shop from one live list, and
 - A scrolling list of days with a configurable week start. Pull down to reach earlier weeks.
 - Add any number of recipes to a day with their own serving counts, plus free-text notes like "Leftovers" or "Eating out".
 - Drag meals between days, or select several and remove them at once.
-- **Auto plan dinners** from saved recipes for empty days in a current or future week. Review suggestions, change recipes or servings, keep dinners while shuffling, then add them to the plan. Groceries stay unchanged until you use ingredient review.
+- Each week's menu can auto plan it, add its meals to groceries, or clear it.
+- **Auto plan dinners** from saved recipes for a week's empty days, from today on. Review suggestions, change recipes or servings, leave days open, keep dinners while shuffling, then add them to the plan. Groceries stay unchanged until you use ingredient review.
 
 ### 🛒 Groceries
 

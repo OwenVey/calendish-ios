@@ -239,12 +239,24 @@ final class HouseholdUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+    /// Opens a week's menu in the meal plan, `weeksAhead` of this one, scrolling to its header first.
+    private func openWeekMenu(_ app: XCUIApplication, weeksAhead: Int) {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let thisWeek = calendar.date(byAdding: .day, value: -((calendar.component(.weekday, from: today) - calendar.firstWeekday + 7) % 7), to: today)!
+        let week = calendar.date(byAdding: .day, value: 7 * weeksAhead, to: thisWeek)!
+        let end = calendar.date(byAdding: .day, value: 6, to: week)!
+        let sameYear = calendar.isDate(week, equalTo: .now, toGranularity: .year) && calendar.isDate(end, equalTo: .now, toGranularity: .year)
+        let range = (week..<end).formatted(sameYear ? .interval.month(.abbreviated).day() : .interval.month(.abbreviated).day().year())
+        let menu = app.buttons["More for \(weeksAhead == 0 ? "This week" : weeksAhead == 1 ? "Next week" : range)"]
+        for _ in 0..<20 where !menu.isHittable { app.swipeUp() }
+        menu.tap()
+    }
     func testAutoPlanCompactChangeMenu() {
         let app = launch()
         app.buttons["Meal plan"].tap()
+        openWeekMenu(app, weeksAhead: 4)
         app.buttons["Auto plan"].tap()
-        for _ in 0..<4 { app.buttons["Next week"].tap() }
-        app.buttons["Suggest dinners"].tap()
         let change = app.buttons["Change dinner"].firstMatch
         change.tap()
         XCTAssertTrue(app.buttons["Remove dinner"].waitForExistence(timeout: 5), "The compact menu opens")
@@ -253,12 +265,8 @@ final class HouseholdUITests: XCTestCase {
     func testAutoPlanRecipeOpensAboveProposal() {
         let app = launch()
         app.buttons["Meal plan"].tap()
+        openWeekMenu(app, weeksAhead: 4)
         app.buttons["Auto plan"].tap()
-        app.buttons["Next week"].tap()
-        app.buttons["Next week"].tap()
-        app.buttons["Next week"].tap()
-        app.buttons["Next week"].tap()
-        app.buttons["Suggest dinners"].tap()
         app.buttons.containing(NSPredicate(format: "label CONTAINS %@", "Roasted vegetable bowls")).firstMatch.tap()
         XCTAssertTrue(app.buttons["Cook"].waitForExistence(timeout: 5), "The tapped recipe is visible above the proposal")
         attachScreenshot(app, named: "Recipe above auto plan")
@@ -281,13 +289,14 @@ final class HouseholdUITests: XCTestCase {
     func testAutoPlanProposesAdjustsAndAddsDinners() {
         let app = launch()
         app.buttons["Meal plan"].tap()
-        app.buttons["Auto plan"].tap()
-        XCTAssertTrue(app.staticTexts["This week"].waitForExistence(timeout: 5), "This week is chosen initially")
-        attachScreenshot(app, named: "Auto plan days")
+        XCTAssertFalse(app.buttons["More"].exists, "Week actions replace the toolbar's More menu")
         // Go beyond the meal plan's initially loaded four weeks, away from fixture plans.
-        for _ in 0..<5 { app.buttons["Next week"].tap() }
-        app.buttons["Next week"].tap()
-        app.buttons["Suggest dinners"].tap()
+        openWeekMenu(app, weeksAhead: 6)
+        XCTAssertTrue(app.buttons["Clear week"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Clear week"].isEnabled, "An empty week has nothing to clear")
+        XCTAssertFalse(app.buttons["Add to groceries"].isEnabled, "An empty week has nothing to add to groceries")
+        attachScreenshot(app, named: "Week menu")
+        app.buttons["Auto plan"].tap()
         XCTAssertTrue(app.staticTexts["2 dinners suggested · 5 days open"].waitForExistence(timeout: 5))
         attachScreenshot(app, named: "Auto plan proposal")
 
@@ -309,10 +318,21 @@ final class HouseholdUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Crispy chickpea salad"].waitForExistence(timeout: 5), "A manual choice can use another category")
 
         app.buttons["Add to plan"].tap()
-        XCTAssertTrue(app.buttons["Auto plan"].waitForExistence(timeout: 5), "Saving closes the proposal and returns to the meal plan")
+        XCTAssertTrue(app.buttons["Today"].waitForExistence(timeout: 5), "Saving closes the proposal and returns to the meal plan")
         XCTAssertFalse(app.buttons["Done"].exists, "There is no extra confirmation screen")
         XCTAssertTrue(app.staticTexts["Roasted vegetable bowls"].isHittable || app.staticTexts["Lemon & herb orzo"].isHittable,
                       "The selected week is revealed without manually scrolling")
         attachScreenshot(app, named: "Auto plan week after saving")
+    }
+    func testWeekMenuClearsOnlyThatWeek() {
+        let app = launch()
+        app.buttons["Meal plan"].tap()
+        openWeekMenu(app, weeksAhead: 0)
+        app.buttons["Clear week"].tap()
+        XCTAssertTrue(app.alerts["Clear this week?"].waitForExistence(timeout: 5), "Clearing a week asks first")
+        attachScreenshot(app, named: "Clear week confirmation")
+        app.alerts.buttons["Clear week"].tap()
+        // The fixture plans this recipe today, so it's always in this week.
+        XCTAssertFalse(app.staticTexts["Lemon & herb orzo"].waitForExistence(timeout: 2), "This week's meals are removed")
     }
 }

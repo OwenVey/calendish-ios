@@ -798,12 +798,17 @@ final class HouseholdStore {
 
     // MARK: Auto planning
 
-    /// Starts a meal plan proposal for this household, replacing any earlier one.
+    /// Whether the week containing `week` has an empty day, today or later, to auto plan.
+    func canAutoPlan(week: Date, now: Date = .now, weekStart: WeekStart = .current) -> Bool {
+        AutoPlan.days(in: week, meals: meals, notes: notes, now: now, weekStart: weekStart).contains { $0.availability == .open }
+    }
+
+    /// Proposes dinners for a week's open days, replacing any earlier proposal. Nil when the week has no open days.
     @discardableResult
-    func beginAutoPlan(now: Date = .now, weekStart: WeekStart = .current,
+    func beginAutoPlan(week: Date, now: Date = .now, weekStart: WeekStart = .current,
                        random: any RandomNumberGenerator = SystemRandomNumberGenerator()) -> AutoPlan? {
-        guard let id = household?.id else { return nil }
-        autoPlan = AutoPlan(store: self, householdID: id, now: now, weekStart: weekStart, random: random)
+        guard let id = household?.id, canAutoPlan(week: week, now: now, weekStart: weekStart) else { return nil }
+        autoPlan = AutoPlan(store: self, householdID: id, week: week, now: now, weekStart: weekStart, random: random)
         return autoPlan
     }
 

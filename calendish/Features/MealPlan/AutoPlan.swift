@@ -17,7 +17,6 @@ final class AutoPlan {
     struct Day: Identifiable, Equatable {
         let date: Date
         var availability: Availability
-        var isSelected: Bool
         var id: Date { date }
     }
 
@@ -83,39 +82,36 @@ final class AutoPlan {
     @ObservationIgnored private let weekStart: WeekStart
     @ObservationIgnored private var random: AnyRandom
 
-    init(store: HouseholdStore, householdID: UUID, now: Date, weekStart: WeekStart, random: any RandomNumberGenerator) {
+    /// Proposes dinners for the open days of the week containing `week`.
+    init(store: HouseholdStore, householdID: UUID, week: Date, now: Date, weekStart: WeekStart, random: any RandomNumberGenerator) {
         self.store = store
         self.householdID = householdID
         self.now = now
         self.weekStart = weekStart
         self.random = AnyRandom(base: random)
-        week = CalendarDays.startOfWeek(now, weekStart: weekStart)
-        loadDays()
+        self.week = CalendarDays.startOfWeek(week, weekStart: weekStart)
+        days = Self.days(in: self.week, meals: store.meals, notes: store.notes, now: now, weekStart: weekStart)
+        propose()
     }
 
-    private var thisWeek: Date { CalendarDays.startOfWeek(now, weekStart: weekStart) }
-    var canShowPreviousWeek: Bool { week > thisWeek }
-    /// Zero for the current week, one for next week, and so on.
-    var weekOffset: Int { (Calendar.current.dateComponents([.day], from: thisWeek, to: week).day ?? 0) / 7 }
-
-    /// Moves to an earlier or later week. Weeks before the current one aren't available.
-    func showWeek(offset: Int) {
-        guard let next = Calendar.current.date(byAdding: .day, value: 7 * offset, to: week), next >= thisWeek else { return }
-        week = next
-        loadDays()
-    }
-
-    func toggleDay(_ date: Date) {
-        guard let index = days.firstIndex(where: { Calendar.current.isDate($0.date, inSameDayAs: date) }),
-              days[index].availability == .open else { return }
-        days[index].isSelected.toggle()
+    /// A week's days and whether each can get a dinner: today or later, with no recipe or note yet.
+    static func days(in week: Date, meals: [PlannedMeal], notes: [MealPlanNote], now: Date, weekStart: WeekStart) -> [Day] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        let planned = Set(meals.map { calendar.startOfDay(for: $0.date) } + notes.map { calendar.startOfDay(for: $0.date) })
+        return CalendarDays.week(containing: week, weekStart: weekStart).map { date in
+            let availability: Availability = if date < today { .past }
+                else if planned.contains(date) { .planned }
+                else { .open }
+            return Day(date: date, availability: availability)
+        }
     }
 
     // MARK: Suggestions
 
-    /// Suggests one dinner for each selected day, replacing any earlier proposal.
+    /// Suggests one dinner for each open day, replacing any earlier proposal.
     func propose() {
-        let selected = days.filter(\.isSelected).map(\.date)
+        let selected = days.filter { $0.availability == .open }.map(\.date)
         var picks = pick(selected.count, from: eligibleRecipes(excluding: []))
         dinners = selected.map { date in
             let recipe = picks.isEmpty ? nil : picks.removeFirst()
@@ -371,23 +367,6 @@ final class AutoPlan {
             picks.append(weighted.remove(at: index).recipe)
         }
         return picks
-    }
-
-    private func loadDays() {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: now)
-        days = CalendarDays.week(containing: week, weekStart: weekStart).map { date in
-            let availability: Availability = if date < today { .past }
-                else if isPlanned(date) { .planned }
-                else { .open }
-            return Day(date: date, availability: availability, isSelected: availability == .open)
-        }
-    }
-
-    private func isPlanned(_ date: Date) -> Bool {
-        guard let store else { return false }
-        return store.meals.contains { Calendar.current.isDate($0.date, inSameDayAs: date) }
-            || store.notes.contains { Calendar.current.isDate($0.date, inSameDayAs: date) }
     }
 }
 

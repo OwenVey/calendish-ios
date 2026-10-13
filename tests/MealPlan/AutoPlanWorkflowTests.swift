@@ -105,44 +105,34 @@ enum AutoPlanWorkflowTests {
 
     private static func calendarChoices() async throws {
         UserDefaults.standard.set(WeekStart.sunday.rawValue, forKey: WeekStart.storageKey)
-        let pasta = recipe("Pasta")
-        let fixture = try await ready(recipes: [pasta],
-            meals: [PlannedMeal(date: day(10), recipe: pasta, recipeID: pasta.id, servings: 2)],
+        let pool = (1...9).map { recipe("Dinner \($0)") }
+        let fixture = try await ready(recipes: pool,
+            meals: [PlannedMeal(date: day(10), recipe: pool[0], recipeID: pool[0].id, servings: 2)],
             notes: [MealPlanNote(date: day(12), text: "Leftovers")])
         defer { fixture.session.cancel() }
-        let plan = fixture.store.beginAutoPlan(now: wednesday, random: SeededRandom(state: 1))!
-        try expect(plan.days.map(\.date) == (1...7).map { day($0) }, "This week is chosen initially")
-        try expect(plan.days.filter(\.isSelected).map(\.date) == (4...7).map { day($0) }, "Only today and future empty days are selected initially")
-        try expect(!plan.canShowPreviousWeek, "The initial week cannot move into the past")
-        plan.showWeek(offset: 1)
+        let plan = fixture.store.beginAutoPlan(week: day(11), now: wednesday, random: SeededRandom(state: 1))!
         try expect(fixture.store.autoPlan === plan, "The store holds the proposal for this session")
-        try expect(plan.days.map(\.date) == (8...14).map { day($0) }, "Advancing follows the Sunday week start across the time change")
-        try expect(plan.days.filter(\.isSelected).map(\.date) == [8, 9, 11, 13, 14].map { day($0) }, "Empty days are selected initially")
+        try expect(plan.days.map(\.date) == (8...14).map { day($0) }, "The chosen week follows the Sunday week start across the time change")
         try expect(plan.days.first { $0.date == day(10) }?.availability == .planned
             && plan.days.first { $0.date == day(12) }?.availability == .planned, "Days with a recipe or a note are unavailable")
-        plan.toggleDay(day(10))
-        try expect(plan.days.first { $0.date == day(10) }?.isSelected == false, "Unavailable days cannot be selected")
-        plan.toggleDay(day(9))
-        try expect(plan.days.first { $0.date == day(9) }?.isSelected == false, "Days can be deselected")
+        try expect(plan.dinners.map(\.date) == [8, 9, 11, 13, 14].map { day($0) }, "Only empty days get dinners")
 
-        plan.showWeek(offset: -1)
-        try expect(plan.days.map(\.date) == (1...7).map { day($0) }, "The current week is available")
-        try expect(plan.days.filter { $0.availability == .past }.map(\.date) == [1, 2, 3].map { day($0) }, "Days before today are past")
-        try expect(plan.days.filter(\.isSelected).map(\.date) == (4...7).map { day($0) }, "Today and later days in the current week are selected")
-        try expect(!plan.canShowPreviousWeek, "Past weeks are unavailable")
-        plan.showWeek(offset: -1)
-        try expect(plan.days.first?.date == day(1), "Showing a past week does nothing")
+        let current = fixture.store.beginAutoPlan(week: wednesday, now: wednesday, random: SeededRandom(state: 1))!
+        try expect(current.days.filter { $0.availability == .past }.map(\.date) == [1, 2, 3].map { day($0) }, "Days before today are past")
+        try expect(current.dinners.map(\.date) == (4...7).map { day($0) }, "The current week is planned from today on")
+        try expect(fixture.store.canAutoPlan(week: day(25, month: 2), now: wednesday) == false
+            && fixture.store.beginAutoPlan(week: day(25, month: 2), now: wednesday) == nil && fixture.store.autoPlan === current,
+            "Past weeks can't be auto planned, and asking leaves the current proposal alone")
 
         UserDefaults.standard.set(WeekStart.monday.rawValue, forKey: WeekStart.storageKey)
-        let monday = fixture.store.beginAutoPlan(now: wednesday, random: SeededRandom(state: 1))!
-        try expect(monday.days.map(\.date) == (2...8).map { day($0) }, "The initial week follows the Monday week start")
-        UserDefaults.standard.set(WeekStart.saturday.rawValue, forKey: WeekStart.storageKey)
-        let saturday = fixture.store.beginAutoPlan(now: wednesday, random: SeededRandom(state: 1))!
-        try expect(saturday.days.map(\.date) == [day(28, month: 2)] + (1...6).map { day($0) }, "The initial week follows the Saturday week start")
+        let monday = fixture.store.beginAutoPlan(week: wednesday, now: wednesday, weekStart: .monday, random: SeededRandom(state: 1))!
+        try expect(monday.days.map(\.date) == (2...8).map { day($0) }, "Weeks follow the Monday week start")
+        let saturday = fixture.store.beginAutoPlan(week: wednesday, now: wednesday, weekStart: .saturday, random: SeededRandom(state: 1))!
+        try expect(saturday.days.map(\.date) == [day(28, month: 2)] + (1...6).map { day($0) }, "Weeks follow the Saturday week start")
         UserDefaults.standard.set(WeekStart.sunday.rawValue, forKey: WeekStart.storageKey)
         // A late-evening clock still belongs to the same calendar day.
         let lateEvening = Calendar.current.date(byAdding: .hour, value: 11, to: wednesday)!
-        let evening = fixture.store.beginAutoPlan(now: lateEvening, random: SeededRandom(state: 1))!
+        let evening = fixture.store.beginAutoPlan(week: wednesday, now: lateEvening, random: SeededRandom(state: 1))!
         try expect(evening.days.first { $0.date == day(4) }?.availability == .open, "Today stays eligible late in the evening")
     }
 
@@ -164,11 +154,9 @@ enum AutoPlanWorkflowTests {
             PlannedMeal(date: day(21), recipe: nearAfter, recipeID: nearAfter.id, servings: 2),
         ])
         defer { fixture.session.cancel() }
-        let plan = fixture.store.beginAutoPlan(now: wednesday, random: SeededRandom(state: 2))!
-        plan.showWeek(offset: 1)
-        plan.propose()
+        let plan = fixture.store.beginAutoPlan(week: day(8), now: wednesday, random: SeededRandom(state: 2))!
         let chosen = plan.dinners.compactMap(\.recipe?.id)
-        try expect(plan.dinners.map(\.date) == (8...14).map { day($0) }, "Each selected day gets one dinner entry")
+        try expect(plan.dinners.map(\.date) == (8...14).map { day($0) }, "Each open day gets one dinner entry")
         try expect(Set(chosen) == [dinner.id, uncategorized.id, farEnough.id] && chosen.count == 3,
             "Only distinct Dinner and uncategorized recipes outside the inclusive nearby window are proposed")
         try expect(plan.dinners.filter { $0.recipe == nil }.count == 4 && plan.notice == "3 dinners suggested · 4 days open",
@@ -179,9 +167,7 @@ enum AutoPlanWorkflowTests {
 
         let breakfastOnly = try await ready(recipes: others)
         defer { breakfastOnly.session.cancel() }
-        let empty = breakfastOnly.store.beginAutoPlan(now: wednesday, random: SeededRandom(state: 2))!
-        empty.showWeek(offset: 1)
-        empty.propose()
+        let empty = breakfastOnly.store.beginAutoPlan(week: day(8), now: wednesday, random: SeededRandom(state: 2))!
         try expect(empty.dinners.count == 7 && empty.dinners.allSatisfy { $0.recipe == nil }, "An empty pool leaves every day open")
         try expect(empty.notice == "No dinners to suggest. Choose recipes for the open days.",
             "An empty pool is explained")
@@ -202,10 +188,7 @@ enum AutoPlanWorkflowTests {
         defer { fixture.session.cancel() }
         var counts: [UUID: Int] = [:]
         for seed in 0..<300 {
-            let plan = fixture.store.beginAutoPlan(now: wednesday, random: SeededRandom(state: UInt64(seed)))!
-            plan.showWeek(offset: 1)
-            for date in plan.days.dropFirst().map(\.date) { plan.toggleDay(date) }
-            plan.propose()
+            let plan = fixture.store.beginAutoPlan(week: day(8), now: wednesday, random: SeededRandom(state: UInt64(seed)))!
             if let id = plan.dinners.first?.recipe?.id { counts[id, default: 0] += 1 }
         }
         let plainAverage = Double(plain.map { counts[$0.id, default: 0] }.reduce(0, +)) / Double(plain.count)
@@ -215,9 +198,7 @@ enum AutoPlanWorkflowTests {
         try expect(counts[recent.id, default: 0] > 0, "Recently cooked recipes remain possible")
         try expect(plain.allSatisfy { counts[$0.id, default: 0] > 0 }, "Recipes without favorites or ratings are still considered")
 
-        let plan = fixture.store.beginAutoPlan(now: wednesday, random: SeededRandom(state: 7))!
-        plan.showWeek(offset: 1)
-        plan.propose()
+        let plan = fixture.store.beginAutoPlan(week: day(8), now: wednesday, random: SeededRandom(state: 7))!
         let first = plan.dinners.compactMap(\.recipe?.id)
         try expect(Set(first).count == 7, "A full week uses seven different recipes")
         var varied = false
@@ -234,9 +215,7 @@ enum AutoPlanWorkflowTests {
         let breakfast = recipe("Pancakes", category: .breakfast, servings: 2)
         let fixture = try await ready(recipes: pool + [breakfast])
         defer { fixture.session.cancel() }
-        let plan = fixture.store.beginAutoPlan(now: wednesday, random: SeededRandom(state: 3))!
-        plan.showWeek(offset: 1)
-        plan.propose()
+        let plan = fixture.store.beginAutoPlan(week: day(8), now: wednesday, random: SeededRandom(state: 3))!
         try expect(!plan.needsDiscardConfirmation, "An unadjusted proposal can close without confirmation")
         let ids = plan.dinners.map(\.id)
         func dinner(_ index: Int) -> AutoPlan.Dinner { plan.dinners.first { $0.id == ids[index] }! }
@@ -282,9 +261,7 @@ enum AutoPlanWorkflowTests {
         // Seven recipes for seven days leaves nothing else to suggest.
         let exact = try await ready(recipes: Array(pool.prefix(7)))
         defer { exact.session.cancel() }
-        let full = exact.store.beginAutoPlan(now: wednesday, random: SeededRandom(state: 4))!
-        full.showWeek(offset: 1)
-        full.propose()
+        let full = exact.store.beginAutoPlan(week: day(8), now: wednesday, random: SeededRandom(state: 4))!
         let proposed = full.dinners
         try expect(!full.suggestAnother(for: proposed[0].id) && full.dinners == proposed
             && full.notice == "No other recipe can be suggested for this day. Choose one yourself, or keep this dinner.",
@@ -301,10 +278,7 @@ enum AutoPlanWorkflowTests {
 
     /// A proposal for every day of next week, March 8–14, from seven Dinner recipes.
     private static func proposed(_ fixture: Fixture, seed: UInt64 = 5) -> AutoPlan {
-        let plan = fixture.store.beginAutoPlan(now: wednesday, random: SeededRandom(state: seed))!
-        plan.showWeek(offset: 1)
-        plan.propose()
-        return plan
+        fixture.store.beginAutoPlan(week: day(8), now: wednesday, random: SeededRandom(state: seed))!
     }
 
     private static func saving() async throws {
@@ -473,6 +447,6 @@ enum AutoPlanWorkflowTests {
         try expect(fixture.store.meals.isEmpty, "Late save results can't publish into the new household")
         let former = try await fixture.backend.snapshot(household: fixture.household.id)
         try expect(former.meals.isEmpty, "The proposal writes nothing once its member has left the household")
-        try expect(fixture.store.beginAutoPlan(now: wednesday)?.householdID == moved.household.id, "A new proposal belongs to the new household")
+        try expect(fixture.store.beginAutoPlan(week: day(8), now: wednesday)?.householdID == moved.household.id, "A new proposal belongs to the new household")
     }
 }
