@@ -37,19 +37,19 @@ struct MealPlanView: View {
 
     var body: some View {
         let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
         let mealsByDay = Dictionary(grouping: store.meals) { calendar.startOfDay(for: $0.date) }
         let notesByDay = Dictionary(grouping: store.notes) { calendar.startOfDay(for: $0.date) }
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 10) {
                     ForEach(weeks, id: \.self) { week in
-                        let isThisWeek = calendar.isDate(week, inSameDayAs: CalendarDays.startOfWeek(.now))
                         let days = CalendarDays.week(containing: week)
                         Section {
                             ForEach(days, id: \.self) { day in
                                 let meals = mealsByDay[day, default: []]
                                 let notes = notesByDay[day, default: []]
-                                MealPlanDay(day: day, meals: meals, notes: notes, isThisWeek: isThisWeek,
+                                MealPlanDay(day: day, meals: meals, notes: notes, isEmphasized: day >= today,
                                             add: { selection = MealSelection(date: day) },
                                             edit: { selection = MealSelection(date: day, meal: $0) },
                                             addNote: { editingNote = MealPlanNote(date: day, text: "") },

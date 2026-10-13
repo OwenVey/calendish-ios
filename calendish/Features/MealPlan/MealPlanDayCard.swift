@@ -3,7 +3,7 @@ import SwiftUI
 /// The shared day-card frame for persisted plans and the proposal being reviewed.
 struct MealPlanDayCard<Header: View, Content: View>: View {
     let day: Date
-    /// The week in focus uses solid cards; other weeks in the meal plan recede.
+    /// Emphasized days use solid cards; past days in the meal plan recede.
     let isEmphasized: Bool
     let isEmpty: Bool
     var isDropTarget = false

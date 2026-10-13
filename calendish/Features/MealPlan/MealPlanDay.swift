@@ -5,8 +5,8 @@ struct MealPlanDay: View {
     let day: Date
     let meals: [PlannedMeal]
     let notes: [MealPlanNote]
-    /// Days in the current week are solid cards; other weeks recede, and their empty days shrink to a single row.
-    let isThisWeek: Bool
+    /// Today and future days are solid cards; past days recede, and their empty days shrink to a single row.
+    let isEmphasized: Bool
     let add: () -> Void
     let edit: (PlannedMeal) -> Void
     let addNote: () -> Void
@@ -21,11 +21,11 @@ struct MealPlanDay: View {
     private var isEmpty: Bool { meals.isEmpty && notes.isEmpty }
 
     var body: some View {
-        MealPlanDayCard(day: day, isEmphasized: isThisWeek, isEmpty: isEmpty, isDropTarget: isDropTarget) {
-            MealPlanDayHeader(day: day, meals: meals, notes: notes, isThisWeek: isThisWeek, isToday: isToday,
+        MealPlanDayCard(day: day, isEmphasized: isEmphasized, isEmpty: isEmpty, isDropTarget: isDropTarget) {
+            MealPlanDayHeader(day: day, meals: meals, notes: notes, isEmphasized: isEmphasized, isToday: isToday,
                               add: add, addNote: addNote, addToGroceries: addToGroceries, remove: remove)
         } content: {
-            if isEmpty, isThisWeek {
+            if isEmpty, isEmphasized {
                 MealPlanDayEmptyEntry(title: "Add a meal", accessibilityLabel: "Add recipe", action: add)
             } else {
                 ForEach(meals) { MealPlanMealEntry(meal: $0, edit: edit, remove: remove) }

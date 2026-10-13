@@ -5,7 +5,7 @@ struct MealPlanDayHeader: View {
     let day: Date
     let meals: [PlannedMeal]
     let notes: [MealPlanNote]
-    let isThisWeek: Bool
+    let isEmphasized: Bool
     let isToday: Bool
     let add: () -> Void
     let addNote: () -> Void
@@ -14,7 +14,7 @@ struct MealPlanDayHeader: View {
     private var weekday: String { day.formatted(.dateTime.weekday(.wide)) }
 
     var body: some View {
-        MealPlanDayCardHeader(day: day, isEmphasized: isThisWeek, isToday: isToday) {
+        MealPlanDayCardHeader(day: day, isEmphasized: isEmphasized, isToday: isToday) {
             Menu {
                 Button("Add recipe", systemImage: "book.closed", action: add)
                 Button("Add note", systemImage: "note.text", action: addNote)
