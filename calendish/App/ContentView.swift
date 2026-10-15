@@ -51,7 +51,7 @@ struct ContentView: View {
         .preferredColorScheme(appearance.colorScheme)
         .task { await store.start() }
         .task(id: store.userID) { await notifications.setAccount(store.userID) }
-        .task(id: store.phase == .ready ? notifications.pendingRecipe : nil) { await openNotifiedRecipe() }
+        .task(id: store.phase == .ready ? notifications.pendingAlert : nil) { await openNotification() }
         .onOpenURL { url in
             if url.scheme == "calendish", url.host == "cooking" {
                 if let session = CookingSession.shared.snapshot,
@@ -108,26 +108,41 @@ struct ContentView: View {
         recipePath = NavigationPath([recipe])
     }
 
-    /// Waits for sign-in and an authoritative refresh before opening a recipe from an alert.
-    private func openNotifiedRecipe() async {
-        guard store.phase == .ready, let alert = notifications.pendingRecipe else { return }
-        guard alert.recipientID == store.userID, alert.householdID == store.household?.id else {
-            notifications.pendingRecipe = nil
+    /// Opens what a household alert is about, only for the account and household it was sent to.
+    private func openNotification() async {
+        guard store.phase == .ready, let alert = notifications.pendingAlert else { return }
+        // A removed member is already outside that household; the app shows where they are now.
+        guard alert.kind != .memberRemoved, alert.recipientID == store.userID, alert.householdID == store.household?.id else {
+            notifications.pendingAlert = nil
             return
         }
+        switch alert.kind {
+        case .recipe: await openNotifiedRecipe(alert)
+        case .groceries:
+            notifications.pendingAlert = nil
+            selectedTab = .groceries
+        case .memberJoined:
+            notifications.pendingAlert = nil
+            selectedTab = .settings
+        case .memberRemoved: break
+        }
+    }
+
+    /// Waits for an authoritative refresh before opening a recipe from an alert.
+    private func openNotifiedRecipe(_ alert: HouseholdAlert) async {
         await store.waitForSaves()
         do {
             guard try await store.reload() else { return }
         } catch {
-            guard !Task.isCancelled, notifications.pendingRecipe == alert else { return }
-            notifications.pendingRecipe = nil
+            guard !Task.isCancelled, notifications.pendingAlert == alert else { return }
+            notifications.pendingAlert = nil
             store.errorTitle = "Couldn’t open recipe"
             store.errorMessage = "Check your connection and open the recipe from your recipe book."
             return
         }
-        guard !Task.isCancelled, notifications.pendingRecipe == alert,
+        guard !Task.isCancelled, notifications.pendingAlert == alert,
               alert.recipientID == store.userID, alert.householdID == store.household?.id else { return }
-        notifications.pendingRecipe = nil
+        notifications.pendingAlert = nil
         if let recipe = store.recipes.first(where: { $0.id == alert.recipeID }) { openRecipe(recipe) }
         else {
             store.errorTitle = "Recipe unavailable"

@@ -39,8 +39,8 @@ struct HouseholdWorkflowApp: App {
     }
     private func openNotificationFixture(_ argument: String) {
         guard let user = uiStore.userID, let home = uiStore.household?.id, let recipe = uiStore.recipes.first else { return }
-        HouseholdNotifications.shared.pendingRecipe = RecipeNotification(userInfo: [
-            "type": "household_recipe", "household_id": home.uuidString,
+        HouseholdNotifications.shared.pendingAlert = HouseholdAlert(userInfo: [
+            "type": argument == "--ui-notification-groceries" ? "household_groceries" : "household_recipe", "household_id": home.uuidString,
             "recipient_id": (argument == "--ui-notification-other-account" ? UUID() : user).uuidString,
             "recipe_id": (argument == "--ui-notification-missing" ? UUID() : recipe.id).uuidString,
         ])

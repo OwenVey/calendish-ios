@@ -8,12 +8,13 @@ import UserNotifications
 @Observable
 final class HouseholdNotifications {
     static let shared = HouseholdNotifications()
-    private(set) var isEnabled = false
+    /// The household alerts this account turned on for this installation.
+    private(set) var topics: Set<NotificationTopic> = []
     private(set) var authorization: UNAuthorizationStatus = .notDetermined
     private(set) var isUpdating = false
     private(set) var isRegistered = false
     var errorMessage: String?
-    var pendingRecipe: RecipeNotification?
+    var pendingAlert: HouseholdAlert?
     var isOfferingSetup = false
 
     private var accountID: UUID?
@@ -39,9 +40,9 @@ final class HouseholdNotifications {
         guard id == transport.client.auth.currentUser?.id else { return }
         if accountID != id {
             accountID = id
-            pendingRecipe = pendingRecipe?.recipientID == id ? pendingRecipe : nil
+            pendingAlert = pendingAlert?.recipientID == id ? pendingAlert : nil
             isRegistered = false
-            isEnabled = id.map { defaults.bool(forKey: preferenceKey($0)) } ?? false
+            topics = id.map(storedTopics) ?? []
         }
         await refresh()
     }
@@ -57,31 +58,48 @@ final class HouseholdNotifications {
     }
 
     var canReceiveAlerts: Bool { authorization == .authorized || authorization == .provisional || authorization == .ephemeral }
+    var isEnabled: Bool { !topics.isEmpty }
 
-    func setEnabled(_ enabled: Bool) async {
-        guard let accountID, !isUpdating else { return }
+    func isEnabled(_ topic: NotificationTopic) -> Bool { topics.contains(topic) }
+
+    /// Membership changes are rare and important, so they turn on with the first other topic until someone turns them off.
+    func setEnabled(_ topic: NotificationTopic, _ enabled: Bool) async {
+        guard let accountID else { return }
+        var updated = topics
+        if enabled {
+            updated.insert(topic)
+            if defaults.object(forKey: NotificationTopic.membership.preferenceKey(accountID)) == nil { updated.insert(.membership) }
+        } else {
+            updated.remove(topic)
+        }
+        await setTopics(updated)
+    }
+
+    func setTopics(_ updated: Set<NotificationTopic>) async {
+        guard let accountID, !isUpdating, updated != topics else { return }
         isUpdating = true
         defer { isUpdating = false }
         errorMessage = nil
         do {
-            if enabled {
+            let added = !updated.isSubset(of: topics)
+            if added {
                 _ = try await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])
                 authorization = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
                 guard canReceiveAlerts else { return }
             }
             guard self.accountID == accountID else { return }
-            let previous = isEnabled
-            isEnabled = enabled
+            let previous = topics
+            topics = updated
             do { try await synchronize() }
             catch {
-                if self.accountID == accountID { isEnabled = previous }
+                if self.accountID == accountID { topics = previous }
                 throw error
             }
             // A suspended request must not save a preference into a different account.
             guard self.accountID == accountID else { return }
-            defaults.set(enabled, forKey: preferenceKey(accountID))
-            if enabled { UIApplication.shared.registerForRemoteNotifications() }
-            else { await removeRecipeAlerts() }
+            for topic in NotificationTopic.allCases { defaults.set(updated.contains(topic), forKey: topic.preferenceKey(accountID)) }
+            if added { UIApplication.shared.registerForRemoteNotifications() }
+            await removeAlerts(previous.subtracting(updated))
         } catch {
             errorMessage = "Couldn’t update notifications. Check your connection and try again."
         }
@@ -96,7 +114,7 @@ final class HouseholdNotifications {
             errorMessage = nil
             isOfferingSetup = true
         case .denied: break
-        default: await setEnabled(true)
+        default: await setTopics(Set(NotificationTopic.allCases))
         }
     }
 
@@ -120,42 +138,50 @@ final class HouseholdNotifications {
     /// Best effort: signing out must work offline, and ending the session removes the device server-side.
     func unregisterBeforeSignOut() async {
         accountID = nil
-        pendingRecipe = nil
+        pendingAlert = nil
         _ = try? await registrationTask?.value
         try? await transport.unregister(installation: installation)
         isRegistered = false
-        isEnabled = false
-        await removeRecipeAlerts()
+        topics = []
+        await removeAlerts(Set(NotificationTopic.allCases))
     }
 
-    func shouldPresent(_ recipe: RecipeNotification) -> Bool {
-        isEnabled && recipe.recipientID == transport.client.auth.currentUser?.id
+    func shouldPresent(_ alert: HouseholdAlert) -> Bool {
+        topics.contains(alert.topic) && alert.recipientID == transport.client.auth.currentUser?.id
     }
 
-    private func preferenceKey(_ account: UUID) -> String { "householdRecipeNotifications.\(account.uuidString)" }
+    private func storedTopics(_ account: UUID) -> Set<NotificationTopic> {
+        var stored = Set(NotificationTopic.allCases.filter { defaults.bool(forKey: $0.preferenceKey(account)) })
+        // Before membership alerts existed, turning on recipes was the only household opt-in.
+        if defaults.object(forKey: NotificationTopic.membership.preferenceKey(account)) == nil, stored.contains(.recipes) {
+            stored.insert(.membership)
+        }
+        return stored
+    }
 
     private func synchronize() async throws {
         guard let accountID else { return }
         let token = deviceToken
-        let enabled = isEnabled && canReceiveAlerts
-        if enabled, token == nil { return }
+        let enabled = canReceiveAlerts ? topics : []
+        if !enabled.isEmpty, token == nil { return }
         let previous = registrationTask
         let task = Task {
             _ = try? await previous?.value
             guard self.accountID == accountID, self.transport.client.auth.currentUser?.id == accountID else { return }
-            if let token { try await self.transport.register(installation: self.installation, token: token, enabled: enabled) }
+            if let token { try await self.transport.register(installation: self.installation, token: token, topics: enabled) }
             else { try await self.transport.unregister(installation: self.installation) }
-            if self.accountID == accountID { self.isRegistered = enabled }
+            if self.accountID == accountID { self.isRegistered = !enabled.isEmpty }
         }
         registrationTask = task
         try await task.value
     }
 
-    private func removeRecipeAlerts() async {
+    private func removeAlerts(_ removed: Set<NotificationTopic>) async {
+        guard !removed.isEmpty else { return }
         let center = UNUserNotificationCenter.current()
         let alerts = await center.deliveredNotifications()
         center.removeDeliveredNotifications(withIdentifiers: alerts.filter {
-            RecipeNotification(userInfo: $0.request.content.userInfo) != nil
+            HouseholdAlert(userInfo: $0.request.content.userInfo).map { removed.contains($0.topic) } ?? false
         }.map(\.request.identifier))
     }
 }

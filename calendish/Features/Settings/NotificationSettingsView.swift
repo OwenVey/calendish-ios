@@ -2,23 +2,24 @@ import SwiftUI
 
 struct NotificationSettingsView: View {
     @State private var notifications = HouseholdNotifications.shared
-    @State private var enabled = false
+    /// Follows each tap right away while permission and registration catch up.
+    @State private var selected: Set<NotificationTopic> = []
     @Environment(\.openURL) private var openURL
 
     var body: some View {
         Form {
             Section {
-                Toggle("Household recipes", isOn: $enabled)
-                    .disabled(notifications.isUpdating)
-                    .onChange(of: enabled) { _, value in
-                        guard value != notifications.isEnabled else { return }
-                        Task {
-                            await notifications.setEnabled(value)
-                            enabled = notifications.isEnabled
-                        }
+                ForEach(NotificationTopic.allCases) { topic in
+                    Toggle(isOn: binding(topic)) {
+                        Text(topic.title)
+                        Text(topic.detail)
                     }
+                }
+                .disabled(notifications.isUpdating)
+            } header: {
+                Text("Household")
             } footer: {
-                Text("Get notified when someone else adds a shared recipe to your household. This setting applies to this iPhone.")
+                Text("You won’t be notified about your own changes. These settings apply to this iPhone.")
             }
             if notifications.authorization == .denied {
                 Section {
@@ -43,8 +44,21 @@ struct NotificationSettingsView: View {
         .navigationTitle("Notifications")
         .task {
             await notifications.refresh()
-            enabled = notifications.isEnabled
+            selected = notifications.topics
         }
-        .onChange(of: notifications.isEnabled) { _, value in enabled = value }
+        .onChange(of: notifications.topics) { _, value in selected = value }
+    }
+
+    private func binding(_ topic: NotificationTopic) -> Binding<Bool> {
+        Binding {
+            selected.contains(topic)
+        } set: { value in
+            guard value != notifications.isEnabled(topic) else { return }
+            if value { selected.insert(topic) } else { selected.remove(topic) }
+            Task {
+                await notifications.setEnabled(topic, value)
+                selected = notifications.topics
+            }
+        }
     }
 }

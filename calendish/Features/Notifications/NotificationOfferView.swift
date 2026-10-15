@@ -14,8 +14,8 @@ struct NotificationOfferView: View {
                     .foregroundStyle(CalendishStyle.accent)
                     .accessibilityHidden(true)
                 VStack(spacing: 8) {
-                    Text("Never miss a new recipe").font(.title.bold()).fontDesign(.rounded)
-                    Text("Get notified when someone in your household adds a recipe. You can change this anytime in Settings.")
+                    Text("Stay in step with your household").font(.title.bold()).fontDesign(.rounded)
+                    Text("Get notified when someone adds a recipe or groceries, or joins your household. You can choose which alerts you get anytime in Settings.")
                         .font(.body).foregroundStyle(.secondary)
                 }
                 .multilineTextAlignment(.center)
@@ -33,7 +33,7 @@ struct NotificationOfferView: View {
             VStack(spacing: 12) {
                 AuthButton(title: "Turn on notifications", working: notifications.isUpdating, workingTitle: "Turning on notifications") {
                     Task {
-                        await notifications.setEnabled(true)
+                        await notifications.setTopics(Set(NotificationTopic.allCases))
                         if notifications.errorMessage == nil { dismiss() }
                     }
                 }

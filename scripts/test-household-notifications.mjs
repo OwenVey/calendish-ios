@@ -35,8 +35,8 @@ async function person(name) {
   return { id: user.id, name, token: session.access_token };
 }
 const newToken = () => randomUUID().replaceAll('-', '') + randomUUID().replaceAll('-', '');
-const register = (p, installation, token, enabled = true, environment = 'sandbox') => rpc(p, 'register_push_device', {
-  installation, device_token: token, push_environment: environment, recipes_enabled: enabled,
+const register = (p, installation, token, enabled = true, environment = 'sandbox', topics = {}) => rpc(p, 'register_push_device', {
+  installation, device_token: token, push_environment: environment, recipes_enabled: enabled, ...topics,
 });
 async function addRecipe(p, title, shared = true) {
   const [recipe] = await request('/rest/v1/recipes', p.token, 'POST', { id: randomUUID(), owner_id: p.id, is_shared: shared, title,
@@ -44,16 +44,28 @@ async function addRecipe(p, title, shared = true) {
   return recipe;
 }
 async function deliveries(recipe) {
-  const events = await rows(`recipe_push_events?recipe_id=eq.${recipe.id}`);
-  return events.length ? await rows(`recipe_push_deliveries?event_id=eq.${events[0].id}`) : [];
+  const events = await rows(`push_events?recipe_id=eq.${recipe.id}`);
+  return events.length ? await rows(`push_deliveries?event_id=eq.${events[0].id}`) : [];
 }
 async function claim(recipe, environments) {
-  const expected = await deliveries(recipe);
-  const leases = await adminRPC('claim_recipe_pushes', environments ? { push_environments: environments } : {});
+  return claimDeliveries(await deliveries(recipe), environments);
+}
+async function claimDeliveries(expected, environments) {
+  const leases = await adminRPC('claim_household_pushes', environments ? { push_environments: environments } : {});
   return leases.filter(l => expected.some(d => d.id === l.id));
 }
-const prepare = lease => adminRPC('prepare_recipe_push', { delivery_id: lease.id, delivery_lease: lease.lease_id });
-const finish = (lease, result, extra = {}) => adminRPC('finish_recipe_push', { delivery_id: lease.id, delivery_lease: lease.lease_id, result, ...extra });
+const events = (kind, household) => rows(`push_events?kind=eq.${kind}&household_id=eq.${household}&order=created_at`);
+const eventDeliveries = event => rows(`push_deliveries?event_id=eq.${event.id}`);
+// Grocery alerts wait for more additions; tests make them due instead of waiting minutes.
+async function due(event) {
+  const past = new Date(Date.now() - 1000).toISOString();
+  await request(`/rest/v1/push_events?id=eq.${event.id}`, admin, 'PATCH', { closes_at: past }, true);
+  await request(`/rest/v1/push_deliveries?event_id=eq.${event.id}`, admin, 'PATCH', { available_at: past }, true);
+}
+const addGroceries = (p, household, names) => request('/rest/v1/grocery_items', p.token, 'POST',
+  names.map(name => ({ id: randomUUID(), household_id: household, name })));
+const prepare = lease => adminRPC('prepare_household_push', { delivery_id: lease.id, delivery_lease: lease.lease_id });
+const finish = (lease, result, extra = {}) => adminRPC('finish_household_push', { delivery_id: lease.id, delivery_lease: lease.lease_id, result, ...extra });
 const denied = operation => assert.rejects(operation, e => [401, 403, 404].includes(e.status));
 
 try {
@@ -69,11 +81,11 @@ try {
   await register(cy, cyInstall, newToken());
   await register(ben, benInstall, benToken);
   assert.equal((await rows(`push_devices?user_id=eq.${ben.id}`)).length, 2, 'Registration is idempotent and supports multiple devices');
-  for (const table of ['push_devices', 'recipe_push_events', 'recipe_push_deliveries']) {
+  for (const table of ['push_devices', 'push_events', 'push_deliveries', 'push_event_groceries']) {
     await denied(() => request(`/rest/v1/${table}?select=*`, ben.token));
   }
-  await denied(() => rpc(ben, 'claim_recipe_pushes'));
-  await denied(() => rpc(ben, 'prepare_recipe_push', { delivery_id: randomUUID(), delivery_lease: randomUUID() }));
+  await denied(() => rpc(ben, 'claim_household_pushes'));
+  await denied(() => rpc(ben, 'prepare_household_push', { delivery_id: randomUUID(), delivery_lease: randomUUID() }));
   await denied(() => request('/rest/v1/rpc/register_push_device', undefined, 'POST', {
     installation: randomUUID(), device_token: newToken(), push_environment: 'sandbox', recipes_enabled: true }));
   await assert.rejects(() => register(ana, randomUUID(), 'bad-token'), /400/);
@@ -98,7 +110,8 @@ try {
   assert.equal((await claim(soup)).length, 0, 'Leased deliveries cannot be claimed again');
   const [payload] = await prepare(leases[0]);
   assert.equal(payload.recipient_id, ben.id);
-  assert.equal(payload.title, 'Tomato soup');
+  assert.equal(payload.kind, 'recipe');
+  assert.equal(payload.recipe_title, 'Tomato soup');
   assert.equal(payload.actor_name, 'Ana');
   await finish({ ...leases[0], lease_id: randomUUID() }, 'delivered');
   assert.equal((await prepare(leases[0])).length, 1, 'Wrong lease cannot acknowledge a delivery');
@@ -152,6 +165,73 @@ try {
   assert.equal((await rows(`push_devices?user_id=eq.${ben.id}`)).length, 0);
   await denied(() => register(ben, randomUUID(), newToken()));
   console.log('PASS: invalid tokens and revoked sessions cannot keep receiving alerts');
+
+  const dee = await person('Dee'), eli = await person('Eli'), fay = await person('Fay');
+  const kitchen = await rpc(dee, 'start_household', { member_name: dee.name });
+  await rpc(eli, 'start_household', { member_name: eli.name, code: kitchen.invite_code });
+  await rpc(fay, 'start_household', { member_name: fay.name });
+  const deeInstall = randomUUID(), eliInstall = randomUUID(), fayInstall = randomUUID();
+  await register(dee, deeInstall, newToken(), false, 'sandbox', { groceries_enabled: false, membership_enabled: true });
+  await register(eli, eliInstall, newToken(), false, 'sandbox', { groceries_enabled: true, membership_enabled: true });
+  await register(fay, fayInstall, newToken(), true);
+  assert.equal((await rows(`push_devices?installation_id=eq.${fayInstall}`))[0].membership_enabled, true,
+    'Older builds that only send the recipe setting get membership alerts with it');
+
+  await addGroceries(dee, kitchen.id, ['Milk', 'Eggs']);
+  await addGroceries(dee, kitchen.id, ['Bread']);
+  const [grocery, ...extra] = await events('groceries', kitchen.id);
+  assert.equal(extra.length, 0, 'Additions close together share one alert');
+  const groceryDeliveries = await eventDeliveries(grocery);
+  assert.equal(groceryDeliveries.length, 1);
+  assert.equal(groceryDeliveries[0].recipient_id, eli.id, 'Only opted-in members other than the person adding are alerted');
+  assert(new Date(groceryDeliveries[0].available_at) > new Date(), 'Grocery alerts wait for more additions');
+  assert.equal((await claimDeliveries(groceryDeliveries)).length, 0);
+  await addGroceries(eli, kitchen.id, ['Apples']);
+  assert.equal((await eventDeliveries((await events('groceries', kitchen.id))[1])).length, 0, 'Grocery opt-outs are respected');
+  const [bread] = await request(`/rest/v1/grocery_items?household_id=eq.${kitchen.id}&name=eq.Bread`, dee.token);
+  await request(`/rest/v1/grocery_items?id=eq.${bread.id}`, dee.token, 'DELETE');
+  await due(grocery);
+  const [groceryLease] = await claimDeliveries(groceryDeliveries);
+  const [groceryPayload] = await prepare(groceryLease);
+  assert.equal(groceryPayload.kind, 'groceries');
+  assert.equal(groceryPayload.actor_name, 'Dee');
+  assert.equal(groceryPayload.item_count, 2, 'Items removed before sending are not counted');
+  assert.deepEqual(groceryPayload.item_names, ['Milk', 'Eggs']);
+  await finish(groceryLease, 'delivered');
+  await register(eli, eliInstall, (await rows(`push_devices?installation_id=eq.${eliInstall}`))[0].token, false, 'sandbox',
+    { groceries_enabled: false, membership_enabled: true });
+  await addGroceries(dee, kitchen.id, ['Butter']);
+  const later = (await events('groceries', kitchen.id)).filter(e => e.actor_id === dee.id);
+  assert.equal(later.length, 2, 'Additions after an alert sends start a new one');
+  assert.equal((await eventDeliveries(later[1])).length, 0, 'Turning grocery alerts off stops new ones');
+  console.log('PASS: grocery additions batch, exclude the person adding, and recheck the list before sending');
+
+  const fayHome = (await request('/rest/v1/household_members?select=household_id', fay.token))[0].household_id;
+  assert.equal((await events('member_joined', fayHome)).length, 0, 'Starting a household alerts nobody');
+  await rpc(fay, 'join_household', { code: kitchen.invite_code, expected_household: fayHome, save_household_recipes: false });
+  const [joined] = await events('member_joined', kitchen.id);
+  const joinedDeliveries = await eventDeliveries(joined);
+  assert.deepEqual(joinedDeliveries.map(d => d.recipient_id).sort(), [dee.id, eli.id].sort());
+  const joinedLeases = await claimDeliveries(joinedDeliveries);
+  const [joinedPayload] = await prepare(joinedLeases[0]);
+  assert.equal(joinedPayload.kind, 'member_joined');
+  assert.equal(joinedPayload.actor_name, 'Fay');
+  await finish(joinedLeases[0], 'delivered');
+
+  await rpc(dee, 'remove_household_member', { target_household: kitchen.id, target_user: fay.id });
+  const [removed] = await events('member_removed', kitchen.id);
+  const removedDeliveries = await eventDeliveries(removed);
+  assert.deepEqual(removedDeliveries.map(d => d.recipient_id), [fay.id], 'Only the removed person is told');
+  assert.equal((await prepare(joinedLeases[1])).length, 0, 'A join alert is not sent after that person is removed');
+  await finish(joinedLeases[1], 'cancelled');
+  const [removedLease] = await claimDeliveries(removedDeliveries);
+  const [removedPayload] = await prepare(removedLease);
+  assert.equal(removedPayload.kind, 'member_removed');
+  assert.equal(removedPayload.household_name, kitchen.name);
+  await finish(removedLease, 'delivered');
+  await rpc(eli, 'leave_household', { expected_household: kitchen.id, save_household_recipes: false });
+  assert.equal((await events('member_removed', kitchen.id)).length, 1, 'Leaving is not a removal');
+  console.log('PASS: joins alert other members, and only the owner removing someone alerts that person');
 } catch (error) {
   console.error('TEST FAILURE:', error.message);
   process.exitCode = 1;

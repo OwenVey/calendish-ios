@@ -18,15 +18,15 @@ final class NotificationAppDelegate: NSObject, UIApplicationDelegate, UNUserNoti
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         guard response.actionIdentifier == UNNotificationDefaultActionIdentifier,
-              let recipe = RecipeNotification(userInfo: response.notification.request.content.userInfo) else { return }
-        await MainActor.run { HouseholdNotifications.shared.pendingRecipe = recipe }
+              let alert = HouseholdAlert(userInfo: response.notification.request.content.userInfo) else { return }
+        await MainActor.run { HouseholdNotifications.shared.pendingAlert = alert }
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        guard let recipe = RecipeNotification(userInfo: notification.request.content.userInfo) else {
+        guard let alert = HouseholdAlert(userInfo: notification.request.content.userInfo) else {
             // Cooking timers already present their own in-app alert and sound.
             return []
         }
-        return await MainActor.run { HouseholdNotifications.shared.shouldPresent(recipe) ? [.banner, .list, .sound] : [] }
+        return await MainActor.run { HouseholdNotifications.shared.shouldPresent(alert) ? [.banner, .list, .sound] : [] }
     }
 }

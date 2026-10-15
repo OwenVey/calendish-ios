@@ -3,22 +3,51 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { apnsJWT, apnsResult, deliverBatch, importAPNsKey, notificationPayload } from '../supabase/functions/household-recipe-push/delivery.ts';
 
-const content = { token: 'a'.repeat(64), environment: 'sandbox', recipient_id: 'recipient', recipe_id: 'recipe',
-  household_id: 'home', title: 'Lemon & herb orzo', actor_name: 'Owen', expires_at: new Date(Date.now() + 3600000).toISOString() };
+const content = { token: 'a'.repeat(64), environment: 'sandbox', recipient_id: 'recipient', household_id: 'home', kind: 'recipe',
+  recipe_id: 'recipe', recipe_title: 'Lemon & herb orzo', actor_name: 'Owen', household_name: 'Vey Household',
+  item_count: null, item_names: null, expires_at: new Date(Date.now() + 3600000).toISOString() };
+const groceries = { ...content, kind: 'groceries', recipe_id: null, recipe_title: null, item_count: 4, item_names: ['Milk', 'Eggs', 'Bread'] };
 
 test('payload opens the recipe only for the intended account and household', () => {
   const payload = notificationPayload(content);
   assert.equal(payload.aps.alert.title, 'Owen added a recipe');
-  assert.equal(payload.aps.alert.body, content.title);
+  assert.equal(payload.aps.alert.body, content.recipe_title);
   assert.equal(payload.type, 'household_recipe');
   assert.equal(payload.recipient_id, content.recipient_id);
   assert.equal(payload.household_id, content.household_id);
   assert.equal(payload.recipe_id, content.recipe_id);
   assert.equal(payload.aps['thread-id'], 'household:home');
   assert(!JSON.stringify(payload).includes(content.token));
-  const long = notificationPayload({ ...content, title: '🍋'.repeat(2000), actor_name: '🥘'.repeat(2000) });
+  const long = notificationPayload({ ...content, recipe_title: '🍋'.repeat(2000), actor_name: '🥘'.repeat(2000) });
   assert(Buffer.byteLength(JSON.stringify(long)) < 4096);
   assert.match(notificationPayload({ ...content, actor_name: ' ' }).aps.alert.title, /^Someone in your household/);
+});
+
+test('grocery alerts summarize a batch and open the list, not a recipe', () => {
+  const payload = notificationPayload(groceries);
+  assert.equal(payload.aps.alert.title, 'Owen added 4 items to groceries');
+  assert.equal(payload.aps.alert.body, 'Milk, Eggs, Bread, and 1 more');
+  assert.equal(payload.type, 'household_groceries');
+  assert.equal(payload.recipe_id, undefined);
+  assert.equal(payload.aps['thread-id'], 'household:home:groceries');
+  const one = notificationPayload({ ...groceries, item_count: 1, item_names: ['Milk'] });
+  assert.equal(one.aps.alert.title, 'Owen added an item to groceries');
+  assert.equal(one.aps.alert.body, 'Milk');
+  assert.equal(notificationPayload({ ...groceries, item_count: 2, item_names: ['Milk', 'Eggs'] }).aps.alert.body, 'Milk and Eggs');
+  const long = notificationPayload({ ...groceries, item_count: 500, item_names: Array(3).fill('🥬'.repeat(2000)) });
+  assert(Buffer.byteLength(JSON.stringify(long)) < 4096);
+});
+
+test('membership alerts name who joined, or the household that removed you', () => {
+  const joined = notificationPayload({ ...content, kind: 'member_joined', recipe_id: null, recipe_title: null, actor_name: 'Sam' });
+  assert.equal(joined.aps.alert.title, 'Sam joined your household');
+  assert.equal(joined.type, 'household_member_joined');
+  assert.equal(joined.aps['thread-id'], 'household:home:members');
+  const removed = notificationPayload({ ...content, kind: 'member_removed', recipe_id: null, recipe_title: null });
+  assert.equal(removed.aps.alert.title, 'You were removed from Vey Household');
+  assert.equal(removed.type, 'household_member_removed');
+  assert.equal(removed.recipient_id, 'recipient');
+  assert.match(notificationPayload({ ...content, kind: 'member_removed', household_name: null }).aps.alert.title, /from a household$/);
 });
 
 test('APNs invalid tokens are removed, transient errors retry, permanent errors stop', () => {

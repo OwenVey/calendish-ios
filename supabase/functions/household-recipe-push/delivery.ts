@@ -1,11 +1,17 @@
+export type PushKind = 'recipe' | 'groceries' | 'member_joined' | 'member_removed';
+
 export interface PushContent {
   token: string;
   environment: 'sandbox' | 'production';
   recipient_id: string;
-  recipe_id: string;
   household_id: string;
-  title: string;
-  actor_name: string;
+  kind: PushKind;
+  actor_name: string | null;
+  recipe_id: string | null;
+  recipe_title: string | null;
+  household_name: string | null;
+  item_count: number | null;
+  item_names: string[] | null;
   expires_at: string;
 }
 
@@ -19,15 +25,48 @@ export interface Worker {
 }
 
 // This module has no runtime dependencies and is tested with Node's built-in test runner.
+const clip = (value: string | null, length: number) => (value ?? '').trim().slice(0, length);
+const list = new Intl.ListFormat('en', { type: 'conjunction' });
+
+function alert(content: PushContent): { title: string; body: string; thread: string } {
+  const actor = clip(content.actor_name, 100) || 'Someone in your household';
+  const thread = `household:${content.household_id}`;
+  switch (content.kind) {
+    case 'recipe':
+      return { title: `${actor} added a recipe`, body: clip(content.recipe_title, 200), thread };
+    case 'groceries': {
+      const count = Math.max(content.item_count ?? 0, 1);
+      const names = (content.item_names ?? []).map(name => clip(name, 60)).filter(Boolean).slice(0, 3);
+      const more = count - names.length;
+      return {
+        title: count === 1 ? `${actor} added an item to groceries` : `${actor} added ${count} items to groceries`,
+        body: names.length ? list.format(more > 0 ? [...names, `${more} more`] : names) : 'Open your grocery list to see what’s new.',
+        thread: `${thread}:groceries`,
+      };
+    }
+    case 'member_joined':
+      return { title: `${actor} joined your household`, body: 'They can now see shared recipes, the meal plan, and groceries.', thread: `${thread}:members` };
+    case 'member_removed': {
+      const home = clip(content.household_name, 100);
+      return {
+        title: home ? `You were removed from ${home}` : 'You were removed from a household',
+        body: 'Its recipes, meal plan, and groceries are no longer shared with you. Your own recipes are still here.',
+        thread: `${thread}:members`,
+      };
+    }
+  }
+}
+
+const types: Record<PushKind, string> = {
+  recipe: 'household_recipe', groceries: 'household_groceries', member_joined: 'household_member_joined', member_removed: 'household_member_removed',
+};
+
 export function notificationPayload(content: PushContent) {
-  const actor = content.actor_name.trim().slice(0, 100) || 'Someone in your household';
+  const { title, body, thread } = alert(content);
   return {
-    aps: {
-      alert: { title: `${actor} added a recipe`, body: content.title.slice(0, 200) },
-      sound: 'default', 'thread-id': `household:${content.household_id}`,
-    },
-    type: 'household_recipe', recipe_id: content.recipe_id,
-    household_id: content.household_id, recipient_id: content.recipient_id,
+    aps: { alert: { title, body }, sound: 'default', 'thread-id': thread },
+    type: types[content.kind], household_id: content.household_id, recipient_id: content.recipient_id,
+    ...(content.kind === 'recipe' ? { recipe_id: content.recipe_id } : {}),
   };
 }
 

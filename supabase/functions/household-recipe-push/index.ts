@@ -53,8 +53,8 @@ Deno.serve(async request => {
       }
     }
     const result = await deliverBatch({
-      claim: () => rpc<Lease[]>('claim_recipe_pushes', { batch_size: 25, push_environments: credentials.map(c => c.environment) }),
-      prepare: async lease => (await rpc<PushContent[]>('prepare_recipe_push', {
+      claim: () => rpc<Lease[]>('claim_household_pushes', { batch_size: 25, push_environments: credentials.map(c => c.environment) }),
+      prepare: async lease => (await rpc<PushContent[]>('prepare_household_push', {
         delivery_id: lease.id, delivery_lease: lease.lease_id,
       }))[0],
       send: async (lease, content) => {
@@ -72,14 +72,14 @@ Deno.serve(async request => {
         if (reason === 'ExpiredProviderToken') providerTokens.delete(content.environment);
         return { result: apnsResult(response.status, reason), reason };
       },
-      finish: (lease: Lease, result: PushResult, reason?: string) => rpc<void>('finish_recipe_push', {
+      finish: (lease: Lease, result: PushResult, reason?: string) => rpc<void>('finish_household_push', {
         delivery_id: lease.id, delivery_lease: lease.lease_id, result, error_reason: reason ?? null,
       }),
     });
     return Response.json(result);
   } catch {
-    // Never log APNs tokens, credentials, or recipe contents.
-    console.error('Household recipe push worker failed; pending leases will retry.');
+    // Never log APNs tokens, credentials, or household contents.
+    console.error('Household push worker failed; pending leases will retry.');
     return Response.json({ error: 'Push delivery temporarily unavailable' }, { status: 503 });
   }
 });

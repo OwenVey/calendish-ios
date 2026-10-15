@@ -6,14 +6,15 @@ import Supabase
 struct HouseholdPushTransport {
     let client: SupabaseClient
 
-    func register(installation: UUID, token: String, enabled: Bool) async throws {
+    func register(installation: UUID, token: String, topics: Set<NotificationTopic>) async throws {
         #if DEBUG
         let environment = "sandbox"
         #else
         let environment = "production"
         #endif
         try await client.rpc("register_push_device", params: PushDeviceRegistration(
-            installation: installation, device_token: token, push_environment: environment, recipes_enabled: enabled)).execute()
+            installation: installation, device_token: token, push_environment: environment, recipes_enabled: topics.contains(.recipes),
+            groceries_enabled: topics.contains(.groceries), membership_enabled: topics.contains(.membership))).execute()
     }
 
     func unregister(installation: UUID) async throws {

@@ -21,6 +21,12 @@ final class HouseholdUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Recipe unavailable"].exists)
     }
 
+    func testGroceryNotificationOpensTheGroceryList() {
+        let app = launch("--ui-notification-groceries")
+        XCTAssertTrue(app.tabBars.buttons["Groceries"].waitForExistence(timeout: 8), app.debugDescription)
+        XCTAssertTrue(app.tabBars.buttons["Groceries"].isSelected)
+    }
+
     private func launch(_ argument: String = "--ui-fixture") -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-household-workflow")
         // UI_LARGE_TEXT (passed as TEST_RUNNER_UI_LARGE_TEXT) reruns a flow at an accessibility text size.
