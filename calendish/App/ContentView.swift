@@ -13,6 +13,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var sharedImport: SharedImport?
     @State private var shareDrafts = RecipeImportDrafts()
+    @State private var notifications = HouseholdNotifications.shared
 
     private struct SharedImport: Identifiable {
         let id: String
@@ -49,6 +50,8 @@ struct ContentView: View {
         }
         .preferredColorScheme(appearance.colorScheme)
         .task { await store.start() }
+        .task(id: store.userID) { await notifications.setAccount(store.userID) }
+        .task(id: store.phase == .ready ? notifications.pendingRecipe : nil) { await openNotifiedRecipe() }
         .onOpenURL { url in
             if url.scheme == "calendish", url.host == "cooking" {
                 if let session = CookingSession.shared.snapshot,
@@ -67,6 +70,7 @@ struct ContentView: View {
             // Catch up on anything missed while Realtime was disconnected in the background.
             if phase == .active, store.phase == .ready { Task { await store.resumeSync() } }
             if phase == .active { openNextShare() }
+            if phase == .active { Task { await notifications.refresh() } }
         }
         .onChange(of: store.phase) { _, _ in openNextShare() }
         .sheet(item: $sharedImport, onDismiss: openNextShare) { share in
@@ -76,6 +80,7 @@ struct ContentView: View {
                 .environment(\.openRecipe, openRecipe)
                 .onAppear { SharedInbox.remove(share.id) }
         }
+        .sheet(isPresented: $notifications.isOfferingSetup) { NotificationOfferView() }
         .calendishAlert(store.errorTitle, item: $store.errorMessage) { _ in
             Button("OK") { }
         } message: { Text($0) }
@@ -101,6 +106,33 @@ struct ContentView: View {
     private func openRecipe(_ recipe: Recipe) {
         selectedTab = .recipes
         recipePath = NavigationPath([recipe])
+    }
+
+    /// Waits for sign-in and an authoritative refresh before opening a recipe from an alert.
+    private func openNotifiedRecipe() async {
+        guard store.phase == .ready, let alert = notifications.pendingRecipe else { return }
+        guard alert.recipientID == store.userID, alert.householdID == store.household?.id else {
+            notifications.pendingRecipe = nil
+            return
+        }
+        await store.waitForSaves()
+        do {
+            guard try await store.reload() else { return }
+        } catch {
+            guard !Task.isCancelled, notifications.pendingRecipe == alert else { return }
+            notifications.pendingRecipe = nil
+            store.errorTitle = "Couldn’t open recipe"
+            store.errorMessage = "Check your connection and open the recipe from your recipe book."
+            return
+        }
+        guard !Task.isCancelled, notifications.pendingRecipe == alert,
+              alert.recipientID == store.userID, alert.householdID == store.household?.id else { return }
+        notifications.pendingRecipe = nil
+        if let recipe = store.recipes.first(where: { $0.id == alert.recipeID }) { openRecipe(recipe) }
+        else {
+            store.errorTitle = "Recipe unavailable"
+            store.errorMessage = "This recipe may have been removed or made private. Check your recipe book for the latest recipes."
+        }
     }
 
     /// Recipes shared from other apps open in the Recipes tab, one at a time.

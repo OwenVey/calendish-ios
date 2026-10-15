@@ -18,8 +18,12 @@ struct HouseholdWorkflowApp: App {
                 HouseholdSetupView().environment(uiStore)
             } else if ProcessInfo.processInfo.arguments.contains("--ui-leave") {
                 HouseholdMoveView(leaving: true).environment(uiStore)
-            } else if ProcessInfo.processInfo.arguments.contains("--ui-fixture") || ProcessInfo.processInfo.arguments.contains("--ui-invite") {
+            } else if ProcessInfo.processInfo.arguments.contains("--ui-fixture") || ProcessInfo.processInfo.arguments.contains("--ui-invite")
+                || ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--ui-notification") }) {
                 ContentView(store: uiStore).onAppear {
+                    if let argument = ProcessInfo.processInfo.arguments.first(where: { $0.hasPrefix("--ui-notification") }) {
+                        openNotificationFixture(argument)
+                    }
                     if ProcessInfo.processInfo.arguments.contains("--ui-invite") {
                         _ = uiStore.openInvite(URL(string: "calendish://join/VALID123")!)
                     }
@@ -33,6 +37,14 @@ struct HouseholdWorkflowApp: App {
             }
         }
     }
+    private func openNotificationFixture(_ argument: String) {
+        guard let user = uiStore.userID, let home = uiStore.household?.id, let recipe = uiStore.recipes.first else { return }
+        HouseholdNotifications.shared.pendingRecipe = RecipeNotification(userInfo: [
+            "type": "household_recipe", "household_id": home.uuidString,
+            "recipient_id": (argument == "--ui-notification-other-account" ? UUID() : user).uuidString,
+            "recipe_id": (argument == "--ui-notification-missing" ? UUID() : recipe.id).uuidString,
+        ])
+    }
     private func expect(_ condition: Bool, _ message: String) throws {
         if !condition { throw NSError(domain: message, code: 1) }
     }
@@ -44,6 +56,7 @@ struct HouseholdWorkflowApp: App {
         }
     }
     private func run() async throws {
+        try HouseholdNotificationTests.run()
         try await SupabaseHouseholdBackendContractTests.run()
         try await AutoPlanWorkflowTests.run()
         UserDefaults.standard.removeObject(forKey: "pendingHouseholdInvite")

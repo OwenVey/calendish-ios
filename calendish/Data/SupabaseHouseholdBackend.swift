@@ -45,7 +45,10 @@ final class SupabaseHouseholdBackend: HouseholdBackend {
         }
         return true
     }
-    func signOut() async throws { try await client.auth.signOut() }
+    func signOut() async throws {
+        if client === supabase { await HouseholdNotifications.shared.unregisterBeforeSignOut() }
+        try await client.auth.signOut()
+    }
     func currentHousehold(user: UUID) async throws -> HouseholdRecord? {
         let memberships: [MemberRecord] = try await client.from("household_members").select().eq("user_id", value: user).execute().value
         guard let id = memberships.first?.householdID else { return nil }

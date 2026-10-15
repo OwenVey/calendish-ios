@@ -238,6 +238,11 @@
 				TargetAttributes = {
 					05BDE75B3072DA7B00C5B9A0 = {
 						CreatedOnToolsVersion = 27.0;
+						SystemCapabilities = {
+							com.apple.Push = {
+								enabled = 1;
+							};
+						};
 					};
 					5E0A11CE0000000000000001 = {
 						CreatedOnToolsVersion = 27.0;
@@ -672,6 +677,8 @@
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.55.3;
 			};
+			traits = (
+			);
 		};
 		05BDE7753072DA7C00C5B9A0 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
 			isa = XCRemoteSwiftPackageReference;

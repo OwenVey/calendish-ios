@@ -183,6 +183,10 @@ All commands live in `scripts/`. `test-household-workflow.sh` builds a separate 
 
 The household workflow suite also covers auto planning. Run its focused UI flow with `./scripts/test-household-ui.sh -only-testing:HouseholdUITests/HouseholdUITests/testAutoPlanProposesAdjustsAndAddsDinners`. Prefix that command with `TEST_RUNNER_UI_LARGE_TEXT=1` to check the flow at an accessibility text size.
 
+### Household notifications
+
+Household members can opt in to alerts for new shared recipes in Settings → Notifications. See [household notification setup](docs/household-notifications.md) for Apple APNs key creation, credential upload, delivery behavior, and verification. The app and backend are implemented; Apple signing credentials are required for live pushes.
+
 ### Live backend checks
 
 With the Supabase CLI authenticated to this project, these scripts create disposable users and households, then remove them:
@@ -190,6 +194,7 @@ With the Supabase CLI authenticated to this project, these scripts create dispos
 - `node scripts/test-grocery-realtime.mjs`: live syncing, household isolation, atomic RPCs, pagination, and private Storage.
 - `node scripts/test-household-moves.mjs`: onboarding, ownership, membership, photos, saved meals, and concurrency.
 - `node scripts/test-auto-plan-saves.mjs`: guarded dinner saves, occupied days, recipe revisions, membership changes, concurrent writes, and duplicate-free retries.
+- `node scripts/test-household-notifications.mjs`: push registration, recipient isolation, opt-outs, leases, membership changes, and revoked sessions, without sending real alerts.
 - `node scripts/test-profile-photos.mjs`: avatar persistence and private Storage access.
 
 Use a scoped CLI token for automated runs. Administrative test keys stay in memory and are never shipped in the app.

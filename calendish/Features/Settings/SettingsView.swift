@@ -38,6 +38,9 @@ struct SettingsView: View {
             }
             // Sort, grouping, and show-completed live in each screen's own menus, which remember the choice.
             Section("General") {
+                NavigationLink { NotificationSettingsView() } label: {
+                    SettingsLabel("Notifications", systemImage: "bell.badge.fill", color: .red)
+                }
                 AdaptiveSettingsPicker(selection: $appearance, value: appearance.title) {
                     ForEach(AppAppearance.allCases) { Text($0.title).tag($0) }
                 } label: {

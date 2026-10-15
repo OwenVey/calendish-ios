@@ -30,8 +30,10 @@ struct HouseholdSetupView: View {
                         message = nil
                         Task {
                             defer { working = false }
-                            do { try await store.startHousehold(memberName: trimmedName) }
-                            catch { message = InterfaceCopy.failure(error, action: "complete account setup", recovery: "Check your details and try again.") }
+                            do {
+                                try await store.startHousehold(memberName: trimmedName)
+                                await HouseholdNotifications.shared.offerAfterSetup()
+                            } catch { message = InterfaceCopy.failure(error, action: "complete account setup", recovery: "Check your details and try again.") }
                         }
                     } label: {
                         if working { ProgressView(store.pendingInvite == nil ? "Starting household" : "Joining household") }

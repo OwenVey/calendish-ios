@@ -2,6 +2,25 @@ import UIKit
 import XCTest
 
 final class HouseholdUITests: XCTestCase {
+    func testNotificationOpensItsRecipe() {
+        let app = launch("--ui-notification")
+        XCTAssertTrue(app.buttons["Cook"].waitForExistence(timeout: 8), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["Lemon & herb orzo"].exists)
+    }
+
+    func testMissingNotificationRecipeExplainsWhatChanged() {
+        let app = launch("--ui-notification-missing")
+        XCTAssertTrue(app.staticTexts["Recipe unavailable"].waitForExistence(timeout: 8), app.debugDescription)
+        XCTAssertFalse(app.buttons["Cook"].exists)
+    }
+
+    func testAnotherAccountsNotificationCannotOpenARecipe() {
+        let app = launch("--ui-notification-other-account")
+        XCTAssertTrue(app.buttons["New recipe"].waitForExistence(timeout: 8), app.debugDescription)
+        XCTAssertFalse(app.buttons["Cook"].exists)
+        XCTAssertFalse(app.staticTexts["Recipe unavailable"].exists)
+    }
+
     private func launch(_ argument: String = "--ui-fixture") -> XCUIApplication {
         let app = XCUIApplication(bundleIdentifier: "owenvey.calendish-household-workflow")
         // UI_LARGE_TEXT (passed as TEST_RUNNER_UI_LARGE_TEXT) reruns a flow at an accessibility text size.

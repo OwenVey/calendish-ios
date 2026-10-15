@@ -40,7 +40,7 @@ objects['05BDE7583072DA7B00C5B9A0']['files'].append(build_id)
 objects['05BDE7533072DA7B00C5B9A0']['children'].append(file_id)
 if test_file == 'tests/Account/HouseholdStoreWorkflowTests.swift':
     # The workflow harness also runs the adapter contract and auto-planning workflow suites.
-    extras = ['tests/Data/SupabaseHouseholdBackendContractTests.swift', 'tests/MealPlan/AutoPlanWorkflowTests.swift']
+    extras = ['tests/Data/SupabaseHouseholdBackendContractTests.swift', 'tests/MealPlan/AutoPlanWorkflowTests.swift', 'tests/Notifications/HouseholdNotificationTests.swift']
     for index, extra in enumerate(extras):
         extra_file, extra_build = f'ABCDEF0000000000000001{index}0', f'ABCDEF0000000000000001{index}1'
         objects[extra_file] = dict(isa='PBXFileReference', lastKnownFileType='sourcecode.swift',
