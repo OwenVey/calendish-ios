@@ -37,7 +37,7 @@ struct ContentView: View {
         .tint(CalendishStyle.accent)
         .environment(store)
         .environment(timers)
-        .environment(\.openRecipe, openRecipe)
+        .environment(\.openRecipe, OpenRecipeAction(handler: openRecipe))
         .calendishAlert("Timer finished", isPresented: Binding(get: { !timers.finished.isEmpty && !timers.isCooking }, set: { if !$0, !timers.isCooking { timers.acknowledge() } })) {
             Button("Done") { }
         } message: {
@@ -77,7 +77,7 @@ struct ContentView: View {
             // Sheets attached out here sit outside the `.environment` modifiers above.
             RecipeImportView(start: .content(share.item), drafts: $shareDrafts)
                 .environment(store)
-                .environment(\.openRecipe, openRecipe)
+                .environment(\.openRecipe, OpenRecipeAction(handler: openRecipe))
                 .onAppear { SharedInbox.remove(share.id) }
         }
         .sheet(isPresented: $notifications.isOfferingSetup) { NotificationOfferView() }
