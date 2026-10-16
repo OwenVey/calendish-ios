@@ -13,7 +13,7 @@ struct RecipeBookList: View {
                 // A button rather than a navigation link, because lists draw links with a square highlight and ignore button styles.
                 Button { openRecipe(recipe) } label: {
                     // The photo's corners follow the card's, inset by the card's padding.
-                    RecipeRow(recipe: recipe, showsOwner: false, stats: stats[recipe.id], artworkSize: 76,
+                    RecipeRow(recipe: recipe, stats: stats[recipe.id], artworkSize: 76,
                               artworkCornerRadius: RecipeCardButtonStyle.cornerRadius - RecipeCardButtonStyle.padding)
                 }
                     // Each recipe is its own card, like the meal plan's days, with space instead of hairlines.

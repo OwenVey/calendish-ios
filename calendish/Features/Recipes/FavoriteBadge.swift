@@ -11,7 +11,7 @@ struct FavoriteBadge: View {
             .foregroundStyle(.white)
             .padding(compact ? 5 : 7)
             .background(.pink, in: .circle)
-            .padding(compact ? 5 : 8)
+            .padding(compact ? 2 : 4)
             .accessibilityHidden(true)
     }
 }

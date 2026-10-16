@@ -4,16 +4,15 @@ import SwiftUI
 struct TagPill: View {
     let tag: String
     var systemImage: String?
-    var compact = false
     var muted = false
     var body: some View {
         HStack(spacing: 4) {
             Text(tag).fixedSize(horizontal: false, vertical: true)
             if let systemImage { Image(systemName: systemImage).font(.caption2.weight(.bold)).imageScale(.small) }
         }
-        .font(compact ? .caption.weight(.medium) : .subheadline.weight(.medium))
+        .font(.subheadline.weight(.medium))
         .foregroundStyle(Color.secondary)
-        .padding(.horizontal, compact ? 8 : 12).padding(.vertical, compact ? 3 : 6)
+        .padding(.horizontal, 12).padding(.vertical, 6)
         .background(Color(.tertiarySystemFill), in: .capsule)
     }
 }
