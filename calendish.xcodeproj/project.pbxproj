@@ -457,6 +457,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = calendish/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Calendish;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take profile and recipe photos, or scan printed recipes.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "With voice commands on, Calendish listens for “next”, “back”, and “start timer” while you cook. Speech is recognized on this iPhone and never saved.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
@@ -495,6 +496,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = calendish/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Calendish;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take profile and recipe photos, or scan printed recipes.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "With voice commands on, Calendish listens for “next”, “back”, and “start timer” while you cook. Speech is recognized on this iPhone and never saved.";
 				INFOPLIST_KEY_NSSupportsLiveActivities = YES;
@@ -530,6 +532,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Calendish;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -558,6 +561,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Calendish;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -586,6 +590,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CookingActivityExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Calendish;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -614,6 +619,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CookingActivityExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Calendish;
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
