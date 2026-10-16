@@ -8,6 +8,10 @@ Also run `./scripts/run-device.sh` after making code changes to build, install, 
 
 Before building, run `./scripts/format.sh` to apply SwiftFormat, then `./scripts/lint.sh` to check SwiftFormat and SwiftLint. Fix any lint errors before finishing. Don't add new warnings. Both tools are pinned in `BuildTools/Package.swift` and built by SwiftPM on first use. Don't install them with Homebrew. The rules live in `.swiftformat` and `.swiftlint.yml`. A pre-commit hook in `.githooks/` formats and lints staged Swift files. Run `./scripts/install-hooks.sh` once per clone to enable it.
 
+## Git workflow
+
+`develop` is where work lands; `main` holds what's released. Branch off `develop` as `feat/…`, `fix/…`, or `chore/…`, open a PR into `develop` with a conventional title (`feat(groceries): …`), and squash-merge it. Releases and hotfixes merge into `main` with merge commits, never squash. When the user asks to release or hotfix, follow `docs/agents/git-workflow.md`.
+
 ## Agent skills
 
 ### Issue tracker
