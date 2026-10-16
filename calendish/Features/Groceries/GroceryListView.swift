@@ -15,6 +15,7 @@ struct GroceryListView: View {
     @State private var pastingItems = false
     @State private var sharing: ActivitySheet.Items?
     @State private var lastAddedItemID: UUID?
+    @State private var editMode = EditMode.inactive
     @FocusState private var newItemFocused: Bool
     private var query: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var isSearching: Bool { !query.isEmpty }
@@ -152,6 +153,7 @@ struct GroceryListView: View {
                         .allowsHitTesting(false)
                 }
             }
+            .environment(\.editMode, $editMode)
             .navigationTitle("Groceries")
             .tabRootStyle()
             .navigationSubtitle(subtitle)
@@ -161,7 +163,6 @@ struct GroceryListView: View {
                 ForEach(GroceryScope.allCases) { Text($0.title).tag($0) }
             }
             .toolbar {
-                ToolbarItem(id: "grocery-edit", placement: .topBarLeading) { EditButton().toolbarGlyph() }
                 ToolbarItem(id: "grocery-options", placement: .topBarTrailing) {
                     Menu {
                         Button("Share grocery list", systemImage: "square.and.arrow.up", action: shareGroceryList)
@@ -187,6 +188,12 @@ struct GroceryListView: View {
                     } message: {
                         Text("Removes checked items for everyone in your household.")
                     }
+                }
+                ToolbarItem(id: "grocery-edit", placement: .topBarTrailing) {
+                    // A glyph rather than EditButton's text, matching the recipe screen's pencil.
+                    Button(editMode.isEditing ? "Done" : "Edit list", systemImage: editMode.isEditing ? "checkmark" : "pencil") {
+                        withAnimation { editMode = editMode.isEditing ? .inactive : .active }
+                    }.toolbarGlyph()
                 }
                 ToolbarItem(id: "grocery-add", placement: .topBarTrailing) {
                     Button("New item", systemImage: "plus", action: beginAddingItem).toolbarGlyph()
