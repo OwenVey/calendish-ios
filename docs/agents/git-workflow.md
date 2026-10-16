@@ -4,7 +4,7 @@ Every push to `develop` and `main` builds in Xcode Cloud and uploads to TestFlig
 
 ## Merge methods
 
-GitHub rulesets enforce these, so a wrong method fails the merge:
+Nothing on GitHub enforces these (branch protection on a private repo needs GitHub Pro), so pass the method explicitly, as in `gh pr merge --squash` or `gh pr merge --merge`:
 
 - Into `develop`: squash a feature branch; use a merge commit when bringing `main` back into `develop`.
 - Into `main`: merge commit only. A squash would give `main` commits `develop` lacks, and every later release would conflict.
