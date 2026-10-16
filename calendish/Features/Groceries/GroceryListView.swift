@@ -13,6 +13,7 @@ struct GroceryListView: View {
     @State private var scope = GroceryScope.all
     @State private var addingItem = false
     @State private var pastingItems = false
+    @State private var sharing: ActivitySheet.Items?
     @State private var lastAddedItemID: UUID?
     @FocusState private var newItemFocused: Bool
     private var query: String { search.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -163,6 +164,8 @@ struct GroceryListView: View {
                 ToolbarItem(id: "grocery-edit", placement: .topBarLeading) { EditButton().toolbarGlyph() }
                 ToolbarItem(id: "grocery-options", placement: .topBarTrailing) {
                     Menu {
+                        Button("Share grocery list", systemImage: "square.and.arrow.up", action: shareGroceryList)
+                            .disabled(store.groceries.remainingCount == 0)
                         Button("Paste grocery list", systemImage: "doc.on.clipboard") {
                             cancelAddingItem()
                             pastingItems = true
@@ -196,7 +199,21 @@ struct GroceryListView: View {
                 Text("This removes every item, including ones not yet bought, for everyone in your household.")
             }
             .sheet(isPresented: $pastingItems) { GroceryPasteView() }
+            .sheet(item: $sharing) { items in
+                ActivitySheet(items: items.values)
+                    .presentationDetents([.medium, .large])
+                    .ignoresSafeArea()
+            }
         }
+    }
+
+    /// Share the whole unchecked list, even when search hides some items.
+    private func shareGroceryList() {
+        let lines = store.groceries.items.filter { !$0.isComplete }.map { item in
+            [item.amount, item.name].filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        guard !lines.isEmpty else { return }
+        sharing = ActivitySheet.Items(values: [lines.joined(separator: "\n")])
     }
 
     private func beginAddingItem() {
