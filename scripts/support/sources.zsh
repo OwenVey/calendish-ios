@@ -40,6 +40,7 @@ GROCERY_IMPORT_REVIEW_SOURCES=(
 )
 GROCERY_MERGE_SOURCES=(
   calendish/Features/Groceries/GroceryMerge.swift
+  calendish/Features/Groceries/GroceryFood.swift
   calendish/Features/Groceries/GroceryImport.swift
 )
 GROCERY_TRANSPORT_SOURCES=(

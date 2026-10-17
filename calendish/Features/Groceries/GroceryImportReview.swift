@@ -62,11 +62,11 @@ struct GroceryImportReview {
             let recipe = candidate.recipe
             let count = servings[candidate.id] ?? candidate.servings
             let scale = recipe.servings > 0 ? Double(count) / Double(recipe.servings) : 1
-            let names = Set(groceries.filter { $0.sources.contains(recipe.title) && !$0.isComplete }.map { foodKey($0.name) })
+            let onList = GroceryFood.onList(groceries, for: recipe.title)
             let lines = recipe.ingredients.map { ingredient in
                 let text = ingredient.display(scale: scale, units: units)
                 return Section.Line(id: ingredient.id, text: text, isSelected: selected.contains(ingredient.id),
-                    isOnList: names.contains(foodKey(text)))
+                    isOnList: onList.contains(GroceryFood.key(of: text)))
             }
             return Section(id: recipe.id, title: recipe.title, originalServings: candidate.servings,
                 servings: count, canScale: recipe.servings > 0 && !lines.isEmpty,
@@ -81,10 +81,5 @@ struct GroceryImportReview {
             section.lines.filter(\.isSelected).map { (text: $0.text, source: section.title) }
         }
         return GroceryMerge.plan(lines, into: groceries)
-    }
-
-    private func foodKey(_ line: String) -> String {
-        let name = IngredientParser.name(of: line)
-        return (name.isEmpty ? line : name).lowercased()
     }
 }

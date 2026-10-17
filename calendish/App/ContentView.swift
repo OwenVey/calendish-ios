@@ -4,7 +4,7 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var store: HouseholdStore
-    @State private var timers = CookingTimers.shared
+    @State private var timers = CookingSession.shared.timers
     @State private var resumedCooking: CookingSession.Snapshot?
     @State private var resumedChecked: Set<UUID> = []
     @State private var selectedTab: AppTab = .recipes
@@ -20,7 +20,7 @@ struct ContentView: View {
         let item: RecipeImport
     }
 
-    init(store: HouseholdStore = HouseholdStore()) {
+    init(store: HouseholdStore) {
         _store = State(initialValue: store)
     }
 

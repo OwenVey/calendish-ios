@@ -27,6 +27,8 @@ struct GroceryListView: View {
     private func activeItems(in matching: [GroceryItem]) -> [GroceryItem] { activeScope == .completed ? [] : matching.filter { !$0.isComplete } }
     private func completedItems(in matching: [GroceryItem]) -> [GroceryItem] { activeScope == .toBuy ? [] : matching.filter(\.isComplete) }
     /// Offer to add the search text when the list has nothing by that exact name, so searching doubles as a duplicate check.
+    /// Offered unless a row, checked or not, already has the typed name. This follows the search results rather
+    /// than `GroceryFood`: a food match the results don't list, like typing "onions" with "1 onion" listed, would hide both.
     private var canAddSearch: Bool {
         isSearching && activeScope != .completed && !store.groceries.items.contains { $0.name.localizedCaseInsensitiveCompare(query) == .orderedSame }
     }

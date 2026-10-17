@@ -6,7 +6,7 @@ struct GroceryPasteReviewView: View {
     let onAdded: () -> Void
 
     var body: some View {
-        let count = GrocerySync.addableNames(items.map(\.name)).count
+        let count = GroceryItem.addableNames(items.map(\.name)).count
         List {
             Section {
                 ForEach($items) { $item in

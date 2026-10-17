@@ -40,6 +40,8 @@ final class HouseholdStore {
     private static let pendingInviteKey = "pendingHouseholdInvite"
     private let backend: any HouseholdBackend
     private let finishedCooks: FinishedCooks
+    /// Runs while the session can still authenticate requests, such as revoking this device's notifications.
+    private let beforeSignOut: @MainActor () async -> Void
     private var subscription: (any HouseholdSubscription)?
     private var realtimeTasks: [Task<Void, Never>] = []
     private var reloadTask: Task<Void, Never>?
@@ -58,9 +60,11 @@ final class HouseholdStore {
     /// Replaced whenever the account or household changes, so older work can't publish into the new one.
     private var syncSession = UUID()
 
-    init(backend: (any HouseholdBackend)? = nil, finishedCooks: FinishedCooks = .shared) {
+    init(backend: (any HouseholdBackend)? = nil, finishedCooks: FinishedCooks = .shared,
+         beforeSignOut: @escaping @MainActor () async -> Void = { }) {
         self.backend = backend ?? SupabaseHouseholdBackend()
         self.finishedCooks = finishedCooks
+        self.beforeSignOut = beforeSignOut
     }
 
     /// Sample content with no account or network, for SwiftUI previews.
@@ -184,6 +188,7 @@ final class HouseholdStore {
     }
 
     func signOut() async {
+        await beforeSignOut()
         do { try await backend.signOut() } catch { report(error, action: "sign out", recovery: "Try signing out again.") }
     }
 

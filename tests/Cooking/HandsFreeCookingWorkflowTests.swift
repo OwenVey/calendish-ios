@@ -2,7 +2,7 @@ import SwiftUI
 
 /// A controlled local-speech boundary: tests deliver what the microphone "heard", hold model
 /// preparation and spoken feedback, and observe what was said. Command interpretation, the
-/// cooking session, and cooking timers run unchanged.
+/// cooking session, and cooking timers run unchanged, on their own storage rather than the app's.
 @MainActor
 private final class ControlledSpeech: HandsFreeSpeech {
     var microphoneAllowed = true
@@ -73,13 +73,18 @@ struct HandsFreeWorkflowApp: App {
         throw NSError(domain: "Timed out: \(message)", code: 1)
     }
 
-    private var session: CookingSession { .shared }
+    private let session: CookingSession = {
+        let defaults = UserDefaults(suiteName: "hands-free-workflow")!
+        defaults.removePersistentDomain(forName: "hands-free-workflow")
+        defaults.set(false, forKey: PreferenceKey.liveActivity)
+        return CookingSession(timers: CookingTimers(defaults: defaults), finishedCooks: FinishedCooks(defaults: defaults), defaults: defaults)
+    }()
     /// Waits for feedback to end, as a cook would, before speaking.
     private func say(_ text: String, to handsFree: HandsFreeCooking, _ speech: ControlledSpeech, id: String = UUID().uuidString) async throws {
         try await until("feedback ends") { !handsFree.isSpeaking }
         speech.hear(text, id: id)
     }
-    private var timers: CookingTimers { .shared }
+    private var timers: CookingTimers { session.timers }
 
     private func recipe() -> Recipe {
         Recipe(title: "Workflow soup", summary: "", prepMinutes: 0, cookMinutes: 30, servings: 4, tags: [], symbol: "fork.knife",
@@ -93,7 +98,7 @@ struct HandsFreeWorkflowApp: App {
         timers.timers.forEach(timers.cancel)
         timers.acknowledge()
         session.begin(recipe: recipe(), servings: 4)
-        let handsFree = HandsFreeCooking(speech: speech)
+        let handsFree = HandsFreeCooking(speech: speech, session: session)
         handsFree.enable()
         try await until("listening") { handsFree.status == .listening && speech.isCapturing }
         return (handsFree, speech)
@@ -102,7 +107,7 @@ struct HandsFreeWorkflowApp: App {
     private func run() async throws {
         // Deliver notifications rather than AlarmKit alarms inside the harness.
         UserDefaults.standard.set(TimerAlert.notification.rawValue, forKey: PreferenceKey.timerAlert)
-        UserDefaults.standard.set(false, forKey: PreferenceKey.liveActivity)
+        try await CookingSessionWorkflowTests.run()
         let workflows: [(String, () async throws -> Void)] = [
             ("navigation", navigation),
             ("utterances", utterances),
@@ -242,7 +247,7 @@ struct HandsFreeWorkflowApp: App {
         session.end()
         session.begin(recipe: recipe(), servings: 4)
         let speech = ControlledSpeech()
-        let handsFree = HandsFreeCooking(speech: speech)
+        let handsFree = HandsFreeCooking(speech: speech, session: session)
         try expect(handsFree.status == .off && !handsFree.keepsScreenAwake && speech.captures == 0,
             "Cook Mode never listens until voice commands are enabled")
         speech.microphoneAllowed = false
@@ -270,7 +275,7 @@ struct HandsFreeWorkflowApp: App {
         session.begin(recipe: recipe(), servings: 4)
         let speech = ControlledSpeech()
         speech.available = .needsPreparation
-        let handsFree = HandsFreeCooking(speech: speech)
+        let handsFree = HandsFreeCooking(speech: speech, session: session)
         handsFree.enable()
         try await until("preparing") { speech.isPreparing && handsFree.status == .preparing(progress: 0) }
         speech.reportPreparation(0.4)
