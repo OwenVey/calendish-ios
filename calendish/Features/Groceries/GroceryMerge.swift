@@ -30,12 +30,12 @@ enum GroceryMerge {
                 continue
             }
             let existing = measured.flatMap { measured in
-                groceries.first { !$0.isComplete && !claimed.contains($0.id) && measure(text(of: $0))?.key == measured.key }
+                groceries.first { !$0.isComplete && !claimed.contains($0.id) && measure(GroceryFood.text(of: $0))?.key == measured.key }
             }
             if let existing {
                 claimed.insert(existing.id)
-                let quantity = measure(text(of: existing))?.quantity
-                groups.append((measured?.key, [Member(text: text(of: existing), quantity: quantity), member],
+                let quantity = measure(GroceryFood.text(of: existing))?.quantity
+                groups.append((measured?.key, [Member(text: GroceryFood.text(of: existing), quantity: quantity), member],
                     existing.sources + [line.source], existing))
             } else {
                 groups.append((measured?.key, [member], [line.source], nil))
@@ -60,10 +60,6 @@ enum GroceryMerge {
             }
         }
         return result
-    }
-
-    private static func text(of item: GroceryItem) -> String {
-        [item.amount, item.name].filter { !$0.isEmpty }.joined(separator: " ")
     }
 
     /// Each source once, in order. "General" only stands in when no recipe needs the item.

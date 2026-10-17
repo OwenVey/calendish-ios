@@ -29,6 +29,7 @@ struct SpokenGroceryAddTests {
     static func main() async throws {
         try await addsSpokenTextAsTyped()
         try await skipsItemsAlreadyOnList()
+        try await matchesFoodLikeRecipeImports()
         await needsHousehold()
         await failedSaveIsNotConfirmed()
         try await ignoresBlankItems()
@@ -56,6 +57,16 @@ struct SpokenGroceryAddTests {
         let outcomes = try await adder(groceries).add(["oat MILK", "apples", "Bread", "bread"])
         precondition(outcomes == [.alreadyOnList("oat MILK"), .added("apples"), .added("Bread"), .alreadyOnList("bread")])
         precondition(groceries.lists[home]!.map(\.name) == ["Oat milk ", "Apples", "apples", "Bread"])
+    }
+
+    @MainActor
+    static func matchesFoodLikeRecipeImports() async throws {
+        let groceries = RecordingGroceries()
+        groceries.lists[home] = [GroceryItem(name: "2 large onions, diced", amount: "", source: "Stew", position: 1)]
+        let outcomes = try await adder(groceries).add(["onion", "Garlic", "3 cloves garlic"])
+        precondition(outcomes == [.alreadyOnList("onion"), .added("Garlic"), .alreadyOnList("3 cloves garlic")],
+            "Spoken items match the list by food, as reviewed recipe ingredients do")
+        precondition(groceries.lists[home]!.map(\.name) == ["2 large onions, diced", "Garlic"])
     }
 
     @MainActor

@@ -2,7 +2,8 @@ import ActivityKit
 import Foundation
 import Observation
 
-/// One cooking session owns both in-app navigation and the interactive Live Activity.
+/// One cooking session owns in-app navigation, its step timers, the interactive Live Activity, and recording
+/// a finished cook. The app and Live Activity intents share `shared`; tests build their own with controlled dependencies.
 @MainActor @Observable
 final class CookingSession {
     static let shared = CookingSession()
@@ -22,25 +23,36 @@ final class CookingSession {
     private(set) var paused: Snapshot?
     private(set) var activityWarning: String?
     var stepIndex: Int { snapshot?.stepIndex ?? 0 }
+    /// Every running step timer. Their changes update the Live Activity.
+    let timers: CookingTimers
+    @ObservationIgnored private let finishedCooks: FinishedCooks
+    @ObservationIgnored private let defaults: UserDefaults
+    @ObservationIgnored private let activities: any CookingActivities
     @ObservationIgnored private var photoLoad: Task<Void, Never>?
     @ObservationIgnored private var pendingUpdate: Task<Void, Never>?
     private let storageKey = "cookingSession"
     private let accountKey = "cookingSessionAccountID"
     private let pausedKey = "pausedCookingSession"
 
-    private init() {
-        if let data = UserDefaults.standard.data(forKey: storageKey),
+    init(timers: CookingTimers = CookingTimers(), finishedCooks: FinishedCooks = .shared,
+         defaults: UserDefaults = .standard, activities: any CookingActivities = SystemCookingActivities()) {
+        self.timers = timers
+        self.finishedCooks = finishedCooks
+        self.defaults = defaults
+        self.activities = activities
+        if let data = defaults.data(forKey: storageKey),
            let saved = try? JSONDecoder().decode(Snapshot.self, from: data),
            saved.startedAt > .now.addingTimeInterval(-8 * 3600),
            saved.recipe.steps.indices.contains(saved.stepIndex) {
             snapshot = saved
         }
-        if let data = UserDefaults.standard.data(forKey: pausedKey),
+        if let data = defaults.data(forKey: pausedKey),
            let saved = try? JSONDecoder().decode(Snapshot.self, from: data),
            saved.startedAt > .now.addingTimeInterval(-8 * 3600),
            saved.recipe.steps.indices.contains(saved.stepIndex) {
             paused = saved
         }
+        timers.onChange = { [weak self] in self?.refresh() }
     }
 
     /// The place to reopen Cook Mode for a recipe: its open session, else where it was paused.
@@ -60,13 +72,13 @@ final class CookingSession {
     /// Preserve an ongoing session across launches, while clearing private photos on account changes.
     func setAccount(_ accountID: UUID?) {
         let account = accountID?.uuidString
-        guard account == nil || UserDefaults.standard.string(forKey: accountKey) != account else { return }
+        guard account == nil || defaults.string(forKey: accountKey) != account else { return }
         end()
         paused = nil
         persist()
         CookingActivityPhoto.clear()
-        if let account { UserDefaults.standard.set(account, forKey: accountKey) }
-        else { UserDefaults.standard.removeObject(forKey: accountKey) }
+        if let account { defaults.set(account, forKey: accountKey) }
+        else { defaults.removeObject(forKey: accountKey) }
     }
 
     func begin(recipe: Recipe, servings: Int, cookedRecipeID: UUID? = nil) {
@@ -84,32 +96,26 @@ final class CookingSession {
         snapshot?.servings = servings
         persist()
         activityWarning = nil
-        guard UserDefaults.standard.bool(forKey: PreferenceKey.liveActivity) else {
+        guard defaults.bool(forKey: PreferenceKey.liveActivity) else {
             // A session restored from before the setting was turned off may still have one.
-            let id = snapshot?.id
-            enqueue {
-                for activity in Activity<CookingActivityAttributes>.activities where activity.attributes.sessionID == id {
-                    await activity.end(nil, dismissalPolicy: .immediate)
-                }
-            }
+            let id = snapshot?.id, showing = activities.showing()
+            enqueue { [activities] in await activities.end(showing, session: id, finished: false) }
             return
         }
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+        guard activities.areEnabled else {
             activityWarning = "Live Activities are off. Allow them for Calendish in the Settings app."
             return
         }
         guard let snapshot else { return }
         preparePhoto(for: snapshot)
-        if Activity<CookingActivityAttributes>.activities.contains(where: {
-            $0.attributes.sessionID == snapshot.id && ($0.activityState == .active || $0.activityState == .stale)
-        }) {
+        if activities.isShowing(session: snapshot.id) {
             refresh()
             return
         }
         do {
             let attributes = CookingActivityAttributes(sessionID: snapshot.id,
                 recipeTitle: String(recipe.title.prefix(120)), stepCount: recipe.steps.count)
-            _ = try Activity.request(attributes: attributes, content: content(for: snapshot), pushType: nil)
+            try activities.start(attributes, content: content(for: snapshot))
         } catch {
             activityWarning = "Couldn’t show the Live Activity. You can keep cooking here."
         }
@@ -132,7 +138,7 @@ final class CookingSession {
     func startTimer(sessionID: String, at index: Int) async {
         guard snapshot?.id.uuidString == sessionID, snapshot?.stepIndex == index,
               case .started = startCurrentStepTimer() else { return }
-        await CookingTimers.shared.alertsScheduled()
+        await timers.alertsScheduled()
         await pendingUpdate?.value
     }
 
@@ -147,21 +153,17 @@ final class CookingSession {
         guard let snapshot else { return nil }
         let index = snapshot.stepIndex
         guard let duration = CookTimer.duration(in: snapshot.recipe.steps[index]) else { return .noDuration }
-        guard !CookingTimers.shared.timers.contains(where: { $0.recipeID == snapshot.recipe.id && $0.stepIndex == index }) else {
+        guard !timers.timers.contains(where: { $0.recipeID == snapshot.recipe.id && $0.stepIndex == index }) else {
             return .alreadyRunning
         }
-        CookingTimers.shared.start(recipe: snapshot.recipe, stepIndex: index, duration: duration)
+        timers.start(recipe: snapshot.recipe, stepIndex: index, duration: duration)
         return .started(duration)
     }
 
     func refresh() {
         guard let snapshot else { return }
         let content = content(for: snapshot)
-        enqueue {
-            for activity in Activity<CookingActivityAttributes>.activities where activity.attributes.sessionID == snapshot.id {
-                await activity.update(content)
-            }
-        }
+        enqueue { [activities] in await activities.update(session: snapshot.id, to: content) }
     }
 
     /// Ends the session. Closing with timers still running remembers the place, so the timer can lead back to it.
@@ -170,34 +172,25 @@ final class CookingSession {
         photoLoad = nil
         let previous = snapshot
         if keepingPlace, !finished, let previous,
-           CookingTimers.shared.timers.contains(where: { $0.recipeID == previous.recipe.id }) {
+           timers.timers.contains(where: { $0.recipeID == previous.recipe.id }) {
             paused = previous
         }
         // Only activities running now; one started later belongs to a new session.
-        let activityIDs = Set(Activity<CookingActivityAttributes>.activities.map(\.id))
+        let showing = activities.showing()
         snapshot = nil
         persist()
         // Every way of finishing, in the app or from the Live Activity, counts toward cooked history.
         if finished, let previous, let recipeID = previous.cookedRecipeID {
-            FinishedCooks.shared.add(FinishedCook(recipeID: recipeID, startedAt: previous.startedAt,
-                accountID: UserDefaults.standard.string(forKey: accountKey).flatMap(UUID.init)))
+            finishedCooks.add(FinishedCook(recipeID: recipeID, startedAt: previous.startedAt,
+                accountID: defaults.string(forKey: accountKey).flatMap(UUID.init)))
         }
         activityWarning = nil
-        enqueue {
-            for activity in Activity<CookingActivityAttributes>.activities where activityIDs.contains(activity.id) {
-                // Capture the session before awaiting so a newly started activity isn't ended.
-                guard previous == nil || activity.attributes.sessionID == previous?.id else { continue }
-                var state = activity.content.state
-                state.isFinished = finished
-                if finished { state.instruction = "Enjoy your meal!" }
-                await activity.end(ActivityContent(state: state, staleDate: nil),
-                    dismissalPolicy: finished ? .after(.now.addingTimeInterval(60)) : .immediate)
-            }
-        }
+        // Capture the session before awaiting so a newly started activity isn't ended.
+        enqueue { [activities] in await activities.end(showing, session: previous?.id, finished: finished) }
     }
 
-    private func content(for snapshot: Snapshot) -> ActivityContent<CookingActivityAttributes.ContentState> {
-        let timer = CookingTimers.shared.timers
+    private func content(for snapshot: Snapshot) -> CookingActivities.Content {
+        let timer = timers.timers
             .filter { $0.recipeID == snapshot.recipe.id && !$0.isPaused }
             .min { $0.end < $1.end }
         let step = Ingredient.convertTemperatures(in: snapshot.recipe.steps[snapshot.stepIndex], to: .current)
@@ -226,10 +219,10 @@ final class CookingSession {
     }
 
     private func persist() {
-        if let snapshot { UserDefaults.standard.set(try? JSONEncoder().encode(snapshot), forKey: storageKey) }
-        else { UserDefaults.standard.removeObject(forKey: storageKey) }
-        if let paused { UserDefaults.standard.set(try? JSONEncoder().encode(paused), forKey: pausedKey) }
-        else { UserDefaults.standard.removeObject(forKey: pausedKey) }
+        if let snapshot { defaults.set(try? JSONEncoder().encode(snapshot), forKey: storageKey) }
+        else { defaults.removeObject(forKey: storageKey) }
+        if let paused { defaults.set(try? JSONEncoder().encode(paused), forKey: pausedKey) }
+        else { defaults.removeObject(forKey: pausedKey) }
     }
 
     private func enqueue(_ action: @escaping @MainActor () async -> Void) {

@@ -6,7 +6,7 @@ import Foundation
 struct SpokenGroceryAdd {
     enum Outcome: Equatable {
         case added(String)
-        /// An unchecked item with the same name is already on the list. Checked-off items don't count, so they can be bought again.
+        /// An unchecked item for the same food is already on the list, by `GroceryFood`'s rule.
         case alreadyOnList(String)
 
         var name: String {
@@ -26,17 +26,15 @@ struct SpokenGroceryAdd {
     /// Returns only once every added item is saved, so callers never confirm an item the household can't see.
     func add(_ items: [String]) async throws -> [Outcome] {
         guard let user = userID(), let householdID = try await household(user) else { throw Failure.noHousehold }
-        let names = items.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         let existing = try await transport.fetch(householdID: householdID)
-        var onList = Set(existing.filter { !$0.isComplete }.map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
-        var added: [GroceryItem] = []
-        var position = existing.map(\.position).max() ?? 0
-        let outcomes = names.map { name -> Outcome in
-            guard onList.insert(name.lowercased()).inserted else { return .alreadyOnList(name) }
-            position += 1
-            added.append(GroceryItem(name: name, amount: "", source: "General", position: position))
+        var onList = GroceryFood.onList(existing)
+        var names: [String] = []
+        let outcomes = GroceryItem.addableNames(items).map { name -> Outcome in
+            guard onList.insert(GroceryFood.key(of: name)).inserted else { return .alreadyOnList(name) }
+            names.append(name)
             return .added(name)
         }
+        let added = GroceryItem.general(named: names, after: existing)
         if !added.isEmpty { try await transport.write(.insert(added), householdID: householdID) }
         return outcomes
     }

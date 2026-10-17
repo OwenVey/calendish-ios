@@ -338,7 +338,7 @@ struct GrocerySyncWorkflowTests {
         precondition(sync.add(names: ["", "   "]).isEmpty, "Blank additions write nothing")
         remote.writes[0].completion.resume()
         await until { remote.writes.count == 2 }
-        precondition(GrocerySync.addableNames([" Salt ", ""]) == ["Salt"])
+        precondition(GroceryItem.addableNames([" Salt ", ""]) == ["Salt"])
         sync.setHousehold(nil)
     }
 
