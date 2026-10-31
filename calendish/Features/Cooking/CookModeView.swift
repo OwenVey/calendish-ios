@@ -47,7 +47,8 @@ struct CookModeView: View {
             GeometryReader { geometry in
                 let wide = wideLayout
                 let timers = timers
-                let sheetHeight = min(340, max(220, geometry.size.height * 0.38))
+                let bottomInset = screenBottomInset
+                let sheetHeight = min(340, max(220, (geometry.size.height - bottomInset) * 0.38))
                 let peekHeight = min(peekHeight, sheetHeight)
                 HStack(spacing: 0) {
                     if wide, showIngredients {
@@ -73,8 +74,7 @@ struct CookModeView: View {
                         CookStepControls(stepIndex: stepSelection, stepCount: recipe.steps.count,
                                          recordsCook: session.snapshot?.cookedRecipeID != nil, onFinish: finish)
                     }
-                    // The stack already ends above the bottom safe area. Counting that inset
-                    // again leaves a gap above the sheet and shrinks the step's scroll area.
+                    // Sheet detents are measured above the screen's bottom inset.
                     .padding(.bottom, wide ? 0 : (showIngredients ? sheetHeight : peekHeight) + 12)
                     .transaction(value: showIngredients) { transaction in
                         // Interactive sheet dismissal can suppress implicit animations.
@@ -83,6 +83,7 @@ struct CookModeView: View {
                         transaction.animation = reduceMotion ? nil : .smooth(duration: 0.32)
                     }
                 }
+                .padding(.bottom, bottomInset)
                 .sheet(isPresented: .constant(!wideLayout)) {
                     ingredientPanel(collapsed: !showIngredients)
                         .calendishAlert("Timer finished", isPresented: timerAlertPresented(onIngredients: true)) {
@@ -98,7 +99,11 @@ struct CookModeView: View {
                         .presentationBackground(Color(.secondarySystemGroupedBackground))
                 }
             }
-            .background(CalendishStyle.background)
+            // Some iOS 26 releases fold the ingredient sheet's height into this view's bottom safe area,
+            // which would count the sheet twice. Lay out from the screen edge and add back
+            // only the window's own inset, so the steps end at the sheet on every release.
+            .ignoresSafeArea(.container, edges: .bottom)
+            .background(CalendishStyle.background.ignoresSafeArea())
             .navigationTitle(recipe.title).navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -193,6 +198,13 @@ struct CookModeView: View {
                 withAnimation(reduceMotion ? nil : .smooth(duration: 0.32)) { showIngredients = detent != .height(peek) }
             }
         )
+    }
+
+    /// The device's own bottom inset, which sheets presented over Cook Mode never change.
+    private var screenBottomInset: CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        return scene?.keyWindow?.safeAreaInsets.bottom ?? 0
     }
 
     /// Hands-free use keeps the screen awake even when the usual preference is off.
