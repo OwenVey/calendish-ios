@@ -1,7 +1,7 @@
 import Foundation
 
-/// A network-free adapter shared by previews and store workflow tests.
-/// Database authorization and copy-on-move rules are verified separately against the SQL RPCs.
+/// A network-free adapter shared by previews and store workflow tests. It follows the SQL RPCs' recipe ownership
+/// rules, checked by `HouseholdBackendScenarios`; `scripts/test-household-moves.mjs` checks the same rules in SQL.
 @MainActor
 final class InMemoryHouseholdBackend: HouseholdBackend, GrocerySyncTransport {
     var account: HouseholdAccount?
@@ -116,12 +116,20 @@ final class InMemoryHouseholdBackend: HouseholdBackend, GrocerySyncTransport {
                 snapshot.recipes.insert(saved, at: 0)
             }
         case .deleteRecipe(let recipe):
+            guard let stored = snapshot.recipes.first(where: { $0.id == recipe }) else { break }
+            if stored.owner?.person == user {
+                if stored.owner?.isShared == true { retainHouseholdCopy(of: stored, in: &snapshot) }
+            } else if stored.owner?.person != nil { throw CocoaError(.fileWriteNoPermission) }
             snapshot.recipes.removeAll { $0.id == recipe }
             snapshot.reviews.removeAll { $0.recipeID == recipe }
             snapshot.cooks.removeAll { $0.recipeID == recipe }
             for index in snapshot.meals.indices where snapshot.meals[index].recipeID == recipe { snapshot.meals[index].recipeID = nil }
         case let .sharing(recipe, shared):
-            if let index = snapshot.recipes.firstIndex(where: { $0.id == recipe }) { snapshot.recipes[index].owner = .person(user, shared: shared) }
+            guard let index = snapshot.recipes.firstIndex(where: { $0.id == recipe }), snapshot.recipes[index].owner?.person == user else {
+                throw CocoaError(.fileWriteNoPermission)
+            }
+            if snapshot.recipes[index].owner?.isShared == true, !shared { retainHouseholdCopy(of: snapshot.recipes[index], in: &snapshot) }
+            snapshot.recipes[index].owner = .person(user, shared: shared)
         case let .favorite(recipe, _, enabled):
             if let index = snapshot.recipes.firstIndex(where: { $0.id == recipe }) { snapshot.recipes[index].isFavorite = enabled }
         case .review(let review):
@@ -153,6 +161,26 @@ final class InMemoryHouseholdBackend: HouseholdBackend, GrocerySyncTransport {
         case .removeNote(let note): snapshot.notes.removeAll { $0.id == note }
         }
         homes[id] = snapshot
+    }
+    /// Like `private.retain_household_copy`: when a shared original stops being shared or is deleted, the household
+    /// keeps its own copy, and its planned meals, cooked history, and other members' reviews follow the copy.
+    private func retainHouseholdCopy(of original: Recipe, in snapshot: inout HouseholdSnapshot) {
+        var copy = original
+        copy.id = UUID()
+        copy.owner = .household
+        copy.isFavorite = false
+        copy.revision = 1
+        snapshot.recipes.append(copy)
+        for index in snapshot.meals.indices where snapshot.meals[index].recipeID == original.id { snapshot.meals[index].recipeID = copy.id }
+        for index in snapshot.cooks.indices where snapshot.cooks[index].recipeID == original.id { snapshot.cooks[index].recipeID = copy.id }
+        let members = Set(snapshot.members.map(\.userID))
+        snapshot.reviews += snapshot.reviews.filter { review in
+            review.recipeID == original.id && review.userID != original.owner?.person && members.contains(review.userID)
+        }.map {
+            var review = $0
+            review.recipeID = copy.id
+            return review
+        }
     }
     func addMeal(_ meal: PlannedMeal, household: UUID, expectedRevision: Int) async throws -> PlannedMealAddition {
         guard let user = account?.id, memberships[user] == household else { throw CocoaError(.fileWriteNoPermission) }

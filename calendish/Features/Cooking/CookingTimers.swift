@@ -5,7 +5,6 @@ import SwiftUI
 /// Timers finish themselves while Calendish is open, and keep their system alerts in step with every change.
 @Observable
 final class CookingTimers {
-    static let shared = CookingTimers(onChange: { CookingSession.shared.refresh() })
     private(set) var timers: [CookTimer] = []
     var finished: [CookTimer] = []
     var isCooking = false
@@ -14,10 +13,10 @@ final class CookingTimers {
     @ObservationIgnored private var expiration: Task<Void, Never>?
     @ObservationIgnored private let alerts: CookingTimerAlerts
     @ObservationIgnored private let defaults: UserDefaults
-    @ObservationIgnored private let onChange: () -> Void
+    /// Called after every change to the running timers, such as to update a Live Activity.
+    @ObservationIgnored var onChange: () -> Void
     private let storageKey = "activeCookingTimers"
 
-    /// - Parameter onChange: Called after every change to the running timers, such as to update a Live Activity.
     init(alerts: CookingTimerAlerts = SystemCookingTimerAlerts(), defaults: UserDefaults = .standard, onChange: @escaping () -> Void = { }) {
         self.alerts = alerts
         self.defaults = defaults

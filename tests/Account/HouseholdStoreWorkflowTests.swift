@@ -58,13 +58,16 @@ struct HouseholdWorkflowApp: App {
     private func run() async throws {
         try HouseholdNotificationTests.run()
         try await SupabaseHouseholdBackendContractTests.run()
+        try await RecipeOwnershipScenarios.run()
         try await AutoPlanWorkflowTests.run()
         UserDefaults.standard.removeObject(forKey: "pendingHouseholdInvite")
         defer { UserDefaults.standard.removeObject(forKey: "pendingHouseholdInvite") }
         let backend = InMemoryHouseholdBackend()
         let defaults = UserDefaults(suiteName: "finished-cook-workflow-\(UUID().uuidString)")!
         let finishedCooks = FinishedCooks(defaults: defaults)
-        let store = HouseholdStore(backend: backend, finishedCooks: finishedCooks)
+        var signedInBeforeSignOut: [Bool] = []
+        let store = HouseholdStore(backend: backend, finishedCooks: finishedCooks,
+            beforeSignOut: { signedInBeforeSignOut.append(backend.account != nil) })
         let session = Task { await store.start() }
         defer { session.cancel() }
         try await until { store.phase == .signedOut }
@@ -76,6 +79,7 @@ struct HouseholdWorkflowApp: App {
         try await until { entryGate.entered }
         backend.beforeSnapshot = nil
         await store.signOut()
+        try expect(signedInBeforeSignOut == [true], "Sign-out work runs while the session is still signed in")
         try await until { store.phase == .signedOut }
         entryGate.release()
         do { try await entering.value; throw NSError(domain: "Stale entry must cancel", code: 1) }

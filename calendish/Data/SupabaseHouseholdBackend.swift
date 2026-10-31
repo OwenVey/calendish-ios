@@ -46,7 +46,6 @@ final class SupabaseHouseholdBackend: HouseholdBackend {
         return true
     }
     func signOut() async throws {
-        if client === supabase { await HouseholdNotifications.shared.unregisterBeforeSignOut() }
         try await client.auth.signOut()
     }
     func currentHousehold(user: UUID) async throws -> HouseholdRecord? {

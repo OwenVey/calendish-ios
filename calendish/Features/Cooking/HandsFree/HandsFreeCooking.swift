@@ -40,11 +40,12 @@ final class HandsFreeCooking {
     @ObservationIgnored private var run = 0
     @ObservationIgnored private var activation: Task<Void, Never>?
     @ObservationIgnored private var handled: Set<String> = []
-    private var session: CookingSession { .shared }
-    private var timers: CookingTimers { .shared }
+    @ObservationIgnored private let session: CookingSession
+    private var timers: CookingTimers { session.timers }
 
-    init(speech: HandsFreeSpeech) {
+    init(speech: HandsFreeSpeech, session: CookingSession = .shared) {
         self.speech = speech
+        self.session = session
     }
 
     /// Explicitly turns listening on, or retries after a pause or failure.
